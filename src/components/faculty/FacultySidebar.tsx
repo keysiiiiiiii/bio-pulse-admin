@@ -1,7 +1,7 @@
 import { Menu, LayoutDashboard, FileText, FilePlus, Bell, Settings, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
+import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 type FacultyView = "dashboard" | "dtr" | "leave" | "notifications" | "settings";
 
@@ -29,11 +29,36 @@ export const FacultySidebar = ({ currentView, onViewChange, collapsed, onToggleC
 
   return (
     <Sidebar className={collapsed ? "w-14" : "w-64"} collapsible="icon">
-      <div className="p-4 border-b flex items-center justify-between">
-        <Button variant="ghost" size="icon" onClick={onToggleCollapse}>
-          <Menu className="h-5 w-5" />
-        </Button>
-      </div>
+      <SidebarHeader className={collapsed ? "p-2" : "p-6"}>
+        <div className="flex items-center gap-3 border-b pb-4">
+          {!collapsed && (
+            <>
+              <Avatar className="h-12 w-12 border-2 border-primary">
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                  JD
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-foreground truncate">John Doe</p>
+                <p className="text-sm text-muted-foreground truncate">Faculty</p>
+                <p className="text-xs text-muted-foreground">ID: 23-2025-1001</p>
+              </div>
+            </>
+          )}
+          {collapsed && (
+            <Avatar className="h-8 w-8 border-2 border-primary mx-auto">
+              <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+                JD
+              </AvatarFallback>
+            </Avatar>
+          )}
+        </div>
+        <div className={collapsed ? "py-2" : "pt-4"}>
+          <button onClick={onToggleCollapse} className="w-full flex items-center justify-center p-2 hover:bg-accent rounded-md">
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
+      </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
@@ -54,14 +79,21 @@ export const FacultySidebar = ({ currentView, onViewChange, collapsed, onToggleC
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        <div className="mt-auto p-4">
-          <Button variant="destructive" onClick={handleLogout} className="w-full">
-            <LogOut className="h-5 w-5" />
-            {!collapsed && <span className="ml-2">Logout</span>}
-          </Button>
-        </div>
       </SidebarContent>
+
+      <SidebarFooter className="p-4 border-t">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={handleLogout}
+              className="hover:bg-destructive hover:text-destructive-foreground"
+            >
+              <LogOut className="h-5 w-5" />
+              {!collapsed && <span>Logout</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 };

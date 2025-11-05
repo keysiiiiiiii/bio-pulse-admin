@@ -16,16 +16,16 @@ const Faculty = () => {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-screen w-full bg-background">
         <FacultySidebar
           currentView={currentView}
           onViewChange={setCurrentView}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
-        <div className="flex-1 flex flex-col">
-          <FacultyHeader />
-          <main className="flex-1 p-6">
+        <div className="flex-1 flex flex-col min-w-0">
+          <FacultyHeader currentView={currentView} sidebarCollapsed={sidebarCollapsed} />
+          <main className="flex-1 p-6 overflow-auto">
             {currentView === "dashboard" && <FacultyDashboard />}
             {currentView === "dtr" && <FacultyDTR />}
             {currentView === "leave" && <FacultyLeaveForm />}
