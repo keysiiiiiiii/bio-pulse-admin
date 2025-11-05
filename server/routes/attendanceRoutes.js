@@ -368,4 +368,151 @@ router.get('/by-month', async (req, res) => {
   }
 });
 
+// (9) LOGS - For frontend compatibility (alias for /today)
+// GET /api/attendance/logs?date=YYYY-MM-DD
+router.get('/logs', async (req, res) => {
+  try {
+    const date = req.query.date ? normalizeYMD(req.query.date) : todayPH();
+    const suid = await getSuidFromQuery(req);
+
+    let q = db
+      .from('attendance_logs')
+      .select(`
+        id,
+        time_in,
+        time_out,
+        att_date,
+        method,
+        attendance_status,
+        staff_users!inner(
+          id,
+          staff_id,
+          name,
+          employee_type,
+          department
+        )
+      `)
+      .eq('att_date', date)
+      .order('time_in', { ascending: true });
+
+    if (suid) q = q.eq('staff_user_id', suid);
+
+    const { data, error } = await q;
+    if (error) throw error;
+
+    const shaped = (data || []).map(shapeRow);
+    return res.json(shaped);
+  } catch (e) {
+    console.error('[logs] error:', e.message || e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// (10) STATS - Daily attendance statistics
+// GET /api/attendance/stats?date=YYYY-MM-DD
+router.get('/stats', async (req, res) => {
+  try {
+    const date = req.query.date ? normalizeYMD(req.query.date) : todayPH();
+
+    // Get all staff count
+    const { count: totalCount, error: countErr } = await db
+      .from('staff_users')
+      .select('*', { count: 'exact', head: true });
+    if (countErr) throw countErr;
+
+    // Get today's attendance logs
+    const { data: logs, error: logsErr } = await db
+      .from('attendance_logs')
+      .select('staff_user_id, time_in, time_out, attendance_status')
+      .eq('att_date', date);
+    if (logsErr) throw logsErr;
+
+    // Get approved leaves for today
+    const { data: leaves, error: leavesErr } = await db
+      .from('leave_requests')
+      .select('id')
+      .eq('date', date)
+      .in('status', ['Approved', 'approved']);
+    if (leavesErr) throw leavesErr;
+
+    // Calculate stats
+    const total = totalCount || 0;
+    const present = new Set(
+      (logs || [])
+        .filter(log => log.time_in)
+        .map(log => log.staff_user_id)
+    ).size;
+    const late = (logs || []).filter(log => log.attendance_status === 'Late').length;
+    const on_leave = (leaves || []).length;
+    const absent = Math.max(0, total - present - on_leave);
+
+    return res.json({
+      total,
+      present,
+      absent,
+      late,
+      on_leave
+    });
+  } catch (e) {
+    console.error('[stats] error:', e.message || e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// (11) MANUAL CHECK-IN - For admin manual attendance
+// POST /api/attendance/manual
+router.post('/manual', async (req, res) => {
+  try {
+    const { staff_id, date, time_in, time_out } = req.body;
+    if (!staff_id || !date) {
+      return res.status(400).json({ error: 'staff_id and date required' });
+    }
+
+    const staff_user_id = await getStaffUserIdByStaffId(staff_id);
+    if (!staff_user_id) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const att_date = normalizeYMD(date);
+    
+    // Check if record exists
+    const { data: existing, error: selErr } = await db
+      .from('attendance_logs')
+      .select('id')
+      .eq('staff_user_id', staff_user_id)
+      .eq('att_date', att_date)
+      .limit(1);
+    if (selErr) throw selErr;
+
+    const payload = {
+      staff_user_id,
+      att_date,
+      time_in: time_in || null,
+      time_out: time_out || null,
+      method: 'manual',
+      attendance_status: time_in ? (isLate(time_in) ? 'Late' : 'Present') : 'Absent'
+    };
+
+    if (existing && existing.length > 0) {
+      // Update existing record
+      const { error: updErr } = await db
+        .from('attendance_logs')
+        .update(payload)
+        .eq('id', existing[0].id);
+      if (updErr) throw updErr;
+    } else {
+      // Insert new record
+      const { error: insErr } = await db
+        .from('attendance_logs')
+        .insert(payload);
+      if (insErr) throw insErr;
+    }
+
+    return res.json({ ok: true, message: 'Attendance recorded successfully' });
+  } catch (e) {
+    console.error('[manual] error:', e.message || e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
