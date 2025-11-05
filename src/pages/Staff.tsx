@@ -24,8 +24,8 @@ const Staff = () => {
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
         <div className="flex-1 flex flex-col">
-          <StaffHeader />
-          <main className="flex-1 p-6">
+          <StaffHeader currentView={currentView} />
+          <main className="flex-1 p-6 overflow-auto">
             {currentView === "dashboard" && <StaffDashboard />}
             {currentView === "dtr" && <StaffDTR />}
             {currentView === "leave" && <StaffLeaveForm />}
