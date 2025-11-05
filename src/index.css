@@ -8,68 +8,68 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Academic Professional Theme - Light Mode */
-    --background: 210 20% 98%;
-    --foreground: 215 25% 15%;
+    /* Nature-Inspired Green Theme - Light Mode */
+    --background: 65 68% 95%;
+    --foreground: 120 38% 13%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 15%;
+    --card-foreground: 120 38% 13%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 15%;
+    --popover-foreground: 120 38% 13%;
 
-    /* Deep Academic Blue */
-    --primary: 215 70% 25%;
+    /* Dark Green - Primary */
+    --primary: 113 34% 24%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 215 70% 85%;
+    --primary-light: 113 34% 85%;
     
-    /* Teal Accent for modern tech feel */
-    --secondary: 180 50% 45%;
+    /* Fern Green - Secondary */
+    --secondary: 92 45% 33%;
     --secondary-foreground: 0 0% 100%;
-    --secondary-light: 180 50% 90%;
+    --secondary-light: 92 45% 88%;
 
-    /* Warm action color */
-    --accent: 25 90% 55%;
+    /* Asparagus - Accent */
+    --accent: 78 35% 48%;
     --accent-foreground: 0 0% 100%;
-    --accent-light: 25 90% 95%;
+    --accent-light: 78 35% 90%;
 
-    --muted: 210 20% 95%;
-    --muted-foreground: 215 15% 45%;
+    --muted: 65 40% 90%;
+    --muted-foreground: 113 20% 40%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 76% 36%;
+    --success: 92 45% 33%;
     --success-foreground: 0 0% 100%;
     
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 215 20% 88%;
-    --input: 215 20% 88%;
-    --ring: 215 70% 25%;
+    --border: 78 25% 85%;
+    --input: 78 25% 85%;
+    --ring: 113 34% 24%;
 
     --radius: 0.75rem;
 
     /* Sidebar styling */
-    --sidebar-background: 215 70% 25%;
-    --sidebar-foreground: 210 20% 98%;
-    --sidebar-primary: 180 50% 45%;
+    --sidebar-background: 120 38% 13%;
+    --sidebar-foreground: 65 68% 95%;
+    --sidebar-primary: 92 45% 33%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 70% 30%;
+    --sidebar-accent: 113 34% 20%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 215 70% 20%;
-    --sidebar-ring: 180 50% 45%;
+    --sidebar-border: 120 38% 10%;
+    --sidebar-ring: 92 45% 33%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(215 70% 25%), hsl(215 70% 35%));
-    --gradient-secondary: linear-gradient(135deg, hsl(180 50% 45%), hsl(180 50% 55%));
-    --gradient-accent: linear-gradient(135deg, hsl(25 90% 55%), hsl(25 90% 65%));
+    --gradient-primary: linear-gradient(135deg, hsl(120 38% 13%), hsl(113 34% 24%));
+    --gradient-secondary: linear-gradient(135deg, hsl(92 45% 33%), hsl(78 35% 48%));
+    --gradient-accent: linear-gradient(135deg, hsl(78 35% 48%), hsl(65 68% 77%));
     
     /* Shadows */
-    --shadow-sm: 0 1px 3px hsl(215 25% 15% / 0.1);
-    --shadow-md: 0 4px 12px hsl(215 25% 15% / 0.12);
-    --shadow-lg: 0 10px 30px hsl(215 25% 15% / 0.15);
+    --shadow-sm: 0 1px 3px hsl(120 38% 13% / 0.1);
+    --shadow-md: 0 4px 12px hsl(120 38% 13% / 0.12);
+    --shadow-lg: 0 10px 30px hsl(120 38% 13% / 0.15);
     
     /* Transitions */
     --transition-base: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -77,51 +77,51 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 215 30% 8%;
-    --foreground: 210 20% 98%;
+    --background: 120 38% 8%;
+    --foreground: 65 68% 95%;
 
-    --card: 215 28% 12%;
-    --card-foreground: 210 20% 98%;
+    --card: 113 34% 12%;
+    --card-foreground: 65 68% 95%;
 
-    --popover: 215 28% 12%;
-    --popover-foreground: 210 20% 98%;
+    --popover: 113 34% 12%;
+    --popover-foreground: 65 68% 95%;
 
-    --primary: 215 70% 55%;
+    --primary: 92 45% 45%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 215 70% 20%;
+    --primary-light: 92 45% 20%;
 
-    --secondary: 180 50% 50%;
+    --secondary: 78 35% 55%;
     --secondary-foreground: 0 0% 100%;
-    --secondary-light: 180 50% 15%;
+    --secondary-light: 78 35% 18%;
 
-    --accent: 25 90% 60%;
-    --accent-foreground: 0 0% 100%;
-    --accent-light: 25 90% 15%;
+    --accent: 65 68% 70%;
+    --accent-foreground: 120 38% 13%;
+    --accent-light: 65 68% 20%;
 
-    --muted: 215 28% 15%;
-    --muted-foreground: 215 15% 65%;
+    --muted: 113 28% 15%;
+    --muted-foreground: 78 20% 65%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 76% 36%;
+    --success: 92 45% 40%;
     --success-foreground: 0 0% 100%;
     
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 215 28% 20%;
-    --input: 215 28% 20%;
-    --ring: 215 70% 55%;
+    --border: 113 28% 20%;
+    --input: 113 28% 20%;
+    --ring: 92 45% 45%;
 
-    --sidebar-background: 215 30% 10%;
-    --sidebar-foreground: 210 20% 98%;
-    --sidebar-primary: 180 50% 50%;
+    --sidebar-background: 120 38% 10%;
+    --sidebar-foreground: 65 68% 95%;
+    --sidebar-primary: 92 45% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 28% 15%;
-    --sidebar-accent-foreground: 210 20% 98%;
-    --sidebar-border: 215 28% 15%;
-    --sidebar-ring: 180 50% 50%;
+    --sidebar-accent: 113 34% 15%;
+    --sidebar-accent-foreground: 65 68% 95%;
+    --sidebar-border: 113 28% 15%;
+    --sidebar-ring: 92 45% 45%;
   }
 }
 
