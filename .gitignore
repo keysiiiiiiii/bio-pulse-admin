@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+
+# Local Environment Overrides (HUWAG I-COMMIT)
+.env.local
