@@ -41,26 +41,25 @@ app.get('/api/ping', (_req, res) => res.json({ ok: true, time: new Date().toISOS
 app.get('/api/ping', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
 // ================= ROUTES =================
-const staffRoutes = requireFirst(['./routes/staffRoutes', './staffRoutes']);
+const staffRoutes = requireFirst(['./routes/staffRoutes.cjs', './routes/staffRoutes.js', './routes/staffRoutes', './staffRoutes']);
 if (staffRoutes) app.use('/api', staffRoutes);
 
-const attendanceRoutes = requireFirst(['./routes/attendanceRoutes', './attendanceRoutes']);
+const attendanceRoutes = requireFirst(['./routes/attendanceRoutes.cjs', './routes/attendanceRoutes.js', './routes/attendanceRoutes', './attendanceRoutes']);
 if (attendanceRoutes) app.use('/api/attendance', attendanceRoutes);
 
-const analyticsRoutes = requireFirst(['./routes/analyticsRoutes', './analyticsRoutes']);
-if (analyticsRoutes) app.use('/api/analytics', analyticsRoutes); // <-- mount once here
+const analyticsRoutes = requireFirst(['./routes/analyticsRoutes.cjs', './routes/analyticsRoutes.js', './routes/analyticsRoutes', './analyticsRoutes']);
+if (analyticsRoutes) app.use('/api/analytics', analyticsRoutes);
 
-// ✅ ADD THESE 2 LINES
-const notificationRoutes = requireFirst(['./routes/notificationRoutes', './notificationRoutes']);
+const notificationRoutes = requireFirst(['./routes/notificationRoutes.cjs', './routes/notificationRoutes.js', './routes/notificationRoutes', './notificationRoutes']);
 if (notificationRoutes) app.use('/api', notificationRoutes);
 
-const driveSyncRoutes = requireFirst(['./routes/driveSyncRoutes', './driveSyncRoutes']);
+const driveSyncRoutes = requireFirst(['./routes/driveSyncRoutes.cjs', './routes/driveSyncRoutes.js', './routes/driveSyncRoutes', './driveSyncRoutes']);
 if (driveSyncRoutes) app.use('/api/leaves', driveSyncRoutes);
 
-const leaveRoutes = requireFirst(['./routes/leaveRoutes', './leaveRoutes']);
+const leaveRoutes = requireFirst(['./routes/leaveRoutes.cjs', './routes/leaveRoutes.js', './routes/leaveRoutes', './leaveRoutes']);
 if (leaveRoutes) app.use('/', leaveRoutes);
 
-const gsheetsRoutes = requireFirst(['./routes/gsheetsRoutes', './gsheetsRoutes']);
+const gsheetsRoutes = requireFirst(['./routes/gsheetsRoutes.cjs', './routes/gsheetsRoutes.js', './routes/gsheetsRoutes', './gsheetsRoutes']);
 if (gsheetsRoutes) app.use('/', gsheetsRoutes);
 
 const dtrRoutes = require('./routes/dtrRoutes');
