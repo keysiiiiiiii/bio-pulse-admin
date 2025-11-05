@@ -24,7 +24,7 @@ const Faculty = () => {
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
         <div className="flex-1 flex flex-col min-w-0">
-          <FacultyHeader currentView={currentView} />
+          <FacultyHeader currentView={currentView} sidebarCollapsed={sidebarCollapsed} />
           <main className="flex-1 p-6 overflow-auto">
             {currentView === "dashboard" && <FacultyDashboard />}
             {currentView === "dtr" && <FacultyDTR />}

@@ -2,9 +2,10 @@ import { Building2 } from "lucide-react";
 
 interface StaffHeaderProps {
   currentView?: string;
+  sidebarCollapsed?: boolean;
 }
 
-export const StaffHeader = ({ currentView }: StaffHeaderProps) => {
+export const StaffHeader = ({ currentView, sidebarCollapsed }: StaffHeaderProps) => {
   const getViewTitle = () => {
     switch (currentView) {
       case "dashboard":
@@ -23,8 +24,8 @@ export const StaffHeader = ({ currentView }: StaffHeaderProps) => {
   };
 
   return (
-    <header className="border-b bg-card shadow-sm sticky top-0 z-10">
-      <div className="px-6 py-4 flex items-center gap-3">
+    <header className="border-b bg-card shadow-sm sticky top-0 z-10 transition-all duration-300">
+      <div className={`px-6 py-4 flex items-center gap-3 transition-all duration-300 ${sidebarCollapsed ? 'ml-0' : 'ml-0'}`}>
         <Building2 className="h-8 w-8 text-primary" />
         <div>
           <h1 className="text-xl font-bold text-foreground">Universidad de Manila</h1>
