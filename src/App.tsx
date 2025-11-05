@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
 import Admin from "./pages/Admin";
+import ICTO from "./pages/ICTO";
 import PlaceholderDashboard from "./pages/PlaceholderDashboard";
 import NotFound from "./pages/NotFound";
 
@@ -19,7 +20,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/admin" element={<Admin />} />
-          <Route path="/icto" element={<PlaceholderDashboard role="ICTO" />} />
+          <Route path="/icto" element={<ICTO />} />
           <Route path="/faculty" element={<PlaceholderDashboard role="Faculty" />} />
           <Route path="/staff" element={<PlaceholderDashboard role="Staff" />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
