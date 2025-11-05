@@ -6,7 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
 import Admin from "./pages/Admin";
 import ICTO from "./pages/ICTO";
-import PlaceholderDashboard from "./pages/PlaceholderDashboard";
+import Faculty from "./pages/Faculty";
+import Staff from "./pages/Staff";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,8 +22,8 @@ const App = () => (
           <Route path="/" element={<Login />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/icto" element={<ICTO />} />
-          <Route path="/faculty" element={<PlaceholderDashboard role="Faculty" />} />
-          <Route path="/staff" element={<PlaceholderDashboard role="Staff" />} />
+          <Route path="/faculty" element={<Faculty />} />
+          <Route path="/staff" element={<Staff />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
