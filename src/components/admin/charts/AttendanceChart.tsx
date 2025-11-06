@@ -1,12 +1,33 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
-
-const data = [
-  { name: "Present", value: 142, color: "hsl(var(--success))" },
-  { name: "Absent", value: 8, color: "hsl(var(--destructive))" },
-  { name: "Tardy", value: 6, color: "hsl(var(--warning))" },
-];
+import { useEffect, useState } from "react";
+import { attendanceApi } from "@/services/api";
 
 export function AttendanceChart() {
+  const [data, setData] = useState([
+    { name: "Present", value: 0, color: "hsl(var(--success))" },
+    { name: "Absent", value: 0, color: "hsl(var(--destructive))" },
+    { name: "Tardy", value: 0, color: "hsl(var(--warning))" },
+  ]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const stats = await attendanceApi.getStats(today);
+        
+        setData([
+          { name: "Present", value: stats.present, color: "hsl(var(--success))" },
+          { name: "Absent", value: stats.absent, color: "hsl(var(--destructive))" },
+          { name: "Tardy", value: stats.late, color: "hsl(var(--warning))" },
+        ]);
+      } catch (error) {
+        console.error('Failed to fetch attendance stats:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   return (
     <ResponsiveContainer width="100%" height={300}>
       <PieChart>
