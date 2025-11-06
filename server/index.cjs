@@ -13,75 +13,100 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 
-app.use(cors());
+// ======================================================
+// ✅ ADVANCED CORS CONFIGURATION (for LAN & localhost)
+// ======================================================
+const allowedOrigins = [
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+];
+
+const os = require('os');
+const networkInterfaces = os.networkInterfaces();
+Object.values(networkInterfaces).flat().forEach(iface => {
+  if (iface && iface.family === 'IPv4' && !iface.internal) {
+    allowedOrigins.push(`http://${iface.address}:8080`);
+  }
+});
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // allow curl / mobile
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    console.warn('❌ Blocked CORS for:', origin);
+    return callback(new Error('CORS not allowed for this origin'));
+  },
+  credentials: true,
+}));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ================= HEALTH CHECK =================
 app.get('/api/ping', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
-// ================= ROUTES =================
-// Helper: Try multiple module paths, return first that works
-function requireFirst(paths) {
-  for (const p of paths) {
-    try {
-      const mod = require(p);
-      console.log(`[mount] ✓ loaded ${p}`);
-      return mod;
-    } catch (e) {
-      // Keep trying
+// ============================================
+// ROBUST ROUTE LOADING AND MOUNTING
+// ============================================
+
+function loadRoute(routePath, routeName) {
+  try {
+    const route = require(routePath);
+    if (!route || typeof route !== 'function') {
+      console.error(`❌ Invalid router export: ${routeName}`);
+      return null;
     }
+    console.log(`✅ Loaded ${routeName} from ${routePath}`);
+    return route;
+  } catch (error) {
+    console.error(`❌ Failed to load ${routeName}:`, error.message);
+    return null;
   }
-  console.warn(`[mount] ✗ none found for ${paths.join(' | ')}`);
-  return null;
 }
 
-// Staff Routes - mount at /api (includes /auth/*)
-const staffRoutes = requireFirst(['./routes/staffRoutes.cjs', './routes/staffRoutes.js']);
+console.log('\n📦 Loading route modules...\n');
+
+const staffRoutes = loadRoute('./routes/staffRoutes.cjs', 'Staff Routes');
 if (staffRoutes) app.use('/api', staffRoutes);
 
-// Attendance Routes - mount at /api/attendance
-const attendanceRoutes = requireFirst(['./routes/attendanceRoutes.cjs', './routes/attendanceRoutes.js']);
+const attendanceRoutes = loadRoute('./routes/attendanceRoutes.cjs', 'Attendance Routes');
 if (attendanceRoutes) app.use('/api/attendance', attendanceRoutes);
 
-// Analytics Routes - mount at /api/analytics
-const analyticsRoutes = requireFirst(['./routes/analyticsRoutes.cjs', './routes/analyticsRoutes.js']);
+const analyticsRoutes = loadRoute('./routes/analyticsRoutes.cjs', 'Analytics Routes');
 if (analyticsRoutes) app.use('/api/analytics', analyticsRoutes);
 
-// Notification Routes - mount at /api
-const notificationRoutes = requireFirst(['./routes/notificationRoutes.cjs', './routes/notificationRoutes.js']);
+const notificationRoutes = loadRoute('./routes/notificationRoutes.cjs', 'Notification Routes');
 if (notificationRoutes) app.use('/api', notificationRoutes);
 
-// Drive Sync Routes - mount at /api/leaves
-const driveSyncRoutes = requireFirst(['./routes/driveSyncRoutes.cjs', './routes/driveSyncRoutes.js']);
+const driveSyncRoutes = loadRoute('./routes/driveSyncRoutes.cjs', 'Drive Sync Routes');
 if (driveSyncRoutes) app.use('/api/leaves', driveSyncRoutes);
 
-// Leave Routes - mount at /
-const leaveRoutes = requireFirst(['./routes/leaveRoutes.cjs', './routes/leaveRoutes.js']);
+const leaveRoutes = loadRoute('./routes/leaveRoutes.cjs', 'Leave Routes');
 if (leaveRoutes) app.use('/', leaveRoutes);
 
-// Google Sheets Routes - mount at /
-const gsheetsRoutes = requireFirst(['./routes/gsheetsRoutes.cjs', './routes/gsheetsRoutes.js']);
+const gsheetsRoutes = loadRoute('./routes/gsheetsRoutes.cjs', 'Google Sheets Routes');
 if (gsheetsRoutes) app.use('/', gsheetsRoutes);
 
-// DTR Routes - mount at /api/dtr
-const dtrRoutes = requireFirst(['./routes/dtrRoutes.cjs', './routes/dtrRoutes.js']);
+const dtrRoutes = loadRoute('./routes/dtrRoutes.cjs', 'DTR Routes');
 if (dtrRoutes) app.use('/api/dtr', dtrRoutes);
 
-// ===================== STATIC FILES =====================
-const staticDir = path.join(__dirname, '../public');
-app.use(express.static(staticDir));
+console.log('\n✅ Route loading complete!\n');
 
-// Serve uploaded avatars/files
+// ===================== DIAGNOSTICS =====================
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Backend is running',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// ===================== STATIC FILES =====================
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/leave-files', express.static(path.join(__dirname, 'leave_files')));
 
-// SPA entry point
-app.get('/', (req, res) => {
-  res.sendFile(path.join(staticDir, 'login', 'login.html'));
-});
 
-// ================= ROUTE INSPECTOR (Debug Tool) =================
+// ===================== ROUTE INSPECTOR =====================
 app.get('/__routes', (_req, res) => {
   const list = [];
   const parse = (stack, prefix = '') => {
@@ -89,15 +114,8 @@ app.get('/__routes', (_req, res) => {
       if (layer.route && layer.route.path) {
         const methods = Object.keys(layer.route.methods).map(m => m.toUpperCase());
         list.push({ methods, path: prefix + layer.route.path });
-      } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
-        const src = (layer.regexp && layer.regexp.source) || '';
-        const base = src
-          .replace('^\\/', '/')
-          .replace('\\/?(?=\\/|$)', '')
-          .replace('^', '')
-          .replace('$', '')
-          .replace('\\/', '/');
-        parse(layer.handle.stack, prefix + (base === '(?:\\/)?' ? '' : base));
+      } else if (layer.name === 'router' && layer.handle?.stack) {
+        parse(layer.handle.stack, prefix);
       }
     });
   };
@@ -113,7 +131,7 @@ app.post('/api/leaves/trigger-sync', async (req, res) => {
     res.json({ ok: true, ...out });
   } catch (e) {
     console.error('[drive-sync] Error:', e);
-    res.status(500).json({ ok: false, error: e.message || String(e) });
+    res.status(500).json({ ok: false, error: e.message });
   }
 });
 
@@ -133,51 +151,50 @@ try {
 
   const flag = String(process.env.AUTO_SYNC ?? '1').trim().toLowerCase();
   const enabled = ['1', 'true', 'yes', 'on'].includes(flag);
-  console.log(`[auto-sync] AUTO_SYNC=${flag}  SYNC_INTERVAL_SEC=${process.env.SYNC_INTERVAL_SEC || 60}`);
 
-  if (enabled) {
-    startAutoSync({ intervalSec: Number(process.env.SYNC_INTERVAL_SEC || 60) });
-  } else {
-    console.log('[auto-sync] disabled');
-  }
+  if (enabled) startAutoSync({ intervalSec: Number(process.env.SYNC_INTERVAL_SEC || 60) });
+  else console.log('[auto-sync] disabled');
 } catch (e) {
-  console.warn('[auto-sync] not started:', e.message || e);
+  console.warn('[auto-sync] not started:', e.message);
 }
 
 // ================= ZKTECO PULLER =================
 try {
   const zk = require('./services/zktecoPuller.supabase.cjs');
-  if (zk && typeof zk.start === 'function') {
-    zk.start();
-    console.log('[mount] ✓ zktecoPuller started');
-  } else {
-    console.log('[mount] zktecoPuller exported nothing');
-  }
+  if (zk?.start) zk.start();
+  else console.log('[mount] zktecoPuller exported nothing');
 } catch (e) {
   console.warn('[mount] zktecoPuller error:', e.message);
 }
 
+// ================= ERROR HANDLERS =================
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Route not found',
+    path: req.url,
+    method: req.method,
+  });
+});
+
+app.use((err, req, res, next) => {
+  console.error('💥 Server error:', err);
+  res.status(500).json({ error: 'Internal server error', message: err.message });
+});
+
 // ================= START SERVER =================
 const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, '0.0.0.0', () => {
-  const os = require('os');
   const ip = Object.values(os.networkInterfaces()).flat()
     .find(i => i && i.family === 'IPv4' && !i.internal)?.address || 'localhost';
-  
-  console.log('\n🚀 Server started successfully!');
-  console.log(`   → Local:   http://localhost:${PORT}`);
-  console.log(`   → Network: http://${ip}:${PORT}`);
-  console.log(`   → Routes:  http://localhost:${PORT}/__routes`);
-  console.log(`   → Health:  http://localhost:${PORT}/api/ping\n`);
+  console.log('\n🚀 Server started!');
+  console.log(` → Local:   http://localhost:${PORT}`);
+  console.log(` → Network: http://${ip}:${PORT}`);
+  console.log(` → Routes:  http://localhost:${PORT}/__routes`);
 });
 
-// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, closing server...');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
+  server.close(() => process.exit(0));
 });
 
 module.exports = server;
