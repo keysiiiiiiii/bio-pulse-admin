@@ -1,7 +1,7 @@
 // backend/auto_sync.js
 const path = require('path');
 const fs = require('fs');
-const { syncDriveToSupabase } = require('./services/driveSync');
+const { syncDriveToSupabase } = require('./services/driveSync.cjs');
 
 let timer = null;
 let lastRun = null;

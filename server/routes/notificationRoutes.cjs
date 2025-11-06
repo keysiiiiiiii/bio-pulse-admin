@@ -4,7 +4,7 @@ const path = require("path");
 const router = express.Router();
 
 // ✅ Load backend/db.js via absolute path (no more ../db guessing)
-const supabase = require(path.join(__dirname, "..", "db.js"));
+const supabase = require(path.join(__dirname, "..", "db.cjs"));
 
 function getStaffId(req) {
   return req.query.staff_id || (req.user && req.user.staff_id) || null;

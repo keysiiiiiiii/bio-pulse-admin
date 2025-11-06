@@ -1,6 +1,6 @@
 // backend/services/pinConverter.js  (CommonJS, idempotent, no leading zero)
 require('dotenv').config();
-const db = require('../db'); // Supabase client (already CommonJS in your project)
+const db = require('../db.cjs'); // Supabase client (already CommonJS in your project)
 
 // ----- helpers -----
 function onlyDigits(s) {

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { syncDriveToSupabase, diag } = require('../services/driveSync');
+const { syncDriveToSupabase, diag } = require('../services/driveSync.cjs');
 
 function serializeError(err) {
   if (!err) return { message: 'Unknown error' };

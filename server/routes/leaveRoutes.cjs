@@ -4,7 +4,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const db = require('../db');
+const db = require('../db.cjs');
 const { createClient } = require('@supabase/supabase-js');
 
 const supa = createClient(

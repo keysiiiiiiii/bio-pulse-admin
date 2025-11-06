@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 
 // ✅ db is your Supabase client from ../db (no variable rename)
-const db = require('../db');
+const db = require('../db.cjs');
 
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -12,7 +12,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { ensurePinForStaffId } = require('../services/pinConverter');
+const { ensurePinForStaffId } = require('../services/pinConverter.cjs'); // Idagdag ang .cjs
 
 // Additional upload configuration for in-memory files
 // We use this for routes that need to process files immediately (e.g., sending to an LLM)
