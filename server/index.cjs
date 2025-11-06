@@ -21,48 +21,51 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/api/ping', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
 // ================= ROUTES =================
-// Helper function to safely require routes
-function safeRequire(modulePath, routeName) {
-  try {
-    const route = require(modulePath);
-    console.log(`[mount] ✓ ${routeName} loaded from ${modulePath}`);
-    return route;
-  } catch (err) {
-    console.warn(`[mount] ✗ ${routeName} failed:`, err.message);
-    return null;
+// Helper: Try multiple module paths, return first that works
+function requireFirst(paths) {
+  for (const p of paths) {
+    try {
+      const mod = require(p);
+      console.log(`[mount] ✓ loaded ${p}`);
+      return mod;
+    } catch (e) {
+      // Keep trying
+    }
   }
+  console.warn(`[mount] ✗ none found for ${paths.join(' | ')}`);
+  return null;
 }
 
-// Staff Routes
-const staffRoutes = safeRequire('./routes/staffRoutes.cjs', 'staffRoutes');
+// Staff Routes - mount at /api (includes /auth/*)
+const staffRoutes = requireFirst(['./routes/staffRoutes.cjs', './routes/staffRoutes.js']);
 if (staffRoutes) app.use('/api', staffRoutes);
 
-// Attendance Routes
-const attendanceRoutes = safeRequire('./routes/attendanceRoutes.cjs', 'attendanceRoutes');
+// Attendance Routes - mount at /api/attendance
+const attendanceRoutes = requireFirst(['./routes/attendanceRoutes.cjs', './routes/attendanceRoutes.js']);
 if (attendanceRoutes) app.use('/api/attendance', attendanceRoutes);
 
-// Analytics Routes
-const analyticsRoutes = safeRequire('./routes/analyticsRoutes.cjs', 'analyticsRoutes');
+// Analytics Routes - mount at /api/analytics
+const analyticsRoutes = requireFirst(['./routes/analyticsRoutes.cjs', './routes/analyticsRoutes.js']);
 if (analyticsRoutes) app.use('/api/analytics', analyticsRoutes);
 
-// Notification Routes
-const notificationRoutes = safeRequire('./routes/notificationRoutes.cjs', 'notificationRoutes');
+// Notification Routes - mount at /api
+const notificationRoutes = requireFirst(['./routes/notificationRoutes.cjs', './routes/notificationRoutes.js']);
 if (notificationRoutes) app.use('/api', notificationRoutes);
 
-// Drive Sync Routes (mounted at /api/leaves)
-const driveSyncRoutes = safeRequire('./routes/driveSyncRoutes.cjs', 'driveSyncRoutes');
+// Drive Sync Routes - mount at /api/leaves
+const driveSyncRoutes = requireFirst(['./routes/driveSyncRoutes.cjs', './routes/driveSyncRoutes.js']);
 if (driveSyncRoutes) app.use('/api/leaves', driveSyncRoutes);
 
-// Leave Routes
-const leaveRoutes = safeRequire('./routes/leaveRoutes.cjs', 'leaveRoutes');
+// Leave Routes - mount at /
+const leaveRoutes = requireFirst(['./routes/leaveRoutes.cjs', './routes/leaveRoutes.js']);
 if (leaveRoutes) app.use('/', leaveRoutes);
 
-// Google Sheets Routes
-const gsheetsRoutes = safeRequire('./routes/gsheetsRoutes.cjs', 'gsheetsRoutes');
+// Google Sheets Routes - mount at /
+const gsheetsRoutes = requireFirst(['./routes/gsheetsRoutes.cjs', './routes/gsheetsRoutes.js']);
 if (gsheetsRoutes) app.use('/', gsheetsRoutes);
 
-// DTR Routes
-const dtrRoutes = safeRequire('./routes/dtrRoutes.cjs', 'dtrRoutes');
+// DTR Routes - mount at /api/dtr
+const dtrRoutes = requireFirst(['./routes/dtrRoutes.cjs', './routes/dtrRoutes.js']);
 if (dtrRoutes) app.use('/api/dtr', dtrRoutes);
 
 // ===================== STATIC FILES =====================
