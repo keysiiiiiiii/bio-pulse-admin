@@ -69,6 +69,87 @@ router.get('/daily', async (req, res) => {
   res.json({ date, total, present, absent, on_leave, present_rate });
 });
 
+// ------------------------------ ATTENDANCE TREND ------------------------------
+router.get('/attendance-trend', async (req, res) => {
+  const { start, end } = req.query;
+  if (!isDate(start) || !isDate(end)) return res.status(400).json({ error: 'Invalid range' });
+
+  const { count: totalCount } = await db.from('staff_users').select('*', { count: 'exact', head: true });
+
+  const { data: logs, error: lErr } = await db
+    .from('attendance_logs')
+    .select('staff_user_id, att_date, time_in')
+    .gte('att_date', start).lte('att_date', end);
+  if (lErr) return res.status(500).json({ error: 'DB error' });
+
+  const { data: leaves, error: lvErr } = await db
+    .from('leave_requests')
+    .select('staff_user_id, date')
+    .gte('date', start).lte('date', end)
+    .in('status', ['Approved','approved']);
+  if (lvErr) return res.status(500).json({ error: 'DB error' });
+
+  const days = rangeDays(start, end);
+  const byDay = Object.fromEntries(days.map(d => [d, new Set()]));
+  const leaveByDay = Object.fromEntries(days.map(d => [d, new Set()]));
+
+  for (const r of (logs || [])) {
+    if (isPresentRow(r) && r.att_date && byDay[r.att_date]) byDay[r.att_date].add(r.staff_user_id);
+  }
+  for (const r of (leaves || [])) {
+    if (r.date && leaveByDay[r.date]) leaveByDay[r.date].add(r.staff_user_id);
+  }
+
+  const rows = days.map(d => {
+    const present = byDay[d].size;
+    const on_leave = leaveByDay[d].size;
+    const absent = Math.max(0, (totalCount || 0) - present - on_leave);
+    const present_rate = totalCount ? +(present / totalCount * 100).toFixed(1) : 0;
+    return { date: d, present, absent, on_leave, present_rate };
+  });
+  res.json(rows);
+});
+
+// ------------------------------ LEAVE SUMMARY ------------------------------
+router.get('/leave-summary', async (req, res) => {
+  const { start, end } = req.query;
+  if (!isDate(start) || !isDate(end)) return res.status(400).json({ error: 'Invalid range' });
+
+  const { data: leaves, error } = await db
+    .from('leave_requests')
+    .select(`
+      staff_user_id,
+      status,
+      staff_users!inner(
+        staff_id,
+        name,
+        department
+      )
+    `)
+    .gte('date', start).lte('date', end);
+
+  if (error) return res.status(500).json({ error: 'DB error' });
+
+  const byStaff = {};
+  for (const l of (leaves || [])) {
+    const sid = l.staff_user_id;
+    if (!byStaff[sid]) {
+      byStaff[sid] = {
+        staff_id: l.staff_users?.staff_id || sid,
+        name: l.staff_users?.name || 'Unknown',
+        department: l.staff_users?.department || 'Unknown',
+        leave_count: 0,
+        status_breakdown: {}
+      };
+    }
+    byStaff[sid].leave_count++;
+    const status = l.status || 'Unknown';
+    byStaff[sid].status_breakdown[status] = (byStaff[sid].status_breakdown[status] || 0) + 1;
+  }
+
+  res.json(Object.values(byStaff).sort((a, b) => b.leave_count - a.leave_count));
+});
+
 // ------------------------------ DATE SERIES ------------------------------
 router.get('/series', async (req, res) => {
   const { start, end } = req.query;

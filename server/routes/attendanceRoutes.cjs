@@ -286,7 +286,42 @@ router.get('/date/:selectedDate', async (req, res) => {
   }
 });
 
-// (6) INCOMPLETE — unchanged (optionally filter by suid if sent)
+// (6) STATS — Daily attendance statistics
+router.get('/stats', async (req, res) => {
+  try {
+    const date = normalizeYMD(req.query.date || todayPH());
+
+    // Get total staff count
+    const { count: totalCount } = await db
+      .from('staff_users')
+      .select('*', { count: 'exact', head: true });
+
+    // Get attendance logs for the date
+    const { data: logs, error } = await db
+      .from('attendance_logs')
+      .select('staff_user_id, time_in, time_out, attendance_status')
+      .eq('att_date', date);
+
+    if (error) throw error;
+
+    const present = logs.filter(l => l.time_in).length;
+    const late = logs.filter(l => l.attendance_status === 'Late').length;
+    const absent = Math.max(0, (totalCount || 0) - present);
+
+    return res.json({
+      total: totalCount || 0,
+      present,
+      absent,
+      late,
+      on_leave: 0
+    });
+  } catch (e) {
+    console.error('[stats] error:', e.message || e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// (7) INCOMPLETE — unchanged (optionally filter by suid if sent)
 router.get('/incomplete', async (req, res) => {
   try {
     const date = todayPH();

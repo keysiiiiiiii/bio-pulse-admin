@@ -232,6 +232,30 @@ router.get('/auth/me', verifyToken, async (req, res) => {
    ADMIN / VP / ICTO
    ========================= */
 
+// GET /staff (alias for backward compatibility)
+router.get('/staff', async (req, res) => {
+  const { data, error } = await db
+    .from('staff_users')
+    .select('id, staff_id, name, email, department, employee_type, role, contact_number, photo_url, created_at')
+    .order('staff_id', { ascending: true });
+
+  if (error) return res.status(500).json({ error: 'Database error' });
+
+  const shaped = (data || []).map(r => ({
+    id: r.id,
+    staff_id: r.staff_id,
+    name: r.name,
+    email: r.email,
+    department: r.department,
+    employee_type: r.employee_type,
+    role: r.role,
+    contact_no: r.contact_number,
+    avatar_url: r.photo_url,
+    created_at: r.created_at
+  }));
+  return res.json(shaped);
+});
+
 // GET /users
 router.get('/users',
   verifyToken, requireRole('Admin', 'Vice President', 'ICTO'),
