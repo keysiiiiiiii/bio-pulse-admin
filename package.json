@@ -71,6 +71,13 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@tailwindcss/postcss": "^4.1.17",
+    "@vitejs/plugin-react-swc": "^4.2.1",
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^9.2.1",
+    "lovable-tagger": "^1.1.11",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.16",
+    "vite": "^7.2.1"
   }
 }
