@@ -125,13 +125,17 @@ All colors MUST be HSL.
   }
 }
 
+/* ITO ANG TAMANG CODE: */
 @layer base {
   * {
-    border-color: hsl(var(--border));
+    /* Ginagamit natin ang CSS variable na '--border' */
+    border-color: hsl(var(--border)); 
   }
 
   body {
-    @apply bg-background text-foreground;
+    /* Ginagamit natin ang CSS variables na '--background' at '--foreground' */
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 }
 
