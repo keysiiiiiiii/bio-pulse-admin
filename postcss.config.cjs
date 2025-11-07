@@ -1,7 +1,7 @@
-// postcss.config.cjs
+// TAMANG CODE (Pang v3)
 module.exports = {
   plugins: {
-    "@tailwindcss/postcss": {},
-    autoprefixer: {},
+    'tailwindcss': {}, // <--- Ito ang tamang package
+    'autoprefixer': {},
   },
 };
