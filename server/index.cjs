@@ -33,14 +33,29 @@ app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true); // allow curl / mobile
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    console.warn('❌ Blocked CORS for:', origin);
-    return callback(new Error('CORS not allowed for this origin'));
+    // Allow in development even if not in list
+    console.warn('⚠️  Origin not in whitelist (allowing anyway):', origin);
+    return callback(null, true); // Allow for development
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Request logger middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const status = res.statusCode;
+    const emoji = status >= 500 ? '❌' : status >= 400 ? '⚠️' : '✅';
+    console.log(`${emoji} ${req.method} ${req.url} → ${status} (${duration}ms)`);
+  });
+  next();
+});
 
 // ================= HEALTH CHECK =================
 app.get('/api/ping', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));

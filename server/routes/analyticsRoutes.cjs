@@ -54,9 +54,12 @@ router.get('/daily', async (req, res) => {
   const [staffResp, logsResp, leavesResp] = await Promise.all([
     db.from('staff_users').select('id', { count: 'exact', head: true }),
     db.from('attendance_logs').select('staff_user_id, time_in, time_out').eq('att_date', date),
-    db.from('leave_requests').select('id').eq('date', date).in('status', ['Approved','approved'])
+    db.from('leave_requests').select('id').eq('date', date).not('date', 'is', null).in('status', ['Approved','approved'])
   ]);
-  if (staffResp.error || logsResp.error || leavesResp.error) return res.status(500).json({ error: 'DB error' });
+  if (staffResp.error || logsResp.error || leavesResp.error) {
+    console.error('DB Error:', staffResp.error || logsResp.error || leavesResp.error);
+    return res.status(500).json({ error: 'DB error', details: staffResp.error || logsResp.error || leavesResp.error });
+  }
 
   const { count: totalCount } = await db.from('staff_users').select('*', { count: 'exact', head: true });
   const present = new Set((logsResp.data || []).filter(isPresentRow).map(r => r.staff_user_id)).size;
@@ -86,6 +89,7 @@ router.get('/attendance-trend', async (req, res) => {
     .from('leave_requests')
     .select('staff_user_id, date')
     .gte('date', start).lte('date', end)
+    .not('date', 'is', null)  // Filter out null dates
     .in('status', ['Approved','approved']);
   if (lvErr) return res.status(500).json({ error: 'DB error' });
 
@@ -126,9 +130,13 @@ router.get('/leave-summary', async (req, res) => {
         department
       )
     `)
-    .gte('date', start).lte('date', end);
+    .gte('date', start).lte('date', end)
+    .not('date', 'is', null);  // Filter out null dates
 
-  if (error) return res.status(500).json({ error: 'DB error' });
+  if (error) {
+    console.error('DB Error in leave-summary:', error);
+    return res.status(500).json({ error: 'DB error', details: error.message });
+  }
 
   const byStaff = {};
   for (const l of (leaves || [])) {

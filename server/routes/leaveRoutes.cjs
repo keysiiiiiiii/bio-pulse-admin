@@ -61,12 +61,18 @@ async function safeNotify({ staff_user_id = null, title = '', message = '', link
 async function insertRow(req, res) {
   try {
     const { staff_user_id, staff_name, date, reason, status } = req.body || {};
+    
+    // Validate required fields
     if (!staff_name || !date || !reason) {
+      console.error('Missing required fields:', { staff_name, date, reason });
       return res.status(400).json({ error: 'staff_name, date, and reason are required.' });
     }
 
     const iso = toISODate(date);
-    if (!iso) return res.status(400).json({ error: 'Invalid date format.' });
+    if (!iso) {
+      console.error('Invalid date format:', date);
+      return res.status(400).json({ error: 'Invalid date format.' });
+    }
 
     // accept both req.file (single) and req.files (any) safely
     const fileObj = req.file || (Array.isArray(req.files) && req.files[0]) || null;
@@ -107,14 +113,17 @@ async function insertRow(req, res) {
 
     const { data, error } = await db.from('leave_requests').insert([payload]).select().single();
     if (error) {
+      console.error('Database insert error:', error);
       if (fileObj) {
         try { fs.unlinkSync(path.join(UPLOAD_DIR, fileObj.filename)); } catch {}
       }
-      return res.status(500).json({ error: error.message || 'Insert failed' });
+      return res.status(500).json({ error: error.message || 'Insert failed', details: error });
     }
 
+    console.log('Leave request created successfully:', data.id);
     return res.status(201).json({ ok: true, record: data });
   } catch (err) {
+    console.error('Unexpected error in insertRow:', err);
     return res.status(500).json({ error: err.message || 'Unexpected error' });
   }
 }
