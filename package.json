@@ -79,7 +79,7 @@
     "concurrently": "^9.2.1",
     "lovable-tagger": "^1.1.11",
     "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.16",
+    "tailwindcss": "^4.1.17",
     "tailwindcss-animate": "^1.0.7",
     "vite": "^7.2.1"
   }
