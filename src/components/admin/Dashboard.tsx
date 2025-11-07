@@ -1,58 +1,38 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { DateRange } from "react-day-picker";
 import { AttendanceChart } from "./charts/AttendanceChart";
 import { LeaveAnalyticsChart } from "./charts/LeaveAnalyticsChart";
 import { TardinessChart } from "./charts/TardinessChart";
 import { Users, UserCheck, UserX, Clock } from "lucide-react";
-import { attendanceApi, staffApi } from "@/services/api";
-import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
+
+// Mock data for daily attendance table
+const mockDailyAttendance = [
+  { staffId: "11-2025-0023", name: "Rafael Aquino", timeIn: "08:00 AM", timeOut: "05:00 PM", statusIn: "Present", statusOut: "On Time" },
+  { staffId: "11-2025-0024", name: "Ivy Perez", timeIn: "08:15 AM", timeOut: "05:30 PM", statusIn: "Late", statusOut: "Overtime" },
+  { staffId: "23-2025-0001", name: "Cedrick Plupenio", timeIn: "07:45 AM", timeOut: "04:45 PM", statusIn: "Present", statusOut: "Undertime" },
+];
 
 export function Dashboard() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    total: 0,
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [loading] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+  
+  // Mock stats
+  const stats = {
+    total: 61,
     present: 0,
-    absent: 0,
+    absent: 61,
     late: 0,
-  });
-  const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        const today = new Date().toISOString().split('T')[0];
-        
-        // Fetch attendance stats and total staff count
-        const [attendanceStats, staffList] = await Promise.all([
-          attendanceApi.getStats(today),
-          staffApi.getAll()
-        ]);
-
-        setStats({
-          total: staffList.length,
-          present: attendanceStats.present,
-          absent: attendanceStats.absent,
-          late: attendanceStats.late,
-        });
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-        toast({
-          title: "Error loading dashboard",
-          description: error instanceof Error ? error.message : "Failed to fetch data",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, [toast]);
+  };
 
   const statCards = [
     { title: "Total Staff", value: stats.total, icon: Users, color: "text-primary" },
@@ -60,6 +40,9 @@ export function Dashboard() {
     { title: "Absent Today", value: stats.absent, icon: UserX, color: "text-destructive" },
     { title: "Tardy Today", value: stats.late, icon: Clock, color: "text-warning" },
   ];
+
+  const isSingleDate = selectedDate && !dateRange;
+  const isDateRange = dateRange?.from && dateRange?.to;
 
   return (
     <div className="space-y-6">
@@ -96,12 +79,36 @@ export function Dashboard() {
             <CardTitle>Select Date Range</CardTitle>
             <CardDescription>Choose dates to filter analytics</CardDescription>
           </CardHeader>
-          <CardContent className="flex justify-center">
+          <CardContent className="flex flex-col items-center gap-4">
+            <div className="flex gap-2 w-full justify-center">
+              <Select value={selectedMonth.getMonth().toString()} onValueChange={(val) => setSelectedMonth(new Date(selectedMonth.getFullYear(), parseInt(val)))}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((month, idx) => (
+                    <SelectItem key={idx} value={idx.toString()}>{month}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedMonth.getFullYear().toString()} onValueChange={(val) => setSelectedMonth(new Date(parseInt(val), selectedMonth.getMonth()))}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2023, 2024, 2025, 2026].map((year) => (
+                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Calendar
-              mode="range"
-              selected={dateRange}
-              onSelect={setDateRange}
-              className="rounded-md border"
+              mode="single"
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              month={selectedMonth}
+              onMonthChange={setSelectedMonth}
+              className="rounded-md border pointer-events-auto"
             />
           </CardContent>
         </Card>
@@ -109,21 +116,98 @@ export function Dashboard() {
         <Card className="lg:col-span-2 shadow-md">
           <CardHeader>
             <CardTitle>Daily Attendance Breakdown</CardTitle>
-            <CardDescription>Present, Absent, and Tardy distribution</CardDescription>
+            <CardDescription>
+              {isSingleDate && selectedDate ? format(selectedDate, "PPP") : "Present, Absent, and Tardy distribution"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <AttendanceChart />
+            {isDateRange ? (
+              <div className="p-8 text-center">
+                <p className="text-lg font-semibold">Date Range Summary</p>
+                <p className="text-muted-foreground mt-2">
+                  {dateRange.from && format(dateRange.from, "PP")} - {dateRange.to && format(dateRange.to, "PP")}
+                </p>
+                <div className="grid grid-cols-3 gap-4 mt-6">
+                  <div>
+                    <p className="text-2xl font-bold text-success">45</p>
+                    <p className="text-sm text-muted-foreground">Present</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-destructive">10</p>
+                    <p className="text-sm text-muted-foreground">Absent</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-warning">6</p>
+                    <p className="text-sm text-muted-foreground">Tardy</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <AttendanceChart />
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Daily Attendance Table (only for single date) */}
+      {isSingleDate && selectedDate && (
+        <Card className="shadow-md">
+          <CardHeader>
+            <CardTitle>Daily Attendance Detail</CardTitle>
+            <CardDescription>Attendance records for {format(selectedDate, "PPPP")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Staff ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Time In</TableHead>
+                  <TableHead>Time Out</TableHead>
+                  <TableHead>Status (Time In)</TableHead>
+                  <TableHead>Status (Time Out)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {mockDailyAttendance.map((record) => (
+                  <TableRow key={record.staffId}>
+                    <TableCell className="font-medium">{record.staffId}</TableCell>
+                    <TableCell>{record.name}</TableCell>
+                    <TableCell>{record.timeIn}</TableCell>
+                    <TableCell>{record.timeOut}</TableCell>
+                    <TableCell>
+                      <span className={record.statusIn === "Late" ? "text-warning" : "text-success"}>
+                        {record.statusIn}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className={record.statusOut === "Overtime" ? "text-primary" : record.statusOut === "Undertime" ? "text-destructive" : "text-success"}>
+                        {record.statusOut}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Leave Analytics */}
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Leave Analytics</CardTitle>
-          <CardDescription>Monthly leave requests by type</CardDescription>
+          <CardDescription>Monthly leave requests by type (scroll horizontally)</CardDescription>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {["Vacation Leave", "Sick Leave", "Maternity Leave", "Paternity Leave", "Emergency Leave"].map((type) => (
+              <div key={type} className="flex items-center gap-2">
+                <Checkbox id={type} />
+                <label htmlFor={type} className="text-sm">{type}</label>
+              </div>
+            ))}
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <LeaveAnalyticsChart />
         </CardContent>
       </Card>
@@ -132,12 +216,114 @@ export function Dashboard() {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Tardiness Trends</CardTitle>
-          <CardDescription>Weekly tardiness patterns across departments</CardDescription>
+          <CardDescription>Weekly tardiness patterns for {format(selectedMonth, "MMMM yyyy")}</CardDescription>
         </CardHeader>
         <CardContent>
           <TardinessChart />
         </CardContent>
       </Card>
+
+      {/* NEW ANALYTICS MODULES BELOW */}
+      
+      {/* Overtime/Undertime Analytics */}
+      <Card className="shadow-md">
+        <CardHeader>
+          <CardTitle>Overtime & Undertime Analytics</CardTitle>
+          <CardDescription>Filter by employee type</CardDescription>
+          <Select defaultValue="all">
+            <SelectTrigger className="w-[250px] mt-2">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Employee Types</SelectItem>
+              <SelectItem value="job-order">Job Order</SelectItem>
+              <SelectItem value="cos">Contract of Service</SelectItem>
+              <SelectItem value="regular-admin">Regular Admin</SelectItem>
+              <SelectItem value="regular-faculty">Regular Faculty</SelectItem>
+              <SelectItem value="part-time-faculty">Part-time Faculty</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Overtime Hours</TableHead>
+                <TableHead>Undertime Hours</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow className="cursor-pointer hover:bg-muted/50">
+                <TableCell>Rafael Aquino</TableCell>
+                <TableCell>Regular Faculty</TableCell>
+                <TableCell className="text-primary font-semibold">12.5 hrs</TableCell>
+                <TableCell className="text-muted-foreground">0 hrs</TableCell>
+              </TableRow>
+              <TableRow className="cursor-pointer hover:bg-muted/50">
+                <TableCell>Ivy Perez</TableCell>
+                <TableCell>Regular Faculty</TableCell>
+                <TableCell className="text-primary font-semibold">8 hrs</TableCell>
+                <TableCell className="text-destructive">2 hrs</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Top Performers */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="shadow-md">
+          <CardHeader>
+            <CardTitle>Top 10 Most Punctual</CardTitle>
+            <CardDescription>Employees with best attendance</CardDescription>
+            <Select defaultValue="10">
+              <SelectTrigger className="w-[120px] mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Top 5</SelectItem>
+                <SelectItem value="10">Top 10</SelectItem>
+                <SelectItem value="20">Top 20</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5].map((rank) => (
+                <div key={rank} className="flex items-center justify-between p-2 border-b">
+                  <div>
+                    <p className="font-medium">Employee {rank}</p>
+                    <p className="text-sm text-muted-foreground">CCS - Faculty</p>
+                  </div>
+                  <span className="text-success font-semibold">98%</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-md">
+          <CardHeader>
+            <CardTitle>Top 10 Most Late</CardTitle>
+            <CardDescription>Employees needing attendance support</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5].map((rank) => (
+                <div key={rank} className="flex items-center justify-between p-2 border-b">
+                  <div>
+                    <p className="font-medium">Employee {rank}</p>
+                    <p className="text-sm text-muted-foreground">HR - Staff</p>
+                  </div>
+                  <span className="text-destructive font-semibold">45 mins avg</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

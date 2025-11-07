@@ -104,8 +104,10 @@ export function AccountSettings() {
             <Input
               id="fullName"
               value={profile.fullName}
-              onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
+              disabled
+              className="bg-muted cursor-not-allowed"
             />
+            <p className="text-xs text-muted-foreground">Full name cannot be edited</p>
           </div>
 
           <div className="space-y-2">
