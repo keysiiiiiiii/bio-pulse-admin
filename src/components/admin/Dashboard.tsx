@@ -5,12 +5,15 @@ import { DateRange } from "react-day-picker";
 import { AttendanceChart } from "./charts/AttendanceChart";
 import { LeaveAnalyticsChart } from "./charts/LeaveAnalyticsChart";
 import { TardinessChart } from "./charts/TardinessChart";
+import { TimeAnalytics } from "./charts/TimeAnalytics";
+import { StatusAnalytics } from "./charts/StatusAnalytics";
+import { TrendAnalytics } from "./charts/TrendAnalytics";
+import { SeasonalAnalytics } from "./charts/SeasonalAnalytics";
+import { PredictiveAnalytics } from "./charts/PredictiveAnalytics";
 import { Users, UserCheck, UserX, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 
 // Mock data for daily attendance table
@@ -197,31 +200,38 @@ export function Dashboard() {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Leave Analytics</CardTitle>
-          <CardDescription>Monthly leave requests by type (scroll horizontally)</CardDescription>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {["Vacation Leave", "Sick Leave", "Maternity Leave", "Paternity Leave", "Emergency Leave"].map((type) => (
-              <div key={type} className="flex items-center gap-2">
-                <Checkbox id={type} />
-                <label htmlFor={type} className="text-sm">{type}</label>
-              </div>
-            ))}
-          </div>
+          <CardDescription>Monthly leave requests by type (scroll horizontally to see Jan-Dec)</CardDescription>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <LeaveAnalyticsChart />
+        <CardContent>
+          <LeaveAnalyticsChart selectedDate={selectedDate} dateRange={dateRange} />
         </CardContent>
       </Card>
 
       {/* Tardiness Analytics */}
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Tardiness Trends</CardTitle>
+          <CardTitle>Tardiness Trends (by College)</CardTitle>
           <CardDescription>Weekly tardiness patterns for {format(selectedMonth, "MMMM yyyy")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <TardinessChart />
+          <TardinessChart selectedMonth={selectedMonth} selectedDate={selectedDate} dateRange={dateRange} />
         </CardContent>
       </Card>
+
+      {/* Time Analytics */}
+      <TimeAnalytics selectedDate={selectedDate} dateRange={dateRange} />
+
+      {/* Status Analytics */}
+      <StatusAnalytics selectedDate={selectedDate} dateRange={dateRange} />
+
+      {/* Trend Analytics */}
+      <TrendAnalytics selectedDate={selectedDate} dateRange={dateRange} />
+
+      {/* Seasonal Analytics */}
+      <SeasonalAnalytics selectedDate={selectedDate} dateRange={dateRange} />
+
+      {/* Predictive Analytics */}
+      <PredictiveAnalytics selectedDate={selectedDate} dateRange={dateRange} />
 
       {/* NEW ANALYTICS MODULES BELOW */}
       
