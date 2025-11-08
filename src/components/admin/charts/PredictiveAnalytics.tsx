@@ -1,59 +1,59 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, TrendingUp } from "lucide-react";
 import { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import { AlertTriangle, TrendingUp } from "lucide-react";
 
-// Mock data for Top Punctual (expanded dataset)
+// ========== MOCK DATA (Existing + New) ==========
+
+// Top Punctual and Late employees (same as before)
 const mockTopPunctualData = [
   { rank: 1, name: "Sofia Martinez", staffId: "23-2025-0050", college: "CCS", onTimeRate: 99.5, avgEarly: "5 mins" },
   { rank: 2, name: "Daniel Torres", staffId: "23-2025-0051", department: "HR", onTimeRate: 99.2, avgEarly: "3 mins" },
   { rank: 3, name: "Carmen Reyes", staffId: "23-2025-0052", college: "CHS", onTimeRate: 98.8, avgEarly: "4 mins" },
   { rank: 4, name: "Roberto Santos", staffId: "23-2025-0053", college: "CED", onTimeRate: 98.5, avgEarly: "2 mins" },
   { rank: 5, name: "Elena Cruz", staffId: "23-2025-0054", department: "Library", onTimeRate: 98.2, avgEarly: "3 mins" },
-  { rank: 6, name: "Miguel Fernandez", staffId: "23-2025-0055", college: "CCJ", onTimeRate: 98.0, avgEarly: "2 mins" },
-  { rank: 7, name: "Isabel Garcia", staffId: "23-2025-0056", college: "CBPM", onTimeRate: 97.8, avgEarly: "4 mins" },
-  { rank: 8, name: "Francisco Dela Cruz", staffId: "23-2025-0057", department: "Clinic", onTimeRate: 97.5, avgEarly: "3 mins" },
-  { rank: 9, name: "Luisa Ramos", staffId: "23-2025-0058", college: "CAS", onTimeRate: 97.3, avgEarly: "2 mins" },
-  { rank: 10, name: "Antonio Perez", staffId: "23-2025-0059", department: "Security", onTimeRate: 97.0, avgEarly: "1 min" },
-  { rank: 11, name: "Patricia Gomez", staffId: "23-2025-0060", college: "GE", onTimeRate: 96.8, avgEarly: "2 mins" },
-  { rank: 12, name: "Ricardo Morales", staffId: "23-2025-0061", college: "NSTP", onTimeRate: 96.5, avgEarly: "3 mins" },
-  { rank: 13, name: "Beatriz Jimenez", staffId: "23-2025-0062", department: "Canteen", onTimeRate: 96.3, avgEarly: "2 mins" },
-  { rank: 14, name: "Diego Ramirez", staffId: "23-2025-0063", college: "CL", onTimeRate: 96.0, avgEarly: "1 min" },
-  { rank: 15, name: "Gabriela Lopez", staffId: "23-2025-0064", college: "CCS", onTimeRate: 95.8, avgEarly: "2 mins" },
-  { rank: 16, name: "Rodrigo Vargas", staffId: "23-2025-0065", department: "Cleaning Service", onTimeRate: 95.5, avgEarly: "3 mins" },
-  { rank: 17, name: "Valentina Ortiz", staffId: "23-2025-0066", college: "CHS", onTimeRate: 95.3, avgEarly: "2 mins" },
-  { rank: 18, name: "Emilio Castro", staffId: "23-2025-0067", college: "CED", onTimeRate: 95.0, avgEarly: "1 min" },
-  { rank: 19, name: "Camila Herrera", staffId: "23-2025-0068", department: "HR", onTimeRate: 94.8, avgEarly: "2 mins" },
-  { rank: 20, name: "Lorenzo Silva", staffId: "23-2025-0069", college: "CCJ", onTimeRate: 94.5, avgEarly: "3 mins" },
 ];
-
-// Mock data for Top Late (expanded dataset)
 const mockTopLateData = [
   { rank: 1, name: "Juan Dela Cruz", staffId: "23-2025-0001", college: "CCS", lateRate: 45.2, avgLate: "35 mins" },
   { rank: 2, name: "Maria Santos", staffId: "23-2025-0005", college: "CHS", lateRate: 42.8, avgLate: "32 mins" },
   { rank: 3, name: "Pedro Reyes", staffId: "23-2025-0012", college: "CCJ", lateRate: 40.5, avgLate: "30 mins" },
   { rank: 4, name: "Ana Garcia", staffId: "23-2025-0018", college: "CED", lateRate: 38.3, avgLate: "28 mins" },
   { rank: 5, name: "Jose Ramos", staffId: "23-2025-0025", college: "CBPM", lateRate: 36.7, avgLate: "27 mins" },
-  { rank: 6, name: "Carlos Mendoza", staffId: "23-2025-0101", department: "Security", lateRate: 35.2, avgLate: "40 mins" },
-  { rank: 7, name: "Lisa Fernandez", staffId: "23-2025-0105", department: "HR", lateRate: 34.5, avgLate: "35 mins" },
-  { rank: 8, name: "Mark Torres", staffId: "23-2025-0110", department: "Library", lateRate: 33.8, avgLate: "32 mins" },
-  { rank: 9, name: "Angela Cruz", staffId: "23-2025-0030", college: "CAS", lateRate: 32.5, avgLate: "26 mins" },
-  { rank: 10, name: "Ramon Diaz", staffId: "23-2025-0035", college: "GE", lateRate: 31.2, avgLate: "25 mins" },
-  { rank: 11, name: "Teresa Flores", staffId: "23-2025-0040", college: "NSTP", lateRate: 30.5, avgLate: "24 mins" },
-  { rank: 12, name: "Pablo Navarro", staffId: "23-2025-0115", department: "Clinic", lateRate: 29.8, avgLate: "28 mins" },
-  { rank: 13, name: "Claudia Rojas", staffId: "23-2025-0045", college: "CL", lateRate: 28.5, avgLate: "23 mins" },
-  { rank: 14, name: "Hector Medina", staffId: "23-2025-0120", department: "Canteen", lateRate: 27.8, avgLate: "26 mins" },
-  { rank: 15, name: "Sandra Vega", staffId: "23-2025-0055", college: "CCS", lateRate: 26.5, avgLate: "22 mins" },
-  { rank: 16, name: "Alberto Ruiz", staffId: "23-2025-0125", department: "Cleaning Service", lateRate: 25.8, avgLate: "22 mins" },
-  { rank: 17, name: "Monica Aguilar", staffId: "23-2025-0060", college: "CHS", lateRate: 24.5, avgLate: "21 mins" },
-  { rank: 18, name: "Sergio Campos", staffId: "23-2025-0065", college: "CCJ", lateRate: 23.8, avgLate: "20 mins" },
-  { rank: 19, name: "Rosa Nunez", staffId: "23-2025-0130", department: "HR", lateRate: 22.5, avgLate: "19 mins" },
-  { rank: 20, name: "Jorge Paredes", staffId: "23-2025-0070", college: "CED", lateRate: 21.2, avgLate: "18 mins" },
 ];
 
-// Mock data for Future Absences Forecast
+// Future Absence Prediction
 const mockForecastData = [
   { name: "Rafael Aquino", department: "CCS", absenceProbability: 15, lateProbability: 25, trend: "improving" },
   { name: "Ivy Perez", department: "CHS", absenceProbability: 30, lateProbability: 40, trend: "declining" },
@@ -62,12 +62,38 @@ const mockForecastData = [
   { name: "John Dela Cruz", department: "COE", absenceProbability: 20, lateProbability: 30, trend: "stable" },
 ];
 
-// Mock data for High-Risk Employees
+// High Risk
 const mockHighRiskData = [
   { name: "Ivy Perez", department: "CHS", riskScore: 85, patterns: "Frequent absences on Mondays, Late 3+ times/week", recommendation: "Schedule meeting to discuss attendance" },
   { name: "Maria Santos", department: "CCJ", riskScore: 78, patterns: "Consistent tardiness, Increased absences last month", recommendation: "Review workload and personal circumstances" },
   { name: "Juan Reyes", department: "Library", riskScore: 72, patterns: "Early time-outs, Declining punctuality", recommendation: "Provide flexible schedule options" },
   { name: "Anna Garcia", department: "CBA", riskScore: 68, patterns: "Weather-related absences, Late during rainy season", recommendation: "Consider work-from-home policy" },
+];
+
+// NEW: Mock trend dataset (Absence/Late Trends)
+const mockUserTrendData = [
+  { week: "Week 1", date: "Nov 1", "Juan Dela Cruz": 5, "Maria Santos": 4, "Ana Garcia": 3, "Pedro Reyes": 6, "Ivy Perez": 2, "Cedrick Plupenio": 1 },
+  { week: "Week 2", date: "Nov 8", "Juan Dela Cruz": 4, "Maria Santos": 5, "Ana Garcia": 4, "Pedro Reyes": 5, "Ivy Perez": 3, "Cedrick Plupenio": 1 },
+  { week: "Week 3", date: "Nov 15", "Juan Dela Cruz": 6, "Maria Santos": 3, "Ana Garcia": 5, "Pedro Reyes": 4, "Ivy Perez": 2, "Cedrick Plupenio": 0 },
+  { week: "Week 4", date: "Nov 22", "Juan Dela Cruz": 3, "Maria Santos": 2, "Ana Garcia": 4, "Pedro Reyes": 3, "Ivy Perez": 1, "Cedrick Plupenio": 0 },
+];
+
+// Filters
+const colleges = ["All Colleges", "CCS", "CHS", "CCJ", "CED", "CBPM"];
+const departments = ["All Departments", "HR", "Library", "Security", "Canteen"];
+
+// Color Palette for Charts
+const COLOR_PALETTE = [
+  "#0088FE",
+  "#00C49F",
+  "#FFBB28",
+  "#FF8042",
+  "#AF19FF",
+  "#FF4560",
+  "#2E93fA",
+  "#00E396",
+  "#775DD0",
+  "#FEB019",
 ];
 
 interface PredictiveAnalyticsProps {
@@ -79,6 +105,32 @@ export function PredictiveAnalytics({ selectedDate, dateRange }: PredictiveAnaly
   const [topViewType, setTopViewType] = useState<"punctual" | "late">("late");
   const [topCount, setTopCount] = useState<number>(10);
 
+  // New states for Trend visualization
+  const [trendViewType, setTrendViewType] = useState<"chart" | "table">("chart");
+  const [selectedCollege, setSelectedCollege] = useState<string>("All Colleges");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("All Departments");
+  const [searchName, setSearchName] = useState<string>("");
+
+  // Filter logic for Trend Data
+  const getFilteredNames = () => {
+    // Merge all users with metadata
+    const allUsers = [
+      ...mockTopLateData.map((u) => ({ name: u.name, college: u.college, department: 'department' in u ? u.department : null })),
+      ...mockTopPunctualData.map((u) => ({ name: u.name, college: u.college, department: 'department' in u ? u.department : null })),
+    ];
+
+    return allUsers
+      .filter((u) => {
+        const matchesCollege = selectedCollege === "All Colleges" || u.college === selectedCollege;
+        const matchesDept = selectedDepartment === "All Departments" || (u.department && u.department === selectedDepartment);
+        const matchesSearch = u.name.toLowerCase().includes(searchName.toLowerCase());
+        return matchesCollege && matchesDept && matchesSearch;
+      })
+      .map((u) => u.name);
+  };
+
+  const filteredNames = getFilteredNames();
+
   const getTopData = () => {
     const data = topViewType === "punctual" ? mockTopPunctualData : mockTopLateData;
     return data.slice(0, topCount);
@@ -86,18 +138,25 @@ export function PredictiveAnalytics({ selectedDate, dateRange }: PredictiveAnaly
 
   return (
     <>
-      {/* Top Punctual / Top Late Employees */}
+      {/* Top Punctual / Top Late */}
       <Card className="shadow-md">
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <CardTitle>Top {topViewType === "punctual" ? "Punctual" : "Late"} Employees</CardTitle>
+              <CardTitle>
+                Top {topViewType === "punctual" ? "Punctual" : "Late"} Employees
+              </CardTitle>
               <CardDescription>
-                {topViewType === "punctual" ? "Recognize best performers" : "Identify chronic latecomers"}
+                {topViewType === "punctual"
+                  ? "Recognize best performers"
+                  : "Identify chronic latecomers"}
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              <Select value={topViewType} onValueChange={(val) => setTopViewType(val as "punctual" | "late")}>
+              <Select
+                value={topViewType}
+                onValueChange={(val) => setTopViewType(val as "punctual" | "late")}
+              >
                 <SelectTrigger className="w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -106,7 +165,11 @@ export function PredictiveAnalytics({ selectedDate, dateRange }: PredictiveAnaly
                   <SelectItem value="late">Most Late</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={topCount.toString()} onValueChange={(val) => setTopCount(Number(val))}>
+
+              <Select
+                value={topCount.toString()}
+                onValueChange={(val) => setTopCount(Number(val))}
+              >
                 <SelectTrigger className="w-[110px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -119,89 +182,53 @@ export function PredictiveAnalytics({ selectedDate, dateRange }: PredictiveAnaly
             </div>
           </div>
         </CardHeader>
+
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[60px]">Rank</TableHead>
+                <TableHead>Rank</TableHead>
                 <TableHead>Staff ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>College/Dept</TableHead>
-                <TableHead>{topViewType === "punctual" ? "On-Time Rate" : "Late Rate"}</TableHead>
-                <TableHead>{topViewType === "punctual" ? "Avg Early" : "Avg Late"}</TableHead>
+                <TableHead>
+                  {topViewType === "punctual" ? "On-Time Rate" : "Late Rate"}
+                </TableHead>
+                <TableHead>
+                  {topViewType === "punctual" ? "Avg Early" : "Avg Late"}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {getTopData().map((employee) => (
                 <TableRow key={employee.staffId}>
-                  <TableCell className="font-bold">
+                  <TableCell>
                     <Badge variant={employee.rank <= 3 ? "default" : "secondary"}>
                       #{employee.rank}
                     </Badge>
                   </TableCell>
-                  <TableCell className="font-mono text-sm">{employee.staffId}</TableCell>
-                  <TableCell className="font-medium">{employee.name}</TableCell>
-                  <TableCell>{"college" in employee ? employee.college : employee.department}</TableCell>
+                  <TableCell className="font-mono">{employee.staffId}</TableCell>
+                  <TableCell>{employee.name}</TableCell>
                   <TableCell>
-                    <span className={topViewType === "punctual" ? "text-success font-bold" : "text-destructive font-bold"}>
-                      {topViewType === "punctual" ? `${employee.onTimeRate}%` : `${employee.lateRate}%`}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {topViewType === "punctual" ? employee.avgEarly : employee.avgLate}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Forecast Future Absences / Lates */}
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            Forecast Future Absences / Lates
-          </CardTitle>
-          <CardDescription>Use past data to predict who may be absent or late next month</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Absence Probability</TableHead>
-                <TableHead>Late Probability</TableHead>
-                <TableHead>Trend</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockForecastData.map((person) => (
-                <TableRow key={person.name}>
-                  <TableCell className="font-medium">{person.name}</TableCell>
-                  <TableCell>{person.department}</TableCell>
-                  <TableCell>
-                    <Badge variant={person.absenceProbability > 25 ? "destructive" : "secondary"}>
-                      {person.absenceProbability}%
-                    </Badge>
+                    {"college" in employee ? employee.college : employee.department}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={person.lateProbability > 35 ? "destructive" : "secondary"}>
-                      {person.lateProbability}%
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={
-                        person.trend === "improving" ? "default" : 
-                        person.trend === "declining" ? "destructive" : 
-                        "secondary"
+                    <span
+                      className={
+                        topViewType === "punctual"
+                          ? "text-green-600 font-bold"
+                          : "text-red-600 font-bold"
                       }
                     >
-                      {person.trend}
-                    </Badge>
+                      {topViewType === "punctual"
+                        ? `${employee.onTimeRate}%`
+                        : `${employee.lateRate}%`}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    {topViewType === "punctual"
+                      ? employee.avgEarly
+                      : employee.avgLate}
                   </TableCell>
                 </TableRow>
               ))}
@@ -210,15 +237,136 @@ export function PredictiveAnalytics({ selectedDate, dateRange }: PredictiveAnaly
         </CardContent>
       </Card>
 
-      {/* Identify High-Risk Employees */}
+      {/* Absence / Late Trend Visualization */}
+      <Card className="shadow-md">
+        <CardHeader>
+          <div className="flex justify-between items-start">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Absence / Late Trend Visualization
+              </CardTitle>
+              <CardDescription>
+                Visualize attendance behavior trends over time
+              </CardDescription>
+            </div>
+
+            <div className="flex flex-wrap gap-2 justify-end">
+              <Select
+                value={trendViewType}
+                onValueChange={(val) => setTrendViewType(val as "chart" | "table")}
+              >
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="chart">Line Chart</SelectItem>
+                  <SelectItem value="table">Table View</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={selectedCollege}
+                onValueChange={(val) => setSelectedCollege(val)}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {colleges.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={selectedDepartment}
+                onValueChange={(val) => setSelectedDepartment(val)}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Input
+                placeholder="Search name..."
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+                className="w-[180px]"
+              />
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          {trendViewType === "chart" ? (
+            <ResponsiveContainer width="100%" height={320}>
+              <LineChart data={mockUserTrendData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="week" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                {filteredNames.map((name, index) => (
+                  <Line
+                    key={name}
+                    type="monotone"
+                    dataKey={name}
+                    stroke={COLOR_PALETTE[index % COLOR_PALETTE.length]}
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Week</TableHead>
+                  <TableHead>Date</TableHead>
+                  {filteredNames.map((name) => (
+                    <TableHead key={name}>{name}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {mockUserTrendData.map((row, i) => (
+                  <TableRow key={i}>
+                    <TableCell>{row.week}</TableCell>
+                    <TableCell>{row.date}</TableCell>
+                    {filteredNames.map((name) => (
+                      <TableCell key={name}>{row[name] ?? "-"}</TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* High-Risk Employees */}
       <Card className="shadow-md border-destructive/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
             Identify High-Risk Employees
           </CardTitle>
-          <CardDescription>Staff likely to be late/absent based on patterns</CardDescription>
+          <CardDescription>
+            Staff likely to be late/absent based on patterns
+          </CardDescription>
         </CardHeader>
+
         <CardContent>
           <div className="space-y-4">
             {mockHighRiskData.map((person) => (
@@ -226,7 +374,9 @@ export function PredictiveAnalytics({ selectedDate, dateRange }: PredictiveAnaly
                 <div className="flex items-start justify-between">
                   <div>
                     <h4 className="font-semibold">{person.name}</h4>
-                    <p className="text-sm text-muted-foreground">{person.department}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {person.department}
+                    </p>
                   </div>
                   <Badge variant="destructive" className="text-lg px-3 py-1">
                     Risk: {person.riskScore}
@@ -234,10 +384,12 @@ export function PredictiveAnalytics({ selectedDate, dateRange }: PredictiveAnaly
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm">
-                    <span className="font-medium">Patterns:</span> {person.patterns}
+                    <span className="font-medium">Patterns:</span>{" "}
+                    {person.patterns}
                   </p>
                   <p className="text-sm">
-                    <span className="font-medium">Recommendation:</span> {person.recommendation}
+                    <span className="font-medium">Recommendation:</span>{" "}
+                    {person.recommendation}
                   </p>
                 </div>
               </div>

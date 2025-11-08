@@ -1,3 +1,4 @@
+// AdminSidebar.tsx
 import { LayoutDashboard, FileText, History, Clock, Users, Settings, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -38,25 +39,25 @@ export function AdminSidebar({ currentView, onViewChange }: AdminSidebarProps) {
   };
 
   return (
-    <Sidebar className="border-r border-sidebar-border bg-sidebar">
-      <SidebarHeader className="p-6 border-b border-sidebar-border">
+    <Sidebar className="border-r border-[#38A169]/30 bg-[#38A169] text-[#F0FFF4]">
+      <SidebarHeader className="p-6 border-b border-white/20">
         <div className="flex items-center gap-3">
-          <Avatar className="h-12 w-12 border-2 border-sidebar-primary">
-            <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground font-semibold">
+          <Avatar className="h-12 w-12 border-2 border-white">
+            <AvatarFallback className="bg-[#5CB85C] text-white font-semibold">
               CP
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sidebar-foreground truncate">Cedrick Plupenio</p>
-            <p className="text-sm text-sidebar-foreground/70 truncate">HR Head Admin</p>
-            <p className="text-xs text-sidebar-foreground/60">ID: 23-2025-0001</p>
+            <p className="font-semibold text-white truncate">Cedrick Plupenio</p>
+            <p className="text-sm text-white/70 truncate">HR Head Admin</p>
+            <p className="text-xs text-white/60">ID: 23-2025-0001</p>
           </div>
         </div>
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/70">Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-white/70">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
@@ -64,7 +65,7 @@ export function AdminSidebar({ currentView, onViewChange }: AdminSidebarProps) {
                   <SidebarMenuButton
                     onClick={() => onViewChange(item.id)}
                     isActive={currentView === item.id}
-                    className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    className="hover:bg-[#5CB85C] hover:text-white"
                   >
                     <item.icon className="h-4 w-4" />
                     <span>{item.label}</span>
@@ -76,12 +77,12 @@ export function AdminSidebar({ currentView, onViewChange }: AdminSidebarProps) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-sidebar-border">
+      <SidebarFooter className="p-4 border-t border-white/20">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={handleLogout}
-              className="hover:bg-destructive hover:text-destructive-foreground"
+              className="hover:bg-[#5CB85C] hover:text-white"
             >
               <LogOut className="h-4 w-4" />
               <span>Logout</span>

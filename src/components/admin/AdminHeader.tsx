@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 
 export function AdminHeader() {
   return (
-    <header className="h-16 border-b bg-card flex items-center px-6 gap-4 shadow-sm">
+    <header className="sticky top-0 z-50 h-16 border-b bg-card flex items-center px-6 gap-4 shadow-sm">
       <SidebarTrigger className="hover:bg-muted" />
       
       <div className="flex-1">

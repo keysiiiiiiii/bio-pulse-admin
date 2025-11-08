@@ -67,9 +67,14 @@ export function TrendAnalytics({ selectedDate, dateRange }: TrendAnalyticsProps)
           <div className="flex justify-between items-start">
             <div>
               <CardTitle>Overtime Trends by Month</CardTitle>
-              <CardDescription>Discover which months require extra effort (e.g., enrollment, grading weeks)</CardDescription>
+              <CardDescription>
+                Discover which months require extra effort (e.g., enrollment, grading weeks)
+              </CardDescription>
             </div>
-            <Select value={overtimeGraphType} onValueChange={(val) => setOvertimeGraphType(val as "bar" | "line" | "area")}>
+            <Select
+              value={overtimeGraphType}
+              onValueChange={(val) => setOvertimeGraphType(val as "bar" | "line" | "area")}
+            >
               <SelectTrigger className="w-[120px]">
                 <SelectValue />
               </SelectTrigger>
@@ -91,7 +96,13 @@ export function TrendAnalytics({ selectedDate, dateRange }: TrendAnalyticsProps)
                 <Tooltip />
                 <Legend />
                 <Bar dataKey="overtime" fill="hsl(var(--primary))" name="Actual Overtime" />
-                <Bar dataKey="forecast" fill="hsl(var(--muted))" name="Forecast" opacity={0.6} />
+                {/* --- UPDATED FORECAST BAR --- */}
+                <Bar
+                  dataKey="forecast"
+                  fill="hsl(var(--foreground))"
+                  name="Forecast"
+                  opacity={0.3}
+                />
               </BarChart>
             ) : overtimeGraphType === "line" ? (
               <LineChart data={mockOvertimeTrendsData}>
@@ -100,8 +111,23 @@ export function TrendAnalytics({ selectedDate, dateRange }: TrendAnalyticsProps)
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="overtime" stroke="hsl(var(--primary))" strokeWidth={2} name="Actual Overtime" />
-                <Line type="monotone" dataKey="forecast" stroke="hsl(var(--muted))" strokeWidth={2} strokeDasharray="5 5" name="Forecast" />
+                <Line
+                  type="monotone"
+                  dataKey="overtime"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                  name="Actual Overtime"
+                />
+                {/* --- UPDATED FORECAST LINE --- */}
+                <Line
+                  type="monotone"
+                  dataKey="forecast"
+                  stroke="hsl(var(--foreground))"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  strokeOpacity={0.5}
+                  name="Forecast"
+                />
               </LineChart>
             ) : (
               <AreaChart data={mockOvertimeTrendsData}>
@@ -110,8 +136,23 @@ export function TrendAnalytics({ selectedDate, dateRange }: TrendAnalyticsProps)
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Area type="monotone" dataKey="overtime" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.6} name="Actual Overtime" />
-                <Area type="monotone" dataKey="forecast" stroke="hsl(var(--muted))" fill="hsl(var(--muted))" fillOpacity={0.3} name="Forecast" />
+                <Area
+                  type="monotone"
+                  dataKey="overtime"
+                  stroke="hsl(var(--primary))"
+                  fill="hsl(var(--primary))"
+                  fillOpacity={0.6}
+                  name="Actual Overtime"
+                />
+                {/* --- UPDATED FORECAST AREA --- */}
+                <Area
+                  type="monotone"
+                  dataKey="forecast"
+                  stroke="hsl(var(--foreground))"
+                  fill="hsl(var(--foreground))"
+                  fillOpacity={0.15}
+                  name="Forecast"
+                />
               </AreaChart>
             )}
           </ResponsiveContainer>

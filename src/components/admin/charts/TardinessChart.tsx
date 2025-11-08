@@ -1,6 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+} from "recharts";
 import { useState } from "react";
 
 // Mock data for Faculty (Colleges)
@@ -25,8 +36,23 @@ interface TardinessChartProps {
 
 export function TardinessChart({ selectedDate }: TardinessChartProps) {
   const [viewType, setViewType] = useState<"faculty" | "staff">("faculty");
+  const [chartType, setChartType] = useState<"bar" | "line">("bar");
+
   const data = viewType === "faculty" ? mockFacultyData : mockStaffData;
-  
+
+  // 🎨 Hardcoded color palette (rotates automatically)
+  const colors = [
+    "#2563eb", // blue
+    "#16a34a", // green
+    "#f59e0b", // amber
+    "#dc2626", // red
+    "#9333ea", // violet
+    "#0ea5e9", // sky
+    "#f43f5e", // rose
+    "#84cc16", // lime
+    "#e11d48", // pink-red
+  ];
+
   const getDataKeys = () => {
     if (viewType === "faculty") {
       return ["CCS", "CHS", "CCJ", "CED", "NSTP", "GE", "CBPM", "CL", "CAS"];
@@ -40,31 +66,69 @@ export function TardinessChart({ selectedDate }: TardinessChartProps) {
         <div className="flex justify-between items-start">
           <div>
             <CardTitle>Tardiness Trends</CardTitle>
-            <CardDescription>Weekly tardiness patterns by {viewType === "faculty" ? "college" : "department"}</CardDescription>
+            <CardDescription>
+              Weekly tardiness patterns by {viewType === "faculty" ? "college" : "department"}
+            </CardDescription>
           </div>
-          <Select value={viewType} onValueChange={(val) => setViewType(val as "faculty" | "staff")}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="faculty">Faculty (Colleges)</SelectItem>
-              <SelectItem value="staff">Staff (Departments)</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            {/* 👇 Chart Type Toggle */}
+            <Select value={chartType} onValueChange={(val) => setChartType(val as "bar" | "line")}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="Chart Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bar">Bar Chart</SelectItem>
+                <SelectItem value="line">Line Chart</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* 👇 Faculty/Staff Toggle */}
+            <Select value={viewType} onValueChange={(val) => setViewType(val as "faculty" | "staff")}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="faculty">Faculty (Colleges)</SelectItem>
+                <SelectItem value="staff">Staff (Departments)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
+
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="week" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            {getDataKeys().map((key, index) => (
-              <Bar key={key} dataKey={key} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
-            ))}
-          </BarChart>
+        <ResponsiveContainer width="100%" height={320}>
+          {/* ✅ Conditional Rendering Based on Chart Type */}
+          {chartType === "bar" ? (
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="week" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              {getDataKeys().map((key, index) => (
+                <Bar key={key} dataKey={key} fill={colors[index % colors.length]} />
+              ))}
+            </BarChart>
+          ) : (
+            <LineChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="week" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              {getDataKeys().map((key, index) => (
+                <Line
+                  key={key}
+                  type="monotone"
+                  dataKey={key}
+                  stroke={colors[index % colors.length]}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+              ))}
+            </LineChart>
+          )}
         </ResponsiveContainer>
       </CardContent>
     </Card>

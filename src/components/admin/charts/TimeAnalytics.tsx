@@ -1,6 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 import { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -26,21 +37,27 @@ const mockAvgTimeDataStaff = [
   { department: "Cleaning Service", avgTimeIn: "7:45 AM", avgTimeOut: "5:25 PM" },
 ];
 
-// Mock data with 3 lines (Total, Faculty, Staff)
-const mockLateMinutesData = [
-  { month: "Jan", total: 14, faculty: 15, staff: 13 },
-  { month: "Feb", total: 17, faculty: 18, staff: 16 },
-  { month: "Mar", total: 12, faculty: 13, staff: 11 },
-  { month: "Apr", total: 20, faculty: 22, staff: 18 },
-  { month: "May", total: 16, faculty: 17, staff: 15 },
-  { month: "Jun", total: 22, faculty: 24, staff: 20 },
-  { month: "Jul", total: 24, faculty: 26, staff: 22 },
-  { month: "Aug", total: 19, faculty: 20, staff: 18 },
-  { month: "Sep", total: 15, faculty: 16, staff: 14 },
-  { month: "Oct", total: 13, faculty: 14, staff: 12 },
-  { month: "Nov", total: 18, faculty: 19, staff: 17 },
-  { month: "Dec", total: 21, faculty: 23, staff: 19 },
+// ✅ Correct mock data: Total = (Faculty + Staff) / 2
+const rawLateMinutesData = [
+  { month: "Jan", faculty: 15, staff: 13 },
+  { month: "Feb", faculty: 18, staff: 16 },
+  { month: "Mar", faculty: 13, staff: 11 },
+  { month: "Apr", faculty: 22, staff: 18 },
+  { month: "May", faculty: 17, staff: 15 },
+  { month: "Jun", faculty: 24, staff: 20 },
+  { month: "Jul", faculty: 26, staff: 22 },
+  { month: "Aug", faculty: 20, staff: 18 },
+  { month: "Sep", faculty: 16, staff: 14 },
+  { month: "Oct", faculty: 14, staff: 12 },
+  { month: "Nov", faculty: 19, staff: 17 },
+  { month: "Dec", faculty: 23, staff: 19 },
 ];
+
+// ✅ Compute average instead of total
+const mockLateMinutesData = rawLateMinutesData.map((item) => ({
+  ...item,
+  total: (item.faculty + item.staff) / 2,
+}));
 
 const mockDeptLateMinutesDataFaculty = [
   { department: "CCS", avgLateMinutes: 20 },
@@ -91,8 +108,10 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
   const [showTopIndividuals, setShowTopIndividuals] = useState(false);
 
   const avgTimeData = avgTimeViewType === "faculty" ? mockAvgTimeDataFaculty : mockAvgTimeDataStaff;
-  const deptLateMinutesData = lateMinutesViewType === "faculty" ? mockDeptLateMinutesDataFaculty : mockDeptLateMinutesDataStaff;
-  const topLateIndividuals = lateMinutesViewType === "faculty" ? mockTopLateIndividualsFaculty : mockTopLateIndividualsStaff;
+  const deptLateMinutesData =
+    lateMinutesViewType === "faculty" ? mockDeptLateMinutesDataFaculty : mockDeptLateMinutesDataStaff;
+  const topLateIndividuals =
+    lateMinutesViewType === "faculty" ? mockTopLateIndividualsFaculty : mockTopLateIndividualsStaff;
 
   return (
     <>
@@ -101,8 +120,12 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <CardTitle>Average Time-In / Time-Out per {avgTimeViewType === "faculty" ? "College" : "Department"}</CardTitle>
-              <CardDescription>See which {avgTimeViewType === "faculty" ? "colleges" : "departments"} consistently come in earlier/later</CardDescription>
+              <CardTitle>
+                Average Time-In / Time-Out per {avgTimeViewType === "faculty" ? "College" : "Department"}
+              </CardTitle>
+              <CardDescription>
+                See which {avgTimeViewType === "faculty" ? "colleges" : "departments"} consistently come in earlier/later
+              </CardDescription>
             </div>
             <Select value={avgTimeViewType} onValueChange={(val) => setAvgTimeViewType(val as "faculty" | "staff")}>
               <SelectTrigger className="w-[140px]">
@@ -121,8 +144,12 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
               <div key={dept.department} className="flex justify-between items-center p-3 border rounded-lg">
                 <span className="font-medium">{dept.department}</span>
                 <div className="flex gap-6 text-sm">
-                  <span className="text-muted-foreground">In: <span className="text-foreground font-medium">{dept.avgTimeIn}</span></span>
-                  <span className="text-muted-foreground">Out: <span className="text-foreground font-medium">{dept.avgTimeOut}</span></span>
+                  <span className="text-muted-foreground">
+                    In: <span className="text-foreground font-medium">{dept.avgTimeIn}</span>
+                  </span>
+                  <span className="text-muted-foreground">
+                    Out: <span className="text-foreground font-medium">{dept.avgTimeOut}</span>
+                  </span>
                 </div>
               </div>
             ))}
@@ -134,7 +161,9 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Average Minutes Late per Month</CardTitle>
-          <CardDescription>Identify trends (e.g., rainy season = more lates) - Total, Faculty, Staff</CardDescription>
+          <CardDescription>
+            Identify trends (e.g., rainy season = more lates) - Total, Faculty, Staff
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -144,9 +173,10 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="total" stroke="hsl(var(--warning))" strokeWidth={2} name="Total (Faculty + Staff)" />
-              <Line type="monotone" dataKey="faculty" stroke="hsl(var(--success))" strokeWidth={2} name="Faculty Only" />
-              <Line type="monotone" dataKey="staff" stroke="hsl(var(--primary))" strokeWidth={2} name="Staff Only" />
+              {/* ✅ Fixed colors and correct average logic */}
+              <Line type="monotone" dataKey="total" stroke="#f97316" strokeWidth={2} name="Overall Average" />
+              <Line type="monotone" dataKey="faculty" stroke="#16a34a" strokeWidth={2} name="Faculty Average" />
+              <Line type="monotone" dataKey="staff" stroke="#2563eb" strokeWidth={2} name="Staff Average" />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
@@ -158,7 +188,10 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
           <div className="flex justify-between items-start">
             <div>
               <CardTitle>Department-wise Average Late Minutes</CardTitle>
-              <CardDescription>Which {lateMinutesViewType === "faculty" ? "college" : "department"} needs attendance policy reinforcement?</CardDescription>
+              <CardDescription>
+                Which {lateMinutesViewType === "faculty" ? "college" : "department"} needs attendance policy
+                reinforcement?
+              </CardDescription>
             </div>
             <div className="flex gap-2">
               <Select value={lateMinutesViewType} onValueChange={(val) => setLateMinutesViewType(val as "faculty" | "staff")}>
@@ -192,7 +225,7 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
             >
               {showTopIndividuals ? "Hide" : "Show"} Top Individuals with Highest Late Minutes
             </button>
-            
+
             {showTopIndividuals && (
               <Table>
                 <TableHeader>
@@ -209,14 +242,20 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
                     <TableRow key={individual.staffId}>
                       <TableCell className="font-mono text-sm">{individual.staffId}</TableCell>
                       <TableCell className="font-medium">{individual.name}</TableCell>
-                      <TableCell>{lateMinutesViewType === "faculty" ? individual.college : individual.department}</TableCell>
+                      <TableCell>
+                        {lateMinutesViewType === "faculty" ? individual.college : individual.department}
+                      </TableCell>
                       <TableCell className="font-bold text-destructive">{individual.avgLateMinutes}</TableCell>
                       <TableCell>
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          individual.trend === "increasing" ? "bg-destructive/20 text-destructive" :
-                          individual.trend === "decreasing" ? "bg-success/20 text-success" :
-                          "bg-muted text-muted-foreground"
-                        }`}>
+                        <span
+                          className={`text-xs px-2 py-1 rounded ${
+                            individual.trend === "increasing"
+                              ? "bg-destructive/20 text-destructive"
+                              : individual.trend === "decreasing"
+                              ? "bg-success/20 text-success"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
                           {individual.trend}
                         </span>
                       </TableCell>

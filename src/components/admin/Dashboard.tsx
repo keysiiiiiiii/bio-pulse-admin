@@ -275,58 +275,7 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Top Performers */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Top 10 Most Punctual</CardTitle>
-            <CardDescription>Employees with best attendance</CardDescription>
-            <Select defaultValue="10">
-              <SelectTrigger className="w-[120px] mt-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">Top 5</SelectItem>
-                <SelectItem value="10">Top 10</SelectItem>
-                <SelectItem value="20">Top 20</SelectItem>
-              </SelectContent>
-            </Select>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {[1, 2, 3, 4, 5].map((rank) => (
-                <div key={rank} className="flex items-center justify-between p-2 border-b">
-                  <div>
-                    <p className="font-medium">Employee {rank}</p>
-                    <p className="text-sm text-muted-foreground">CCS - Faculty</p>
-                  </div>
-                  <span className="text-success font-semibold">98%</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Top 10 Most Late</CardTitle>
-            <CardDescription>Employees needing attendance support</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {[1, 2, 3, 4, 5].map((rank) => (
-                <div key={rank} className="flex items-center justify-between p-2 border-b">
-                  <div>
-                    <p className="font-medium">Employee {rank}</p>
-                    <p className="text-sm text-muted-foreground">HR - Staff</p>
-                  </div>
-                  <span className="text-destructive font-semibold">45 mins avg</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
