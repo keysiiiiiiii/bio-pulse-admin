@@ -10,6 +10,7 @@ import { StatusAnalytics } from "./charts/StatusAnalytics";
 import { TrendAnalytics } from "./charts/TrendAnalytics";
 import { SeasonalAnalytics } from "./charts/SeasonalAnalytics";
 import { PredictiveAnalytics } from "./charts/PredictiveAnalytics";
+import { OvertimeUndertimeAnalytics } from "./charts/OvertimeUndertimeAnalytics";
 import { Users, UserCheck, UserX, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -208,15 +209,7 @@ export function Dashboard() {
       </Card>
 
       {/* Tardiness Analytics */}
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle>Tardiness Trends (by College)</CardTitle>
-          <CardDescription>Weekly tardiness patterns for {format(selectedMonth, "MMMM yyyy")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TardinessChart selectedMonth={selectedMonth} selectedDate={selectedDate} dateRange={dateRange} />
-        </CardContent>
-      </Card>
+      <TardinessChart selectedDate={selectedDate} />
 
       {/* Time Analytics */}
       <TimeAnalytics selectedDate={selectedDate} dateRange={dateRange} />

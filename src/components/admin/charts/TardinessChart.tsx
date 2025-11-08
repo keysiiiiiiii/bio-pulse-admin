@@ -1,97 +1,72 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { useEffect, useState } from 'react';
-import { analyticsApi } from '@/services/api';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { useState } from "react";
 
-// Mock data for 4 weeks by college
-const mockData = [
-  { week: "Week 1", CCS: 5, CHS: 3, CCJ: 2, COE: 4, CBPM: 3, COL: 2, CAS: 4, NSTP: 1, GenEd: 2 },
-  { week: "Week 2", CCS: 7, CHS: 4, CCJ: 3, COE: 5, CBPM: 4, COL: 1, CAS: 5, NSTP: 2, GenEd: 3 },
-  { week: "Week 3", CCS: 4, CHS: 5, CCJ: 4, COE: 3, CBPM: 2, COL: 3, CAS: 3, NSTP: 1, GenEd: 2 },
-  { week: "Week 4", CCS: 6, CHS: 2, CCJ: 3, COE: 4, CBPM: 5, COL: 2, CAS: 6, NSTP: 1, GenEd: 4 },
+// Mock data for Faculty (Colleges)
+const mockFacultyData = [
+  { week: "Week 1", CCS: 12, CHS: 8, CCJ: 5, CED: 7, NSTP: 3, GE: 6, CBPM: 9, CL: 4, CAS: 10 },
+  { week: "Week 2", CCS: 15, CHS: 10, CCJ: 7, CED: 9, NSTP: 5, GE: 8, CBPM: 11, CL: 6, CAS: 12 },
+  { week: "Week 3", CCS: 10, CHS: 7, CCJ: 4, CED: 6, NSTP: 2, GE: 5, CBPM: 8, CL: 3, CAS: 9 },
+  { week: "Week 4", CCS: 13, CHS: 9, CCJ: 6, CED: 8, NSTP: 4, GE: 7, CBPM: 10, CL: 5, CAS: 11 },
 ];
 
-const colleges = [
-  { key: "CCS", name: "College of Computing Studies", color: "hsl(var(--primary))" },
-  { key: "CHS", name: "College of Health Sciences", color: "hsl(var(--success))" },
-  { key: "CCJ", name: "College of Criminal Justice", color: "hsl(var(--warning))" },
-  { key: "COE", name: "College of Education", color: "hsl(var(--destructive))" },
-  { key: "CBPM", name: "College of Business and Public Management", color: "hsl(280, 65%, 60%)" },
-  { key: "COL", name: "College of Law", color: "hsl(200, 70%, 50%)" },
-  { key: "CAS", name: "College of Arts and Sciences", color: "hsl(320, 65%, 55%)" },
-  { key: "NSTP", name: "National Service Training Program", color: "hsl(180, 60%, 50%)" },
-  { key: "GenEd", name: "General Education", color: "hsl(40, 70%, 55%)" },
+// Mock data for Staff (Departments)
+const mockStaffData = [
+  { week: "Week 1", HR: 5, Clinic: 3, Security: 8, Library: 4, Canteen: 6, Cleaning: 7 },
+  { week: "Week 2", HR: 7, Clinic: 4, Security: 10, Library: 5, Canteen: 8, Cleaning: 9 },
+  { week: "Week 3", HR: 4, Clinic: 2, Security: 6, Library: 3, Canteen: 5, Cleaning: 6 },
+  { week: "Week 4", HR: 6, Clinic: 3, Security: 9, Library: 4, Canteen: 7, Cleaning: 8 },
 ];
 
 interface TardinessChartProps {
-  selectedMonth?: Date;
   selectedDate?: Date;
-  dateRange?: { from?: Date; to?: Date };
 }
 
-export function TardinessChart({ selectedMonth, selectedDate, dateRange }: TardinessChartProps) {
-  const [data, setData] = useState(mockData);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Get the selected month or current month
-        const targetMonth = selectedMonth || new Date();
-        
-        // Get start and end of the month
-        const start = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1);
-        const end = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0);
-
-        const trend = await analyticsApi.getAttendanceTrend(
-          start.toISOString().split('T')[0],
-          end.toISOString().split('T')[0]
-        );
-
-        // Group by week (4 weeks per month)
-        const weeklyData: any[] = [];
-        const daysInMonth = end.getDate();
-        const weeksInMonth = Math.ceil(daysInMonth / 7);
-        
-        for (let i = 0; i < Math.min(weeksInMonth, 4); i++) {
-          const weekData: any = { week: `Week ${i + 1}` };
-          colleges.forEach(college => {
-            // Simulate tardiness data per college
-            weekData[college.key] = Math.floor(Math.random() * 8) + 1;
-          });
-          weeklyData.push(weekData);
-        }
-
-        if (weeklyData.length > 0) {
-          setData(weeklyData);
-        }
-      } catch (error) {
-        console.error('Failed to fetch tardiness data:', error);
-        // Use mock data on error
-        setData(mockData);
-      }
-    };
-
-    fetchData();
-  }, [selectedMonth, selectedDate, dateRange]);
+export function TardinessChart({ selectedDate }: TardinessChartProps) {
+  const [viewType, setViewType] = useState<"faculty" | "staff">("faculty");
+  const data = viewType === "faculty" ? mockFacultyData : mockStaffData;
+  
+  const getDataKeys = () => {
+    if (viewType === "faculty") {
+      return ["CCS", "CHS", "CCJ", "CED", "NSTP", "GE", "CBPM", "CL", "CAS"];
+    }
+    return ["HR", "Clinic", "Security", "Library", "Canteen", "Cleaning"];
+  };
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="week" />
-        <YAxis />
-        <Tooltip />
-        <Legend />
-        {colleges.map(college => (
-          <Line 
-            key={college.key}
-            type="monotone" 
-            dataKey={college.key} 
-            stroke={college.color} 
-            name={college.name}
-            strokeWidth={2}
-          />
-        ))}
-      </LineChart>
-    </ResponsiveContainer>
+    <Card className="shadow-md">
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>Tardiness Trends</CardTitle>
+            <CardDescription>Weekly tardiness patterns by {viewType === "faculty" ? "college" : "department"}</CardDescription>
+          </div>
+          <Select value={viewType} onValueChange={(val) => setViewType(val as "faculty" | "staff")}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="faculty">Faculty (Colleges)</SelectItem>
+              <SelectItem value="staff">Staff (Departments)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="week" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            {getDataKeys().map((key, index) => (
+              <Bar key={key} dataKey={key} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
   );
 }

@@ -17,12 +17,37 @@ const mockWorkHoursData = [
   { name: "Over Schedule", value: 11 },
 ];
 
-const mockDayOfWeekData = [
+// Mock data for Day-of-Week Analysis (by week)
+const mockDayOfWeekDataWeek1 = [
   { day: "Mon", present: 52, late: 8, absent: 1 },
   { day: "Tue", present: 55, late: 4, absent: 2 },
   { day: "Wed", present: 54, late: 5, absent: 2 },
   { day: "Thu", present: 53, late: 6, absent: 2 },
   { day: "Fri", present: 48, late: 10, absent: 3 },
+];
+
+const mockDayOfWeekDataWeek2 = [
+  { day: "Mon", present: 50, late: 9, absent: 2 },
+  { day: "Tue", present: 54, late: 5, absent: 2 },
+  { day: "Wed", present: 53, late: 6, absent: 2 },
+  { day: "Thu", present: 52, late: 7, absent: 2 },
+  { day: "Fri", present: 46, late: 11, absent: 4 },
+];
+
+const mockDayOfWeekDataWeek3 = [
+  { day: "Mon", present: 51, late: 7, absent: 3 },
+  { day: "Tue", present: 56, late: 3, absent: 2 },
+  { day: "Wed", present: 55, late: 4, absent: 2 },
+  { day: "Thu", present: 54, late: 5, absent: 2 },
+  { day: "Fri", present: 47, late: 12, absent: 2 },
+];
+
+const mockDayOfWeekDataWeek4 = [
+  { day: "Mon", present: 49, late: 10, absent: 2 },
+  { day: "Tue", present: 53, late: 6, absent: 2 },
+  { day: "Wed", present: 52, late: 7, absent: 2 },
+  { day: "Thu", present: 51, late: 8, absent: 2 },
+  { day: "Fri", present: 45, late: 13, absent: 3 },
 ];
 
 const mockFacultyStaffData = [
@@ -38,6 +63,17 @@ interface StatusAnalyticsProps {
 export function StatusAnalytics({ selectedDate, dateRange }: StatusAnalyticsProps) {
   const [statusGraphType, setStatusGraphType] = useState<"pie" | "bar">("pie");
   const [dayGraphType, setDayGraphType] = useState<"bar" | "line">("bar");
+  const [selectedWeek, setSelectedWeek] = useState<string>("week1");
+
+  const getDayOfWeekData = () => {
+    switch (selectedWeek) {
+      case "week1": return mockDayOfWeekDataWeek1;
+      case "week2": return mockDayOfWeekDataWeek2;
+      case "week3": return mockDayOfWeekDataWeek3;
+      case "week4": return mockDayOfWeekDataWeek4;
+      default: return mockDayOfWeekDataWeek1;
+    }
+  };
 
   return (
     <>
@@ -135,20 +171,33 @@ export function StatusAnalytics({ selectedDate, dateRange }: StatusAnalyticsProp
               <CardTitle>Day-of-Week Analysis</CardTitle>
               <CardDescription>Are Mondays or Fridays the worst attendance days?</CardDescription>
             </div>
-            <Select value={dayGraphType} onValueChange={(val) => setDayGraphType(val as "bar" | "line")}>
-              <SelectTrigger className="w-[120px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="bar">Bar Chart</SelectItem>
-                <SelectItem value="line">Line Chart</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={selectedWeek} onValueChange={setSelectedWeek}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="week1">Week 1</SelectItem>
+                  <SelectItem value="week2">Week 2</SelectItem>
+                  <SelectItem value="week3">Week 3</SelectItem>
+                  <SelectItem value="week4">Week 4</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={dayGraphType} onValueChange={(val) => setDayGraphType(val as "bar" | "line")}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bar">Bar Chart</SelectItem>
+                  <SelectItem value="line">Line Chart</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={mockDayOfWeekData}>
+            <BarChart data={getDayOfWeekData()}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="day" />
               <YAxis />
