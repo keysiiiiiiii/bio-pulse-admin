@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { UserCheck, Calendar, TrendingUp, Shield } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -17,6 +19,8 @@ interface PersonnelDetailsProps {
     role: string;
     department: string;
     email: string;
+    avatar_url?: string;
+    employee_type: string;
   };
 }
 
@@ -30,10 +34,22 @@ const attendanceData = [
 
 export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
   const [leaveCredits, setLeaveCredits] = useState({ vacation: 15, sick: 10, emergency: 5 });
+  const [leaveStatus, setLeaveStatus] = useState<'active' | 'inactive'>('inactive');
   const [editingCredits, setEditingCredits] = useState(false);
   const [passwordDialog, setPasswordDialog] = useState(false);
+  const [statusDialog, setStatusDialog] = useState(false);
+  const [deanDialog, setDeanDialog] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [tempCredits, setTempCredits] = useState(leaveCredits);
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   const handleSaveCredits = () => {
     setPasswordDialog(true);
@@ -61,17 +77,58 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
     });
   };
 
+  const handleToggleLeaveStatus = () => {
+    setStatusDialog(true);
+  };
+
+  const confirmToggleLeaveStatus = () => {
+    if (!adminPassword) {
+      toast({
+        title: "Password Required",
+        description: "Please enter your admin password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // TODO: Verify admin password and update status via API
+    setLeaveStatus(leaveStatus === 'active' ? 'inactive' : 'active');
+    setStatusDialog(false);
+    setAdminPassword("");
+    
+    toast({
+      title: "Leave Status Updated",
+      description: `Leave credits are now ${leaveStatus === 'active' ? 'inactive' : 'active'}`,
+    });
+  };
+
   const handleSetAsDean = () => {
-    // TODO: Integrate with backend API
+    setDeanDialog(true);
+  };
+
+  const confirmSetAsDean = () => {
+    if (!adminPassword) {
+      toast({
+        title: "Password Required",
+        description: "Please enter your admin password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // TODO: Verify password and set as dean via API (remove previous dean of this college)
+    setDeanDialog(false);
+    setAdminPassword("");
+    
     toast({
       title: "Dean Status Updated",
-      description: `${personnel.name} has been designated as Dean`,
+      description: `${personnel.name} has been designated as Dean of ${personnel.department}`,
     });
   };
 
   return (
     <div className="space-y-6 py-4">
-      {/* Contact Information */}
+      {/* Profile Picture & Contact Information */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -79,21 +136,33 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
             Contact Information
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4 pb-4 border-b">
+            <Avatar className="h-20 w-20">
+              <AvatarImage src={personnel.avatar_url} alt={personnel.name} />
+              <AvatarFallback className="text-xl bg-primary text-primary-foreground">
+                {getInitials(personnel.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h3 className="text-xl font-bold">{personnel.name}</h3>
+              <p className="text-sm text-muted-foreground">{personnel.staffId}</p>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label className="text-muted-foreground">Staff ID</Label>
-              <p className="font-mono">{personnel.staffId}</p>
-            </div>
-            <div>
               <Label className="text-muted-foreground">Role</Label>
-              <Badge variant="outline" className="bg-primary-light text-primary">
+              <Badge variant="outline" className="bg-primary-light text-primary mt-1">
                 {personnel.role}
               </Badge>
             </div>
             <div>
+              <Label className="text-muted-foreground">Employee Type</Label>
+              <p className="font-medium">{personnel.employee_type}</p>
+            </div>
+            <div>
               <Label className="text-muted-foreground">Department</Label>
-              <p>{personnel.department}</p>
+              <p className="font-medium">{personnel.department}</p>
             </div>
             <div>
               <Label className="text-muted-foreground">Email</Label>
@@ -111,23 +180,36 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
               <Calendar className="h-5 w-5 text-secondary" />
               Leave Credits
             </CardTitle>
-            {!editingCredits ? (
-              <Button size="sm" onClick={() => {
-                setEditingCredits(true);
-                setTempCredits(leaveCredits);
-              }}>
-                Edit Credits
-              </Button>
-            ) : (
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setEditingCredits(false)}>
-                  Cancel
-                </Button>
-                <Button size="sm" onClick={handleSaveCredits}>
-                  Save Changes
-                </Button>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="leave-status">Status:</Label>
+                <Badge variant={leaveStatus === 'active' ? 'default' : 'secondary'}>
+                  {leaveStatus.toUpperCase()}
+                </Badge>
+                <Switch
+                  id="leave-status"
+                  checked={leaveStatus === 'active'}
+                  onCheckedChange={handleToggleLeaveStatus}
+                />
               </div>
-            )}
+              {!editingCredits ? (
+                <Button size="sm" onClick={() => {
+                  setEditingCredits(true);
+                  setTempCredits(leaveCredits);
+                }}>
+                  Edit Credits
+                </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setEditingCredits(false)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleSaveCredits}>
+                    Save Changes
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -140,6 +222,7 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
                   value={tempCredits.vacation}
                   onChange={(e) => setTempCredits({ ...tempCredits, vacation: parseInt(e.target.value) || 0 })}
                   min="0"
+                  step="0.25"
                 />
               ) : (
                 <p className="text-2xl font-bold text-primary">{leaveCredits.vacation}</p>
@@ -153,6 +236,7 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
                   value={tempCredits.sick}
                   onChange={(e) => setTempCredits({ ...tempCredits, sick: parseInt(e.target.value) || 0 })}
                   min="0"
+                  step="0.25"
                 />
               ) : (
                 <p className="text-2xl font-bold text-secondary">{leaveCredits.sick}</p>
@@ -166,6 +250,7 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
                   value={tempCredits.emergency}
                   onChange={(e) => setTempCredits({ ...tempCredits, emergency: parseInt(e.target.value) || 0 })}
                   min="0"
+                  step="0.25"
                 />
               ) : (
                 <p className="text-2xl font-bold text-accent">{leaveCredits.emergency}</p>
@@ -230,17 +315,17 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
         </Card>
       )}
 
-      {/* Password Confirmation Dialog */}
+      {/* Password Confirmation Dialog for Leave Credits */}
       <Dialog open={passwordDialog} onOpenChange={setPasswordDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Changes</DialogTitle>
             <DialogDescription>
-              Please enter your admin password to confirm leave credit changes
+              Please enter your HR Admin password to confirm leave credit changes
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Label htmlFor="adminPassword">Admin Password</Label>
+            <Label htmlFor="adminPassword">HR Admin Password</Label>
             <Input
               id="adminPassword"
               type="password"
@@ -258,6 +343,73 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
             </Button>
             <Button onClick={confirmSaveCredits}>
               Confirm Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password Confirmation Dialog for Leave Status */}
+      <Dialog open={statusDialog} onOpenChange={setStatusDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Status Change</DialogTitle>
+            <DialogDescription>
+              Please enter your HR Admin password to {leaveStatus === 'active' ? 'deactivate' : 'activate'} leave credits
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Label htmlFor="statusPassword">HR Admin Password</Label>
+            <Input
+              id="statusPassword"
+              type="password"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              placeholder="Enter your password"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setStatusDialog(false);
+              setAdminPassword("");
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={confirmToggleLeaveStatus}>
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password Confirmation Dialog for Dean Assignment */}
+      <Dialog open={deanDialog} onOpenChange={setDeanDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Dean Assignment</DialogTitle>
+            <DialogDescription>
+              Please enter your HR Admin password to designate {personnel.name} as Dean of {personnel.department}.
+              This will remove the current Dean if one exists.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Label htmlFor="deanPassword">HR Admin Password</Label>
+            <Input
+              id="deanPassword"
+              type="password"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              placeholder="Enter your password"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setDeanDialog(false);
+              setAdminPassword("");
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={confirmSetAsDean}>
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>

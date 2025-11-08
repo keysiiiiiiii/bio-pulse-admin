@@ -1,18 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect, type ChangeEvent } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Camera, Save } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { staffApi } from "@/services/api";
 
 export function AccountSettings() {
   const [profile, setProfile] = useState({
-    fullName: "Cedrick Plupenio",
-    contactNumber: "+63 912 345 6789",
-    email: "cedrick.p@udm.edu.ph",
+    staffId: "",
+    fullName: "",
+    contactNumber: "",
+    email: "",
+    avatarUrl: "",
   });
+  const [loading, setLoading] = useState(true);
 
   const [passwords, setPasswords] = useState({
     current: "",
@@ -20,15 +24,68 @@ export function AccountSettings() {
     confirm: "",
   });
 
-  const handleSaveProfile = () => {
-    // TODO: Integrate with backend API
-    toast({
-      title: "Profile Updated",
-      description: "Your profile information has been saved successfully",
-    });
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        setLoading(true);
+        // TODO: Get current user's staff_id from session/auth
+        const currentStaffId = localStorage.getItem('staff_id') || '';
+        
+        if (currentStaffId) {
+          const userData = await staffApi.getByStaffId(currentStaffId);
+          setProfile({
+            staffId: userData.staff_id,
+            fullName: userData.name,
+            contactNumber: userData.contact_no || "",
+            email: userData.email || "",
+            avatarUrl: userData.avatar_url || "",
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load profile data",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [toast]);
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
-  const handleChangePassword = () => {
+  const handleSaveProfile = async () => {
+    try {
+      await staffApi.update(profile.staffId, {
+        contact_no: profile.contactNumber,
+        email: profile.email,
+      });
+      
+      toast({
+        title: "Profile Updated",
+        description: "Your profile information has been saved successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleChangePassword = async () => {
     if (!passwords.current || !passwords.new || !passwords.confirm) {
       toast({
         title: "Missing Information",
@@ -47,21 +104,62 @@ export function AccountSettings() {
       return;
     }
 
-    // TODO: Integrate with backend API
-    toast({
-      title: "Password Changed",
-      description: "Your password has been updated successfully",
-    });
+    if (passwords.new.length < 8) {
+      toast({
+        title: "Password Too Short",
+        description: "Password must be at least 8 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    setPasswords({ current: "", new: "", confirm: "" });
+    try {
+      // TODO: Verify current password first
+      await staffApi.updatePassword(profile.staffId, passwords.new);
+      
+      toast({
+        title: "Password Changed",
+        description: "Your password has been updated successfully. It is now encrypted.",
+      });
+
+      setPasswords({ current: "", new: "", confirm: "" });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update password",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handlePhotoChange = () => {
-    // TODO: Implement photo upload
-    toast({
-      title: "Photo Upload",
-      description: "This feature will be implemented soon",
-    });
+  const handlePhotoChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid File",
+        description: "Please select an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const result = await staffApi.uploadAvatar(profile.staffId, file);
+      setProfile({ ...profile, avatarUrl: result.url });
+      
+      toast({
+        title: "Photo Updated",
+        description: "Your profile picture has been updated successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to upload photo",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -80,14 +178,28 @@ export function AccountSettings() {
         <CardContent>
           <div className="flex items-center gap-6">
             <Avatar className="h-24 w-24">
+              <AvatarImage src={profile.avatarUrl} alt={profile.fullName} />
               <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
-                CP
+                {loading ? "..." : getInitials(profile.fullName)}
               </AvatarFallback>
             </Avatar>
-            <Button onClick={handlePhotoChange} className="gap-2">
-              <Camera className="h-4 w-4" />
-              Change Photo
-            </Button>
+            <div>
+              <input
+                type="file"
+                id="avatar-upload"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoChange}
+              />
+              <Button
+                onClick={() => document.getElementById('avatar-upload')?.click()}
+                className="gap-2"
+                disabled={loading}
+              >
+                <Camera className="h-4 w-4" />
+                Change Photo
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
