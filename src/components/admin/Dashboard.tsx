@@ -5,12 +5,7 @@ import { DateRange } from "react-day-picker";
 import { AttendanceChart } from "./charts/AttendanceChart";
 import { LeaveAnalyticsChart } from "./charts/LeaveAnalyticsChart";
 import { TardinessChart } from "./charts/TardinessChart";
-import { TimeAnalytics } from "./charts/TimeAnalytics";
 import { StatusAnalytics } from "./charts/StatusAnalytics";
-import { TrendAnalytics } from "./charts/TrendAnalytics";
-import { SeasonalAnalytics } from "./charts/SeasonalAnalytics";
-import { PredictiveAnalytics } from "./charts/PredictiveAnalytics";
-import { OvertimeUndertimeAnalytics } from "./charts/OvertimeUndertimeAnalytics";
 import { Users, UserCheck, UserX, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -211,71 +206,8 @@ export function Dashboard() {
       {/* Tardiness Analytics */}
       <TardinessChart selectedDate={selectedDate} />
 
-      {/* Time Analytics */}
-      <TimeAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-
       {/* Status Analytics */}
       <StatusAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-
-      {/* Trend Analytics */}
-      <TrendAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-
-      {/* Seasonal Analytics */}
-      <SeasonalAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-
-      {/* Predictive Analytics */}
-      <PredictiveAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-
-      {/* NEW ANALYTICS MODULES BELOW */}
-      
-      {/* Overtime/Undertime Analytics */}
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle>Overtime & Undertime Analytics</CardTitle>
-          <CardDescription>Filter by employee type</CardDescription>
-          <Select defaultValue="all">
-            <SelectTrigger className="w-[250px] mt-2">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Employee Types</SelectItem>
-              <SelectItem value="job-order">Job Order</SelectItem>
-              <SelectItem value="cos">Contract of Service</SelectItem>
-              <SelectItem value="regular-admin">Regular Admin</SelectItem>
-              <SelectItem value="regular-faculty">Regular Faculty</SelectItem>
-              <SelectItem value="part-time-faculty">Part-time Faculty</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Overtime Hours</TableHead>
-                <TableHead>Undertime Hours</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow className="cursor-pointer hover:bg-muted/50">
-                <TableCell>Rafael Aquino</TableCell>
-                <TableCell>Regular Faculty</TableCell>
-                <TableCell className="text-primary font-semibold">12.5 hrs</TableCell>
-                <TableCell className="text-muted-foreground">0 hrs</TableCell>
-              </TableRow>
-              <TableRow className="cursor-pointer hover:bg-muted/50">
-                <TableCell>Ivy Perez</TableCell>
-                <TableCell>Regular Faculty</TableCell>
-                <TableCell className="text-primary font-semibold">8 hrs</TableCell>
-                <TableCell className="text-destructive">2 hrs</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-
     </div>
   );
 }

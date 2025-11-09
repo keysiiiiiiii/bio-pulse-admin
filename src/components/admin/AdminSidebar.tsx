@@ -1,5 +1,5 @@
 // AdminSidebar.tsx
-import { LayoutDashboard, FileText, History, Clock, Users, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, BarChart3, FileText, History, Clock, Users, Settings, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-type AdminView = "dashboard" | "leave-requests" | "leave-history" | "dtr" | "personnel" | "settings";
+type AdminView = "dashboard" | "analytics" | "leave-requests" | "leave-history" | "dtr" | "personnel" | "settings";
 
 interface AdminSidebarProps {
   currentView: AdminView;
@@ -24,6 +24,7 @@ interface AdminSidebarProps {
 
 const menuItems: { id: AdminView; label: string; icon: any }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "leave-requests", label: "Leave Requests", icon: FileText },
   { id: "leave-history", label: "Leave History", icon: History },
   { id: "dtr", label: "Daily Time Records", icon: Clock },

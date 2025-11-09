@@ -3,13 +3,14 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { Dashboard } from "@/components/admin/Dashboard";
+import { Analytics } from "@/components/admin/Analytics";
 import { LeaveRequests } from "@/components/admin/LeaveRequests";
 import { LeaveHistory } from "@/components/admin/LeaveHistory";
 import { DailyTimeRecords } from "@/components/admin/DailyTimeRecords";
 import { PersonnelList } from "@/components/admin/PersonnelList";
 import { AccountSettings } from "@/components/admin/AccountSettings";
 
-type AdminView = "dashboard" | "leave-requests" | "leave-history" | "dtr" | "personnel" | "settings";
+type AdminView = "dashboard" | "analytics" | "leave-requests" | "leave-history" | "dtr" | "personnel" | "settings";
 
 const Admin = () => {
   const [currentView, setCurrentView] = useState<AdminView>("dashboard");
@@ -18,6 +19,8 @@ const Admin = () => {
     switch (currentView) {
       case "dashboard":
         return <Dashboard />;
+      case "analytics":
+        return <Analytics />;
       case "leave-requests":
         return <LeaveRequests />;
       case "leave-history":
