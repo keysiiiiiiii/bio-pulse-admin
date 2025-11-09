@@ -55,9 +55,9 @@ export function TardinessChart({ selectedDate }: TardinessChartProps) {
 
   const getDataKeys = () => {
     if (viewType === "faculty") {
-      return ["CCS", "CHS", "CCJ", "CED", "NSTP", "GE", "CBPM", "CL", "CAS"];
+      return ["CCS", "CHS", "CCJ", "CED", "NSTP", "Gen Ed", "CBPM", "CL", "CAS"];
     }
-    return ["HR", "Clinic", "Security", "Library", "Canteen", "Cleaning"];
+    return ["HR", "Clinic", "Security", "Library", "Canteen", "Cleaning Services", "Registrar"];
   };
 
   return (

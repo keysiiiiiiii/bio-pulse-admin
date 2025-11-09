@@ -157,8 +157,10 @@ function getBucket(req, staff_id) {
 
 // POST /auth/login
 router.post('/auth/login', async (req, res) => {
-  const { staff_id, password } = req.body || {};
-  if (!staff_id || !password) return res.status(400).json({ message: 'staff_id and password required' });
+  const { staff_id, password } = req.body; // must match your JSON keys
+  if (!staff_id || !password) {
+    return res.status(400).json({ message: 'staff_id and password required' });
+  }
 
   const { bucket, key } = getBucket(req, staff_id);
   const t = now();
@@ -227,6 +229,59 @@ router.get('/auth/me', verifyToken, async (req, res) => {
     photo_url: u.photo_url || null
   });
 });
+
+/* =================
+   ADMIN AUTH (added)
+   ================= */
+
+// POST /auth/admin/login
+router.post('/auth/admin/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password required' });
+  }
+
+  // Look up by email (admin accounts)
+  const { data: u, error } = await db
+    .from('staff_users')
+    .select('*')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ message: 'Database error' });
+  if (!u || !['Admin', 'Vice President', 'ICTO'].includes(u.role))
+    return res.status(403).json({ message: 'Forbidden (not an admin account)' });
+
+  const ok = await bcrypt.compare(password, u.password || '');
+  if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+
+  const token = signUser(u);
+  return res.json({
+    token,
+    user: {
+      staff_id: u.staff_id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      department: u.department
+    }
+  });
+});
+
+// GET /auth/admin/me
+router.get('/auth/admin/me', verifyToken, requireRole('Admin', 'Vice President', 'ICTO'), async (req, res) => {
+  const { sid } = req.user;
+  const { data, error } = await db
+    .from('staff_users')
+    .select('staff_id, name, email, role, department')
+    .eq('staff_id', sid)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ message: 'Database error' });
+  if (!data) return res.status(404).json({ message: 'Admin not found' });
+  return res.json(data);
+});
+
 
 /* =========================
    ADMIN / VP / ICTO

@@ -22,7 +22,7 @@ const mockAvgTimeDataFaculty = [
   { department: "CCJ", avgTimeIn: "8:15 AM", avgTimeOut: "5:08 PM" },
   { department: "CED", avgTimeIn: "8:20 AM", avgTimeOut: "5:10 PM" },
   { department: "NSTP", avgTimeIn: "8:05 AM", avgTimeOut: "5:00 PM" },
-  { department: "GE", avgTimeIn: "8:18 AM", avgTimeOut: "5:07 PM" },
+  { department: "Gen Ed", avgTimeIn: "8:18 AM", avgTimeOut: "5:07 PM" },
   { department: "CBPM", avgTimeIn: "8:22 AM", avgTimeOut: "5:15 PM" },
   { department: "CL", avgTimeIn: "8:12 AM", avgTimeOut: "5:03 PM" },
   { department: "CAS", avgTimeIn: "8:17 AM", avgTimeOut: "5:09 PM" },
@@ -35,6 +35,7 @@ const mockAvgTimeDataStaff = [
   { department: "Library", avgTimeIn: "8:20 AM", avgTimeOut: "5:15 PM" },
   { department: "Canteen", avgTimeIn: "7:55 AM", avgTimeOut: "5:18 PM" },
   { department: "Cleaning Service", avgTimeIn: "7:45 AM", avgTimeOut: "5:25 PM" },
+  { department: "Registrar", avgTimeIn: "8:10 AM", avgTimeOut: "5:05 PM" },
 ];
 
 // ✅ Correct mock data: Total = (Faculty + Staff) / 2
@@ -65,7 +66,7 @@ const mockDeptLateMinutesDataFaculty = [
   { department: "CCJ", avgLateMinutes: 18 },
   { department: "CED", avgLateMinutes: 19 },
   { department: "NSTP", avgLateMinutes: 15 },
-  { department: "GE", avgLateMinutes: 17 },
+  { department: "Gen Ed", avgLateMinutes: 17 },
   { department: "CBPM", avgLateMinutes: 21 },
   { department: "CL", avgLateMinutes: 16 },
   { department: "CAS", avgLateMinutes: 18 },
@@ -78,6 +79,7 @@ const mockDeptLateMinutesDataStaff = [
   { department: "Clinic", avgLateMinutes: 12 },
   { department: "Canteen", avgLateMinutes: 20 },
   { department: "Cleaning Service", avgLateMinutes: 22 },
+  { department: "Registrar", avgLateMinutes: 13 },
 ];
 
 // Top individuals with late minutes

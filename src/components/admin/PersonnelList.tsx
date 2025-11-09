@@ -11,39 +11,41 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 import { Search, UserCog, PlusCircle } from "lucide-react";
 import { PersonnelDetails } from "./PersonnelDetails";
-import { staffApi } from "@/services/api";
+import { staffApi } from "@/services/api/staffApi";
 import { useToast } from "@/hooks/use-toast";
 
 interface Personnel {
   id: string;
-  staffId: string;
+  staff_id: string;
   name: string;
   role: string;
   department: string;
   email: string;
   avatar_url?: string;
+  photo_url?: string;
   employee_type: string;
+  contact_number?: string;
 }
 
 const COLLEGES = [
-  "College of Computing Studies",
-  "College of Health Sciences",
-  "College of Criminal Justice",
-  "College of Education",
-  "National Service Training Program",
-  "General Education",
-  "College of Business and Public Management",
-  "College of Law",
-  "College of Arts and Sciences"
-];
+  "CCS - College of Computing Studies",
+  "CHS - College of Health Sciences",
+  "CCJ - College of Criminal Justice",
+  "CED - College of Education",
+  "NSTP - National Service Training Program",
+  "Gen Ed - General Education",
+  "CBPM - College of Business and Public Management",
+  "CL - College of Law",
+  "CAS - College of Arts and Sciences",
+]; 
 
 const DEPARTMENTS = [
-  "clinic",
-  "security",
-  "canteen",
-  "library",
-  "cleaning service",
-  "human resource (HR)"
+  "Clinic",
+  "Security",
+  "Canteen",
+  "Library",
+  "Cleaning Service",
+  "Human Resource (HR)"
 ];
 
 export function PersonnelList() {
@@ -65,34 +67,61 @@ export function PersonnelList() {
     const fetchPersonnel = async () => {
       try {
         setLoading(true);
-        const staffData = await staffApi.getAll();
         
-        // Transform and sort by last 4 digits of Staff ID
+        // Try the /users endpoint first (for Admin/ICTO)
+        let staffData;
+        try {
+          staffData = await staffApi.getAll();
+        } catch (error) {
+          // Fallback to /staff endpoint if /users fails
+          console.log('Falling back to /staff endpoint');
+          staffData = await staffApi.getAllStaff();
+        }
+        
+        if (!Array.isArray(staffData)) {
+          throw new Error('Invalid data format received from API');
+        }
+
+        // Transform the data to match our Personnel interface
         const transformedData = staffData
           .map((staff) => ({
-            id: staff.id.toString(),
-            staffId: staff.staff_id,
+            id: staff.id?.toString() || staff.staff_id,
+            staff_id: staff.staff_id,
             name: staff.name,
-            role: staff.role,
-            department: staff.department,
+            role: staff.role || staff.employee_type,
+            department: staff.department || "",
             email: staff.email || "",
-            avatar_url: staff.avatar_url,
-            employee_type: staff.employee_type,
+            avatar_url: staff.avatar_url || staff.photo_url || "",
+            photo_url: staff.photo_url || staff.avatar_url || "",
+            employee_type: staff.employee_type || staff.role,
+            contact_number: staff.contact_no || staff.contact_number || "",
           }))
           .sort((a, b) => {
-            const lastFourA = parseInt(a.staffId.slice(-4));
-            const lastFourB = parseInt(b.staffId.slice(-4));
-            return lastFourA - lastFourB;
+            // Sort by the last 4 digits of staff_id
+            const getLastFour = (id: string) => {
+              const parts = id.split('-');
+              return parseInt(parts[parts.length - 1] || '0');
+            };
+            return getLastFour(a.staff_id) - getLastFour(b.staff_id);
           });
         
         setPersonnel(transformedData);
+        
+        if (transformedData.length === 0) {
+          toast({
+            title: "No personnel found",
+            description: "The system has no registered personnel yet.",
+          });
+        }
       } catch (error) {
         console.error('Failed to fetch personnel:', error);
         toast({
           title: "Error loading personnel",
-          description: error instanceof Error ? error.message : "Failed to fetch data",
+          description: error instanceof Error ? error.message : "Failed to fetch data. Please check your connection and try again.",
           variant: "destructive",
         });
+        // Set empty array so the UI shows "No personnel found" instead of error
+        setPersonnel([]);
       } finally {
         setLoading(false);
       }
@@ -111,17 +140,17 @@ export function PersonnelList() {
     return parts.length >= 1 ? parts[0] : '';
   };
 
-  const uniqueYears = Array.from(new Set(personnel.map(p => getYearFromStaffId(p.staffId)))).filter(Boolean);
-  const uniqueAgencies = Array.from(new Set(personnel.map(p => getAgencyFromStaffId(p.staffId)))).filter(Boolean);
+  const uniqueYears = Array.from(new Set(personnel.map(p => getYearFromStaffId(p.staff_id)))).filter(Boolean);
+  const uniqueAgencies = Array.from(new Set(personnel.map(p => getAgencyFromStaffId(p.staff_id)))).filter(Boolean);
 
   const filteredPersonnel = personnel.filter(person => {
     const matchesSearch = person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      person.staffId.includes(searchTerm);
+      person.staff_id.includes(searchTerm);
     const matchesRole = filterRole === "all" || person.role === filterRole;
     const matchesCollege = filterCollege === "all" || (person.role === "Faculty" && person.department === filterCollege);
     const matchesDepartment = filterDepartment === "all" || (person.role === "Staff" && person.department === filterDepartment);
-    const matchesYear = filterYearHired === "all" || getYearFromStaffId(person.staffId) === filterYearHired;
-    const matchesAgency = filterAgencyNumber === "all" || getAgencyFromStaffId(person.staffId) === filterAgencyNumber;
+    const matchesYear = filterYearHired === "all" || getYearFromStaffId(person.staff_id) === filterYearHired;
+    const matchesAgency = filterAgencyNumber === "all" || getAgencyFromStaffId(person.staff_id) === filterAgencyNumber;
     
     return matchesSearch && matchesRole && matchesCollege && matchesDepartment && matchesYear && matchesAgency;
   });
@@ -166,15 +195,33 @@ export function PersonnelList() {
       return;
     }
 
-    // TODO: Verify password and add leave credits via API
-    toast({
-      title: "Leave Credits Added",
-      description: `Added 1.25 VL and 1.25 SL to ${selectedIds.size} employee(s)`,
-    });
+    try {
+      // Activate leave for each selected employee
+      const selectedPersonnel = personnel.filter(p => selectedIds.has(p.id));
+      
+      for (const person of selectedPersonnel) {
+        try {
+          await staffApi.activateLeave(person.staff_id, adminPassword);
+        } catch (error) {
+          console.error(`Failed to activate leave for ${person.name}:`, error);
+        }
+      }
 
-    setPasswordDialog(false);
-    setAdminPassword("");
-    setSelectedIds(new Set());
+      toast({
+        title: "Leave Credits Activated",
+        description: `Leave credits system activated for ${selectedIds.size} employee(s)`,
+      });
+
+      setPasswordDialog(false);
+      setAdminPassword("");
+      setSelectedIds(new Set());
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add leave credits",
+        variant: "destructive",
+      });
+    }
   };
 
   const getInitials = (name: string) => {
@@ -183,7 +230,7 @@ export function PersonnelList() {
       .map(n => n[0])
       .join('')
       .toUpperCase()
-      .slice(0, 2);
+      .slice(0, 2) || '??';
   };
 
   return (
@@ -260,7 +307,7 @@ export function PersonnelList() {
                 </SelectTrigger>
                 <SelectContent className="bg-popover">
                   <SelectItem value="all">All Years</SelectItem>
-                  {uniqueYears.sort().map(year => (
+                  {uniqueYears.sort().reverse().map(year => (
                     <SelectItem key={year} value={year}>{year}</SelectItem>
                   ))}
                 </SelectContent>
@@ -273,7 +320,7 @@ export function PersonnelList() {
                 <SelectContent className="bg-popover">
                   <SelectItem value="all">All Agencies</SelectItem>
                   {uniqueAgencies.sort().map(agency => (
-                    <SelectItem key={agency} value={agency}>{agency}</SelectItem>
+                    <SelectItem key={agency} value={agency}>Agency {agency}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -292,7 +339,7 @@ export function PersonnelList() {
               </p>
               <Button onClick={handleAddLeaveCredits} className="gap-2">
                 <PlusCircle className="h-4 w-4" />
-                Add Monthly Credits (1.25 VL/SL)
+                Activate Leave Credits System
               </Button>
             </div>
           </CardContent>
@@ -310,6 +357,7 @@ export function PersonnelList() {
                     <Checkbox
                       checked={selectedIds.size === filteredPersonnel.length && filteredPersonnel.length > 0}
                       onCheckedChange={handleSelectAll}
+                      disabled={filteredPersonnel.length === 0}
                     />
                   </th>
                   <th className="text-left p-3 font-semibold">Picture</th>
@@ -339,7 +387,10 @@ export function PersonnelList() {
                 ) : filteredPersonnel.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                      No personnel found matching your search criteria
+                      {personnel.length === 0 
+                        ? "No personnel records found in the database. Please add users first."
+                        : "No personnel found matching your search criteria"
+                      }
                     </td>
                   </tr>
                 ) : (
@@ -357,21 +408,21 @@ export function PersonnelList() {
                       </td>
                       <td className="p-3">
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={person.avatar_url} alt={person.name} />
+                          <AvatarImage src={person.avatar_url || person.photo_url} alt={person.name} />
                           <AvatarFallback className="bg-primary text-primary-foreground">
                             {getInitials(person.name)}
                           </AvatarFallback>
                         </Avatar>
                       </td>
-                      <td className="p-3 font-mono text-sm">{person.staffId}</td>
+                      <td className="p-3 font-mono text-sm">{person.staff_id}</td>
                       <td className="p-3 font-medium">{person.name}</td>
                       <td className="p-3">
-                        <Badge variant="outline" className="bg-primary-light text-primary">
+                        <Badge variant="outline" className="bg-primary/10 text-primary">
                           {person.role}
                         </Badge>
                       </td>
-                      <td className="p-3 text-sm">{person.department}</td>
-                      <td className="p-3 text-sm text-muted-foreground">{person.email}</td>
+                      <td className="p-3 text-sm">{person.department || "—"}</td>
+                      <td className="p-3 text-sm text-muted-foreground">{person.email || "—"}</td>
                       <td className="p-3 text-center">
                         <Button
                           size="sm"
@@ -389,6 +440,13 @@ export function PersonnelList() {
               </tbody>
             </table>
           </div>
+
+          {/* Results count */}
+          {!loading && filteredPersonnel.length > 0 && (
+            <div className="mt-4 text-sm text-muted-foreground text-center">
+              Showing {filteredPersonnel.length} of {personnel.length} personnel
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -401,7 +459,7 @@ export function PersonnelList() {
               View and manage personnel information, leave credits, and settings
             </DialogDescription>
           </DialogHeader>
-          {selectedPersonnel && <PersonnelDetails personnel={selectedPersonnel} />}
+          {selectedPersonnel && <PersonnelDetails personnel={{ ...selectedPersonnel, staffId: selectedPersonnel.staff_id }} />}
         </DialogContent>
       </Dialog>
 
@@ -409,20 +467,28 @@ export function PersonnelList() {
       <Dialog open={passwordDialog} onOpenChange={setPasswordDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Leave Credits Addition</DialogTitle>
+            <DialogTitle>Activate Leave Credits System</DialogTitle>
             <DialogDescription>
-              Please enter your HR Admin password to add 1.25 VL and 1.25 SL to {selectedIds.size} employee(s)
+              Enter your HR Admin password to activate the leave credits system for {selectedIds.size} employee(s).
+              This will enable monthly accrual of 2.5 days (1.25 VL + 1.25 SL) per month.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Label htmlFor="adminPassword">HR Admin Password</Label>
-            <Input
-              id="adminPassword"
-              type="password"
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              placeholder="Enter your password"
-            />
+            <div className="space-y-2">
+              <Label htmlFor="adminPassword">HR Admin Password</Label>
+              <Input
+                id="adminPassword"
+                type="password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                placeholder="Enter your password"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    confirmAddLeaveCredits();
+                  }
+                }}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
@@ -431,8 +497,8 @@ export function PersonnelList() {
             }}>
               Cancel
             </Button>
-            <Button onClick={confirmAddLeaveCredits}>
-              Confirm
+            <Button onClick={confirmAddLeaveCredits} disabled={!adminPassword}>
+              Confirm & Activate
             </Button>
           </DialogFooter>
         </DialogContent>

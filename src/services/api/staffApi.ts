@@ -1,86 +1,213 @@
-import { apiRequest, apiFormData } from './config';
+// src/services/api/staffApi.ts
+// IMPORTANT: Default URL must include /api
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
-export interface Staff {
-  id: number;
-  staff_id: string;
-  name: string;
-  email?: string;
-  department: string;
-  employee_type: string;
-  role: string;
-  contact_no?: string;
-  avatar_url?: string;
-  created_at?: string;
-}
+// Debug: Log the API_BASE to verify
+console.log('🔧 API_BASE:', API_BASE);
 
-export interface LoginResponse {
-  ok: boolean;
-  token?: string;
-  user?: Staff;
-  error?: string;
-}
-
-export interface ActivityLog {
-  id: number;
-  staff_id: string;
-  action: string;
-  details: any;
-  created_at: string;
-  actor_staff_id?: string;
-  actor_role?: string;
-}
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("token");
+  return {
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+};
 
 export const staffApi = {
-  // POST /api/login
-  login: (staff_id: string, password: string) =>
-    apiRequest<LoginResponse>('/api/login', {
-      method: 'POST',
+  // Authentication
+  login: async (staff_id: string, password: string) => {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ staff_id, password }),
-    }),
-
-  // GET /api/staff
-  getAll: () =>
-    apiRequest<Staff[]>('/api/staff'),
-
-  // GET /api/staff/:staff_id
-  getByStaffId: (staff_id: string) =>
-    apiRequest<Staff>(`/api/staff/${staff_id}`),
-
-  // POST /api/staff
-  create: (data: Partial<Staff> & { password?: string }) =>
-    apiRequest<{ ok: boolean; staff_id: string }>('/api/staff', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  // PUT /api/staff/:staff_id
-  update: (staff_id: string, data: Partial<Staff>) =>
-    apiRequest<{ ok: boolean }>(`/api/staff/${staff_id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  // DELETE /api/staff/:staff_id
-  delete: (staff_id: string) =>
-    apiRequest<{ ok: boolean }>(`/api/staff/${staff_id}`, {
-      method: 'DELETE',
-    }),
-
-  // PUT /api/staff/:staff_id/password
-  updatePassword: (staff_id: string, password: string) =>
-    apiRequest<{ ok: boolean }>(`/api/staff/${staff_id}/password`, {
-      method: 'PUT',
-      body: JSON.stringify({ password }),
-    }),
-
-  // POST /api/staff/:staff_id/avatar
-  uploadAvatar: (staff_id: string, file: File) => {
-    const formData = new FormData();
-    formData.append('avatar', file);
-    return apiFormData<{ ok: boolean; url: string }>(`/api/staff/${staff_id}/avatar`, formData);
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Login failed" }));
+      throw new Error(error.message || "Login failed");
+    }
+    
+    return response.json();
   },
 
-  // GET /api/staff/:staff_id/activity
-  getActivity: (staff_id: string, limit = 50) =>
-    apiRequest<ActivityLog[]>(`/api/staff/${staff_id}/activity?limit=${limit}`),
+  // Get current user
+  getCurrentUser: async () => {
+    const response = await fetch(`${API_BASE}/auth/me`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch current user");
+    }
+    
+    return response.json();
+  },
+
+  // Get user by staff_id
+  getByStaffId: async (staff_id: string) => {
+    const response = await fetch(`${API_BASE}/users/${staff_id}`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch user data");
+    }
+    
+    return response.json();
+  },
+
+  // Get all users (Admin/ICTO only)
+  getAll: async () => {
+    const response = await fetch(`${API_BASE}/users`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch users");
+    }
+    
+    return response.json();
+  },
+
+  // Get all staff (backward compatibility)
+  getAllStaff: async () => {
+    const response = await fetch(`${API_BASE}/staff`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch staff");
+    }
+    
+    return response.json();
+  },
+
+  // Create new user
+  create: async (userData: any) => {
+    const response = await fetch(`${API_BASE}/users`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(userData),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Failed to create user" }));
+      throw new Error(error.message || "Failed to create user");
+    }
+    
+    return response.json();
+  },
+
+  // Update user
+  update: async (staff_id: string, data: any) => {
+    const response = await fetch(`${API_BASE}/users/${staff_id}`, {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Failed to update user" }));
+      throw new Error(error.message || "Failed to update user");
+    }
+    
+    return response.json();
+  },
+
+  // Update password
+  updatePassword: async (staff_id: string, passwordData: { currentPassword: string; newPassword: string }) => {
+    const response = await fetch(`${API_BASE}/users/${staff_id}`, {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ password: passwordData.newPassword }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Failed to update password" }));
+      throw new Error(error.message || "Failed to update password");
+    }
+    
+    return response.json();
+  },
+
+  // Upload avatar
+  uploadAvatar: async (staff_id: string, formData: FormData) => {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`${API_BASE}/users/${staff_id}`, {
+      method: "PATCH",
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Failed to upload avatar" }));
+      throw new Error(error.message || "Failed to upload avatar");
+    }
+    
+    const result = await response.json();
+    return { url: result.photo_url || "" };
+  },
+
+  // Get user activity (Admin/ICTO only)
+  getUserActivity: async (staff_id: string, limit = 100) => {
+    const response = await fetch(`${API_BASE}/users/${staff_id}/activity?limit=${limit}`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch user activity");
+    }
+    
+    return response.json();
+  },
+
+  // Get device PIN for biometric enrollment
+  getDevicePin: async (staff_id: string) => {
+    const response = await fetch(`${API_BASE}/users/${staff_id}/device-pin`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to generate device PIN");
+    }
+    
+    return response.json();
+  },
+
+  // Leave management
+  getLeaveCredits: async (staff_id: string) => {
+    const response = await fetch(`${API_BASE}/leave/${staff_id}`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch leave credits");
+    }
+    
+    return response.json();
+  },
+
+  activateLeave: async (staff_id: string, hr_password: string) => {
+    const response = await fetch(`${API_BASE}/leave/activate`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ staff_id, hr_password }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Failed to activate leave" }));
+      throw new Error(error.message || "Failed to activate leave");
+    }
+    
+    return response.json();
+  },
 };

@@ -1,5 +1,14 @@
-// AdminSidebar.tsx
-import { LayoutDashboard, BarChart3, FileText, History, Clock, Users, Settings, LogOut } from "lucide-react";
+// src/components/AdminSidebar.tsx
+import {
+  LayoutDashboard,
+  BarChart3,
+  FileText,
+  History,
+  Clock,
+  Users,
+  Settings,
+  LogOut,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -13,9 +22,17 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/context/AuthContext";
 
-type AdminView = "dashboard" | "analytics" | "leave-requests" | "leave-history" | "dtr" | "personnel" | "settings";
+type AdminView =
+  | "dashboard"
+  | "analytics"
+  | "leave-requests"
+  | "leave-history"
+  | "dtr"
+  | "personnel"
+  | "settings";
 
 interface AdminSidebarProps {
   currentView: AdminView;
@@ -34,31 +51,55 @@ const menuItems: { id: AdminView; label: string; icon: any }[] = [
 
 export function AdminSidebar({ currentView, onViewChange }: AdminSidebarProps) {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const handleLogout = () => {
+    logout();
     navigate("/");
   };
 
+  // Compute initials if avatarUrl/photo_url is missing
+  const initials =
+    user?.name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase() || "A";
+
   return (
     <Sidebar className="border-r border-[#38A169]/30 bg-[#38A169] text-[#F0FFF4]">
+      {/* ===== Header with dynamic user info ===== */}
       <SidebarHeader className="p-6 border-b border-white/20">
         <div className="flex items-center gap-3">
           <Avatar className="h-12 w-12 border-2 border-white">
+            <AvatarImage
+              src={user?.photo_url || user?.avatarUrl || ""}
+              alt={user?.name}
+            />
             <AvatarFallback className="bg-[#5CB85C] text-white font-semibold">
-              CP
+              {initials}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-white truncate">Cedrick Plupenio</p>
-            <p className="text-sm text-white/70 truncate">HR Head Admin</p>
-            <p className="text-xs text-white/60">ID: 23-2025-0001</p>
+            <p className="font-semibold text-white truncate">
+              {user?.name || "Admin User"}
+            </p>
+            <p className="text-sm text-white/70 truncate">
+              {user?.role || "Admin"}
+            </p>
+            <p className="text-xs text-white/60">
+              ID: {user?.staff_id || "N/A"}
+            </p>
           </div>
         </div>
       </SidebarHeader>
 
+      {/* ===== Menu ===== */}
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-white/70">Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-white/70">
+            Navigation
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
@@ -78,6 +119,7 @@ export function AdminSidebar({ currentView, onViewChange }: AdminSidebarProps) {
         </SidebarGroup>
       </SidebarContent>
 
+      {/* ===== Footer with Logout ===== */}
       <SidebarFooter className="p-4 border-t border-white/20">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -94,3 +136,5 @@ export function AdminSidebar({ currentView, onViewChange }: AdminSidebarProps) {
     </Sidebar>
   );
 }
+
+export default AdminSidebar;

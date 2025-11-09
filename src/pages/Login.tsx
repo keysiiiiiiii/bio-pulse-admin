@@ -4,14 +4,37 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { GraduationCap, Lock, User } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { staffApi } from "@/services/api/staffApi";
+import { useAuth } from "@/context/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
+
   const [role, setRole] = useState("");
   const [staffId, setStaffId] = useState("");
   const [password, setPassword] = useState("");
@@ -32,42 +55,69 @@ const Login = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!role || !staffId || !password) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all fields",
-        variant: "destructive",
+      toast({ 
+        title: "Missing Information", 
+        description: "Please fill in all fields", 
+        variant: "destructive" 
       });
       return;
     }
 
-    setLoading(true);
-    
-    // Simulate API call - replace with actual backend integration
-    setTimeout(() => {
-      // Mock authentication - replace with actual API call to your Node.js/Express backend
-      if (staffId === "23-2025-0001" && role === "Admin") {
-        toast({
-          title: "Welcome back!",
-          description: "Successfully logged in as HR Head Admin",
-        });
-        navigate("/admin");
-      } else if (role === "ICTO") {
-        navigate("/icto");
-      } else if (role === "Faculty") {
-        navigate("/faculty");
-      } else if (role === "Staff") {
-        navigate("/staff");
-      } else {
-        toast({
-          title: "Invalid Credentials",
-          description: "Please check your Staff ID and password",
-          variant: "destructive",
-        });
+    try {
+      setLoading(true);
+      
+      // Call the login API
+      const res = await staffApi.login(staffId, password);
+
+      if (!res.user || !res.token) {
+        throw new Error(res.error || "Login failed");
       }
+
+      // Map the response to your User type
+      const user = {
+        id: res.user.staff_id,
+        staff_id: res.user.staff_id,
+        name: res.user.name,
+        email: res.user.email || "",
+        role: res.user.role,
+        employee_type: res.user.employee_type,
+        department: res.user.department || "",
+        contact_number: res.user.contact_number || res.user.phone || "",
+        photo_url: res.user.photo_url || "",
+        avatarUrl: res.user.photo_url || null,
+      };
+
+      // Save to context
+      login(res.token, user);
+
+      toast({
+        title: "Login Successful",
+        description: `Welcome back, ${user.name}!`,
+      });
+
+      // Navigate based on role
+      if (user.role === "Admin") {
+        navigate("/admin");
+      } else if (user.role === "ICTO") {
+        navigate("/icto");
+      } else if (user.role === "Faculty") {
+        navigate("/faculty");
+      } else {
+        navigate("/staff");
+      }
+
+    } catch (err: any) {
+      console.error("Login error:", err);
+      toast({ 
+        title: "Login Failed", 
+        description: err.message || "Invalid credentials. Please check your Staff ID and password.", 
+        variant: "destructive" 
+      });
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -77,13 +127,19 @@ const Login = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-card rounded-full shadow-lg mb-4">
             <GraduationCap className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-3xl font-bold text-primary-foreground mb-2">Universidad de Manila</h1>
-          <p className="text-primary-foreground/80 text-sm">Biometrics Attendance System</p>
+          <h1 className="text-3xl font-bold text-primary-foreground mb-2">
+            Universidad de Manila
+          </h1>
+          <p className="text-primary-foreground/80 text-sm">
+            Biometrics Attendance System
+          </p>
         </div>
 
         <Card className="shadow-lg border-0">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Sign in</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">
+              Sign in
+            </CardTitle>
             <CardDescription className="text-center">
               Use your Staff ID, role, and password
             </CardDescription>
@@ -136,8 +192,8 @@ const Login = () => {
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full bg-gradient-primary hover:opacity-90 transition-opacity"
                 disabled={loading}
               >
@@ -147,7 +203,10 @@ const Login = () => {
               <div className="text-center">
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button variant="link" className="text-sm text-muted-foreground hover:text-primary">
+                    <Button
+                      variant="link"
+                      className="text-sm text-muted-foreground hover:text-primary"
+                    >
                       Forgot Password?
                     </Button>
                   </DialogTrigger>
@@ -193,7 +252,6 @@ const ForgotPasswordForm = () => {
   };
 
   const handleSendOtp = () => {
-    // TODO: Integrate with backend API to send OTP
     toast({
       title: "OTP Sent",
       description: "Please check your registered email for the OTP",
@@ -202,7 +260,6 @@ const ForgotPasswordForm = () => {
   };
 
   const handleResetPassword = () => {
-    // TODO: Integrate with backend API to reset password
     toast({
       title: "Password Reset Successful",
       description: "You can now log in with your new password",
@@ -251,8 +308,8 @@ const ForgotPasswordForm = () => {
               onChange={(e) => setNewPassword(e.target.value)}
             />
           </div>
-          <Button 
-            onClick={handleResetPassword} 
+          <Button
+            onClick={handleResetPassword}
             className="w-full"
             disabled={!otp || !newPassword}
           >
