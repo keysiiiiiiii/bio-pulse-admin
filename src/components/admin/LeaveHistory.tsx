@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Search, FileText } from "lucide-react";
+import { leaveApi } from "@/services/api/leaveApi";
+import { toast } from "@/hooks/use-toast";
 
 interface LeaveRecord {
   id: string;
@@ -50,8 +52,42 @@ const mockHistory: LeaveRecord[] = [
 
 export function LeaveHistory() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [history, setHistory] = useState<LeaveRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+  
+  const fetchHistory = async () => {
+    setLoading(true);
+    try {
+      const data = await leaveApi.getAll();
+      const formatted = data
+        .filter(req => req.status === 'approved' || req.status === 'denied')
+        .map(req => ({
+          id: String(req.id),
+          staffId: req.staff_id || '',
+          name: req.staff_name,
+          date: req.date,
+          reason: req.reason,
+          type: 'Leave Request',
+          status: req.status === 'approved' ? 'approved' as const : 'disapproved' as const,
+          attachment: req.attachment_url,
+        }));
+      setHistory(formatted);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch leave history",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const filteredHistory = mockHistory.filter(record =>
+  const filteredHistory = history.filter(record =>
     record.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     record.staffId.includes(searchTerm) ||
     record.reason.toLowerCase().includes(searchTerm.toLowerCase())
@@ -80,8 +116,21 @@ export function LeaveHistory() {
       </Card>
 
       {/* History List */}
-      <div className="grid gap-4">
-        {filteredHistory.map((record) => (
+      {loading ? (
+        <Card className="shadow-md">
+          <CardContent className="pt-6">
+            <p className="text-center text-muted-foreground">Loading...</p>
+          </CardContent>
+        </Card>
+      ) : filteredHistory.length === 0 ? (
+        <Card className="shadow-md">
+          <CardContent className="pt-6">
+            <p className="text-center text-muted-foreground">No leave history found</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filteredHistory.map((record) => (
           <Card key={record.id} className="shadow-md">
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -127,8 +176,9 @@ export function LeaveHistory() {
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

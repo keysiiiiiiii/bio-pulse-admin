@@ -2,9 +2,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Download, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
+import { dtrApi } from "@/services/api/dtrApi";
 
 const mockDTRData = [
   { day: 1, amArrival: "8:00 AM", pmDeparture: "5:00 PM", tardiness: "0h 0m", undertime: "0h 0m" },
@@ -17,15 +19,57 @@ const mockDTRData = [
 export const StaffDTR = () => {
   const [selectedMonth, setSelectedMonth] = useState("November");
   const [selectedYear, setSelectedYear] = useState("2025");
+  const [dtrData, setDtrData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
-  const handleDownload = () => {
-    toast({
-      title: "Downloading DTR",
-      description: `DTR for ${selectedMonth} ${selectedYear} is being prepared...`,
-    });
+  useEffect(() => {
+    if (user?.staff_id) {
+      fetchDTRData();
+    }
+  }, [selectedMonth, selectedYear, user]);
+
+  const fetchDTRData = async () => {
+    if (!user?.staff_id) return;
+    
+    setLoading(true);
+    try {
+      const monthIndex = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].indexOf(selectedMonth);
+      const records = await dtrApi.getRecords(user.staff_id, parseInt(selectedYear), monthIndex + 1);
+      setDtrData(records);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch DTR records",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!user?.staff_id) return;
+    
+    try {
+      const monthIndex = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].indexOf(selectedMonth);
+      const url = await dtrApi.downloadPDF(user.staff_id, parseInt(selectedYear), monthIndex + 1);
+      window.open(url, '_blank');
+      toast({
+        title: "Downloading DTR",
+        description: `DTR for ${selectedMonth} ${selectedYear} is being downloaded...`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download DTR",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleRefresh = () => {
+    fetchDTRData();
     toast({
       title: "Refreshing",
       description: "Attendance records updated",
@@ -95,15 +139,25 @@ export const StaffDTR = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockDTRData.map((record) => (
-                  <TableRow key={record.day}>
-                    <TableCell className="font-medium">{record.day}</TableCell>
-                    <TableCell>{record.amArrival || "-"}</TableCell>
-                    <TableCell>{record.pmDeparture || "-"}</TableCell>
-                    <TableCell>{record.tardiness || "-"}</TableCell>
-                    <TableCell>{record.undertime || "-"}</TableCell>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center">Loading...</TableCell>
                   </TableRow>
-                ))}
+                ) : dtrData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center">No records found</TableCell>
+                  </TableRow>
+                ) : (
+                  dtrData.map((record, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium">{new Date(record.date).getDate()}</TableCell>
+                      <TableCell>{record.time_in || "-"}</TableCell>
+                      <TableCell>{record.time_out || "-"}</TableCell>
+                      <TableCell>{record.tardiness ? `${record.tardiness}m` : "-"}</TableCell>
+                      <TableCell>{record.undertime ? `${record.undertime}m` : "-"}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>

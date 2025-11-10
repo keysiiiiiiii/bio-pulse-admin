@@ -11,18 +11,79 @@ import { CalendarIcon, Upload } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
+import { leaveApi } from "@/services/api/leaveApi";
 
 export const FacultyLeaveForm = () => {
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [leaveType, setLeaveType] = useState("");
+  const [reason, setReason] = useState("");
+  const [numDays, setNumDays] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Leave Request Submitted",
-      description: "Your leave request has been sent for approval",
-    });
+    
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "User not authenticated",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!startDate || !leaveType || !reason) {
+      toast({
+        title: "Missing Fields",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      if (file) {
+        await leaveApi.createWithFile({
+          staff_name: user.name,
+          date: format(startDate, 'yyyy-MM-dd'),
+          reason,
+          file
+        });
+      } else {
+        await leaveApi.create({
+          staff_name: user.name,
+          date: format(startDate, 'yyyy-MM-dd'),
+          reason,
+          status: 'pending-admin'
+        });
+      }
+      
+      toast({
+        title: "Leave Request Submitted",
+        description: "Your leave request has been sent for approval",
+      });
+      
+      // Reset form
+      setStartDate(undefined);
+      setEndDate(undefined);
+      setLeaveType("");
+      setReason("");
+      setNumDays("");
+      setFile(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit leave request",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -58,7 +119,13 @@ export const FacultyLeaveForm = () => {
 
               <div className="space-y-2">
                 <Label>Number of Days</Label>
-                <Input type="number" min="1" placeholder="Enter number of days" />
+                <Input 
+                  type="number" 
+                  min="1" 
+                  placeholder="Enter number of days"
+                  value={numDays}
+                  onChange={(e) => setNumDays(e.target.value)}
+                />
               </div>
             </div>
 
@@ -96,13 +163,22 @@ export const FacultyLeaveForm = () => {
 
             <div className="space-y-2">
               <Label>Reason</Label>
-              <Textarea placeholder="Provide the reason for your leave request" rows={4} />
+              <Textarea 
+                placeholder="Provide the reason for your leave request" 
+                rows={4}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
             </div>
 
             <div className="space-y-2">
               <Label>Attachment (Optional)</Label>
               <div className="flex items-center gap-2">
-                <Input type="file" accept=".pdf,.jpg,.jpeg,.png" />
+                <Input 
+                  type="file" 
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                />
                 <Button type="button" variant="outline" size="icon">
                   <Upload className="h-4 w-4" />
                 </Button>
@@ -112,7 +188,9 @@ export const FacultyLeaveForm = () => {
 
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline">Cancel</Button>
-              <Button type="submit">Submit Request</Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Submitting..." : "Submit Request"}
+              </Button>
             </div>
           </form>
         </CardContent>

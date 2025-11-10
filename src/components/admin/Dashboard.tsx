@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DateRange } from "react-day-picker";
 import { AttendanceChart } from "./charts/AttendanceChart";
 import { LeaveAnalyticsChart } from "./charts/LeaveAnalyticsChart";
@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
+import { attendanceApi, analyticsApi } from "@/services/api";
+import { toast } from "@/hooks/use-toast";
 
 // Mock data for daily attendance table
 const mockDailyAttendance = [
@@ -22,15 +24,35 @@ const mockDailyAttendance = [
 export function Dashboard() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+  const [stats, setStats] = useState({ total: 0, present: 0, absent: 0, late: 0 });
+  const [dailyAttendance, setDailyAttendance] = useState<any[]>([]);
   
-  // Mock stats
-  const stats = {
-    total: 61,
-    present: 0,
-    absent: 61,
-    late: 0,
+  useEffect(() => {
+    if (selectedDate) {
+      fetchDashboardData(format(selectedDate, 'yyyy-MM-dd'));
+    }
+  }, [selectedDate]);
+  
+  const fetchDashboardData = async (date: string) => {
+    setLoading(true);
+    try {
+      const [statsData, logsData] = await Promise.all([
+        attendanceApi.getStats(date),
+        attendanceApi.getLogs(date)
+      ]);
+      setStats(statsData);
+      setDailyAttendance(logsData);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch dashboard data",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const statCards = [
@@ -168,20 +190,20 @@ export function Dashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockDailyAttendance.map((record) => (
-                  <TableRow key={record.staffId}>
-                    <TableCell className="font-medium">{record.staffId}</TableCell>
+                {dailyAttendance.map((record) => (
+                  <TableRow key={record.staff_id}>
+                    <TableCell className="font-medium">{record.staff_id}</TableCell>
                     <TableCell>{record.name}</TableCell>
-                    <TableCell>{record.timeIn}</TableCell>
-                    <TableCell>{record.timeOut}</TableCell>
+                    <TableCell>{record.time_in || "-"}</TableCell>
+                    <TableCell>{record.time_out || "-"}</TableCell>
                     <TableCell>
-                      <span className={record.statusIn === "Late" ? "text-warning" : "text-success"}>
-                        {record.statusIn}
+                      <span className={record.status === "Late" ? "text-warning" : "text-success"}>
+                        {record.status}
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className={record.statusOut === "Overtime" ? "text-primary" : record.statusOut === "Undertime" ? "text-destructive" : "text-success"}>
-                        {record.statusOut}
+                      <span className={record.type === "Overtime" ? "text-primary" : record.type === "Undertime" ? "text-destructive" : "text-success"}>
+                        {record.type}
                       </span>
                     </TableCell>
                   </TableRow>

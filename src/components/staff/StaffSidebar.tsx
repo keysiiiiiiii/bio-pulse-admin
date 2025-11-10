@@ -1,6 +1,6 @@
-import { Menu, LayoutDashboard, FileText, FilePlus, Bell, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, FileText, FilePlus, Bell, Settings, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/context/AuthContext";
 
@@ -37,42 +37,26 @@ export const StaffSidebar = ({ currentView, onViewChange, collapsed, onToggleCol
     .toUpperCase() || "SM";
 
   return (
-    <Sidebar className={collapsed ? "w-14" : "w-64"} collapsible="icon">
-      <SidebarHeader className={collapsed ? "p-2" : "p-6"}>
-        <div className="flex items-center gap-3 border-b pb-4">
-          {!collapsed && (
-            <>
-              <Avatar className="h-16 w-16 border-2 border-primary">
-                <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-xl">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground truncate">{user?.name || "Staff"}</p>
-                <p className="text-sm text-muted-foreground truncate">{user?.role || "Staff"}</p>
-                <p className="text-xs text-muted-foreground">ID: {user?.staff_id || "N/A"}</p>
-              </div>
-            </>
-          )}
-          {collapsed && (
-            <Avatar className="h-10 w-10 border-2 border-primary mx-auto">
-              <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-          )}
-        </div>
-        <div className={collapsed ? "py-2" : "pt-4"}>
-          <button onClick={onToggleCollapse} className="w-full flex items-center justify-center p-2 hover:bg-accent rounded-md">
-            <Menu className="h-5 w-5" />
-          </button>
+    <Sidebar className="border-r border-[#38A169]/30 bg-[#38A169] text-[#F0FFF4]" collapsible="icon">
+      <SidebarHeader className="p-6 border-b border-white/20">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-16 w-16 border-2 border-white">
+            <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
+            <AvatarFallback className="bg-[#5CB85C] text-white font-semibold text-xl">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-white truncate">{user?.name || "Staff"}</p>
+            <p className="text-sm text-white/70 truncate">{user?.role || "Staff"}</p>
+            <p className="text-xs text-white/60">ID: {user?.staff_id || "N/A"}</p>
+          </div>
         </div>
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
+          <SidebarGroupLabel className="text-white/70">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
@@ -80,10 +64,10 @@ export const StaffSidebar = ({ currentView, onViewChange, collapsed, onToggleCol
                   <SidebarMenuButton
                     onClick={() => onViewChange(item.view)}
                     isActive={currentView === item.view}
-                    className={currentView === item.view ? "bg-accent text-accent-foreground" : ""}
+                    className="hover:bg-[#5CB85C] hover:text-white"
                   >
-                    <item.icon className="h-5 w-5" />
-                    {!collapsed && <span>{item.title}</span>}
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -92,15 +76,15 @@ export const StaffSidebar = ({ currentView, onViewChange, collapsed, onToggleCol
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t">
+      <SidebarFooter className="p-4 border-t border-white/20">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               onClick={handleLogout}
-              className="hover:bg-destructive hover:text-destructive-foreground"
+              className="hover:bg-[#5CB85C] hover:text-white"
             >
-              <LogOut className="h-5 w-5" />
-              {!collapsed && <span>Logout</span>}
+              <LogOut className="h-4 w-4" />
+              <span>Logout</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

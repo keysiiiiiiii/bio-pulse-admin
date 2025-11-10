@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Search, CheckCircle, XCircle, FileText, Pin } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { leaveApi } from "@/services/api/leaveApi";
 
 interface LeaveRequest {
   id: string;
@@ -27,26 +28,65 @@ const mockRequests: LeaveRequest[] = [
 ];
 
 export function LeaveRequests() {
-  const [requests, setRequests] = useState<LeaveRequest[]>(mockRequests);
+  const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
+  const [loading, setLoading] = useState(false);
   const [disapproveDialog, setDisapproveDialog] = useState<{ open: boolean; requestId: string | null }>({ 
     open: false, 
     requestId: null 
   });
   const [disapproveRemark, setDisapproveRemark] = useState("");
-
-  const handleApprove = (id: string) => {
-    // TODO: Integrate with backend API
-    toast({
-      title: "Leave Request Approved",
-      description: "The leave request has been approved successfully",
-    });
-    setRequests(requests.filter(r => r.id !== id));
+  
+  useEffect(() => {
+    fetchLeaveRequests();
+  }, []);
+  
+  const fetchLeaveRequests = async () => {
+    setLoading(true);
+    try {
+      const data = await leaveApi.getAll({ status: 'pending-admin' });
+      const formatted = data.map(req => ({
+        id: String(req.id),
+        staffId: req.staff_id || '',
+        name: req.staff_name,
+        date: req.date,
+        reason: req.reason,
+        type: 'Leave Request',
+        status: 'pending' as const,
+        attachment: req.attachment_url
+      }));
+      setRequests(formatted);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch leave requests",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDisapprove = () => {
+  const handleApprove = async (id: string) => {
+    try {
+      await leaveApi.updateStatus(parseInt(id), 'approved');
+      toast({
+        title: "Leave Request Approved",
+        description: "The leave request has been approved successfully",
+      });
+      fetchLeaveRequests();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to approve leave request",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDisapprove = async () => {
     if (!disapproveRemark.trim()) {
       toast({
         title: "Remark Required",
@@ -56,14 +96,21 @@ export function LeaveRequests() {
       return;
     }
 
-    // TODO: Integrate with backend API
-    toast({
-      title: "Leave Request Disapproved",
-      description: "The leave request has been disapproved with remarks",
-    });
+    if (!disapproveDialog.requestId) return;
     
-    if (disapproveDialog.requestId) {
-      setRequests(requests.filter(r => r.id !== disapproveDialog.requestId));
+    try {
+      await leaveApi.updateStatus(parseInt(disapproveDialog.requestId), 'denied');
+      toast({
+        title: "Leave Request Disapproved",
+        description: "The leave request has been disapproved with remarks",
+      });
+      fetchLeaveRequests();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to disapprove leave request",
+        variant: "destructive"
+      });
     }
     
     setDisapproveDialog({ open: false, requestId: null });

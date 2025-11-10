@@ -1,9 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { CalendarDays, TrendingUp, Clock, CheckCircle2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { staffApi } from "@/services/api/staffApi";
 
 const performanceData = [
   { month: "Jul", present: 20, absent: 2 },
@@ -20,6 +22,28 @@ const leaveData = [
 
 export const FacultyDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const { user } = useAuth();
+  const [leaveCredits, setLeaveCredits] = useState({ used: 7, remaining: 8 });
+  
+  useEffect(() => {
+    if (user?.staff_id) {
+      fetchLeaveCredits();
+    }
+  }, [user]);
+  
+  const fetchLeaveCredits = async () => {
+    try {
+      if (user?.staff_id) {
+        const data = await staffApi.getLeaveCredits(user.staff_id);
+        setLeaveCredits({
+          used: data.vacation_used + data.sick_used,
+          remaining: data.vacation_balance + data.sick_balance
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch leave credits", error);
+    }
+  };
 
   return (
     <div className="space-y-6">

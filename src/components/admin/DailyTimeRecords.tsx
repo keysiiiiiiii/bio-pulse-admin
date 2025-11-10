@@ -3,9 +3,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Download, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import { dtrApi } from "@/services/api/dtrApi";
+import { staffApi } from "@/services/api/staffApi";
 
 interface DTRRecord {
   id: string;
@@ -32,7 +34,37 @@ export function DailyTimeRecords() {
   const [filterType, setFilterType] = useState<"all" | "colleges" | "departments">("all");
   const [filterValue, setFilterValue] = useState<string>("all");
   const [selectedRecords, setSelectedRecords] = useState<Set<string>>(new Set());
+  const [dtrRecords, setDtrRecords] = useState<DTRRecord[]>([]);
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  
+  useEffect(() => {
+    fetchDTRRecords();
+  }, [selectedMonth, selectedYear]);
+  
+  const fetchDTRRecords = async () => {
+    setLoading(true);
+    try {
+      const users = await staffApi.getAllStaff();
+      const records = users.map((user: any) => ({
+        id: user.staff_id,
+        staffId: user.staff_id,
+        name: user.name,
+        role: user.role === "Faculty" ? "Faculty" : "Staff",
+        department: user.department || "",
+        status: "Ready"
+      }));
+      setDtrRecords(records);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch DTR records",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
@@ -46,11 +78,33 @@ export function DailyTimeRecords() {
     return record.status === "Ready";
   };
 
-  const filteredRecords = mockDTRRecords.filter((record) => {
+  const filteredRecords = dtrRecords.filter((record) => {
     if (filterType === "colleges" && filterValue !== "all") return record.role === "Faculty" && record.department === filterValue;
     if (filterType === "departments" && filterValue !== "all") return record.role === "Staff" && record.department === filterValue;
     return true;
   });
+  
+  const handleDownloadSelected = async () => {
+    if (selectedRecords.size === 0) return;
+    
+    try {
+      const downloadPromises = Array.from(selectedRecords).map(async (staffId) => {
+        const url = await dtrApi.downloadPDF(staffId, parseInt(selectedYear), parseInt(selectedMonth));
+        window.open(url, '_blank');
+      });
+      await Promise.all(downloadPromises);
+      toast({
+        title: "Downloading",
+        description: `${selectedRecords.size} DTR files are being downloaded`
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download DTR files",
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleSelectRecord = (id: string) => {
     const newSelected = new Set(selectedRecords);
@@ -122,7 +176,7 @@ export function DailyTimeRecords() {
                 </SelectContent>
               </Select>
             )}
-            <Button onClick={() => toast({ title: "Downloading", description: `${selectedRecords.size} files` })} disabled={selectedRecords.size === 0}>
+            <Button onClick={handleDownloadSelected} disabled={selectedRecords.size === 0 || loading}>
               <Download className="h-4 w-4 mr-2" />
               Download Selected ({selectedRecords.size})
             </Button>

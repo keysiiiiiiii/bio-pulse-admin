@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { staffApi } from "@/services/api/staffApi";
+import { toast } from "@/hooks/use-toast";
 
 // Mock data - will be replaced with API
 const mockUsers = [
@@ -24,11 +26,33 @@ interface UserListProps {
 
 export function UserList({ selectedUser, onSelectUser }: UserListProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+  
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const data = await staffApi.getAllStaff();
+      setUsers(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch users",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const filteredUsers = mockUsers.filter(
+  const filteredUsers = users.filter(
     (user) =>
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.id.includes(searchQuery) ||
+      user.staff_id.includes(searchQuery) ||
       user.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -54,27 +78,33 @@ export function UserList({ selectedUser, onSelectUser }: UserListProps) {
       <CardContent className="p-0">
         <ScrollArea className="h-[calc(100vh-280px)]">
           <div className="space-y-1 p-4 pt-0">
-            {filteredUsers.map((user) => (
-              <button
-                key={user.id}
-                onClick={() => onSelectUser(user)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors ${
-                  selectedUser?.id === user.id ? "bg-accent" : ""
-                }`}
-              >
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                    {getInitials(user.name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 text-left">
-                  <p className="font-medium text-sm">{user.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {user.role} • {user.id}
-                  </p>
-                </div>
-              </button>
-            ))}
+            {loading ? (
+              <div className="text-center p-4">Loading...</div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="text-center p-4 text-muted-foreground">No users found</div>
+            ) : (
+              filteredUsers.map((user) => (
+                <button
+                  key={user.staff_id}
+                  onClick={() => onSelectUser(user)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors ${
+                    selectedUser?.staff_id === user.staff_id ? "bg-accent" : ""
+                  }`}
+                >
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                      {getInitials(user.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 text-left">
+                    <p className="font-medium text-sm">{user.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {user.role} • {user.staff_id}
+                    </p>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
         </ScrollArea>
       </CardContent>
