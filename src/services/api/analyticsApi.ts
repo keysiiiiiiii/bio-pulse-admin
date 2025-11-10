@@ -31,6 +31,62 @@ export interface LeaveSummary {
   status_breakdown: Record<string, number>;
 }
 
+export interface AvgTimePerDept {
+  department: string;
+  avgTimeIn: string;
+  avgTimeOut: string;
+}
+
+export interface LateMinutesMonthly {
+  month: string;
+  faculty: number;
+  staff: number;
+  total: number;
+}
+
+export interface DeptLateMinutes {
+  department: string;
+  avgLateMinutes: number;
+}
+
+export interface OvertimeMonthly {
+  month: string;
+  overtime: number;
+  forecast?: number;
+}
+
+export interface OvertimeByType {
+  type: string;
+  overtime: number;
+}
+
+export interface OTUTByType {
+  staffId: string;
+  name: string;
+  totalOT: number;
+  totalUT: number;
+  trend: string;
+}
+
+export interface SeasonalAbsences {
+  month: string;
+  absent?: number;
+  absences?: number;
+  earlyOuts?: number;
+}
+
+export interface TopPunctualLate {
+  rank: number;
+  staffId: string;
+  name: string;
+  college?: string;
+  department?: string;
+  onTimeRate?: number;
+  lateRate?: number;
+  avgEarly?: string;
+  avgLate?: string;
+}
+
 export const analyticsApi = {
   // GET /api/analytics/daily?date=YYYY-MM-DD
   getDailyKPIs: (date: string) =>
@@ -47,4 +103,32 @@ export const analyticsApi = {
   // GET /api/analytics/leave-summary?start=YYYY-MM-DD&end=YYYY-MM-DD
   getLeaveSummary: (start: string, end: string) =>
     apiRequest<LeaveSummary[]>(`/api/analytics/leave-summary?start=${start}&end=${end}`),
+
+  // Time Analytics
+  getAvgTimePerDept: (start: string, end: string, type: 'faculty' | 'staff') =>
+    apiRequest<{ rows: AvgTimePerDept[] }>(`/api/analytics/avg-time-per-dept?start=${start}&end=${end}&type=${type}`),
+
+  getLateMinutesMonthly: (start: string, end: string) =>
+    apiRequest<{ rows: LateMinutesMonthly[] }>(`/api/analytics/late-minutes-monthly?start=${start}&end=${end}`),
+
+  getDeptLateMinutes: (start: string, end: string, type: 'faculty' | 'staff') =>
+    apiRequest<{ rows: DeptLateMinutes[] }>(`/api/analytics/dept-late-minutes?start=${start}&end=${end}&type=${type}`),
+
+  // Overtime Analytics
+  getOvertimeMonthly: (start: string, end: string) =>
+    apiRequest<{ rows: OvertimeMonthly[] }>(`/api/analytics/overtime-monthly?start=${start}&end=${end}`),
+
+  getOvertimeByEmployeeType: (start: string, end: string) =>
+    apiRequest<{ rows: OvertimeByType[] }>(`/api/analytics/overtime-by-employee-type?start=${start}&end=${end}`),
+
+  getOTUTByType: (start: string, end: string, type: string) =>
+    apiRequest<{ rows: OTUTByType[] }>(`/api/analytics/ot-ut-by-type?start=${start}&end=${end}&type=${encodeURIComponent(type)}`),
+
+  // Seasonal Analytics
+  getSeasonalAbsences: (year: string, season: 'rainy' | 'summer' | 'holiday') =>
+    apiRequest<{ rows: SeasonalAbsences[] }>(`/api/analytics/seasonal-absences?year=${year}&season=${season}`),
+
+  // Predictive Analytics
+  getTopPunctualLate: (start: string, end: string, type: 'punctual' | 'late', limit = 10) =>
+    apiRequest<{ rows: TopPunctualLate[] }>(`/api/analytics/top-punctual-late?start=${start}&end=${end}&type=${type}&limit=${limit}`),
 };

@@ -12,92 +12,11 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { analyticsApi } from "@/services/api/analyticsApi";
+import { format } from "date-fns";
 
-// Mock data - Dynamic departments/colleges
-const mockAvgTimeDataFaculty = [
-  { department: "CCS", avgTimeIn: "8:10 AM", avgTimeOut: "5:05 PM" },
-  { department: "CHS", avgTimeIn: "8:25 AM", avgTimeOut: "5:12 PM" },
-  { department: "CCJ", avgTimeIn: "8:15 AM", avgTimeOut: "5:08 PM" },
-  { department: "CED", avgTimeIn: "8:20 AM", avgTimeOut: "5:10 PM" },
-  { department: "NSTP", avgTimeIn: "8:05 AM", avgTimeOut: "5:00 PM" },
-  { department: "Gen Ed", avgTimeIn: "8:18 AM", avgTimeOut: "5:07 PM" },
-  { department: "CBPM", avgTimeIn: "8:22 AM", avgTimeOut: "5:15 PM" },
-  { department: "CL", avgTimeIn: "8:12 AM", avgTimeOut: "5:03 PM" },
-  { department: "CAS", avgTimeIn: "8:17 AM", avgTimeOut: "5:09 PM" },
-];
-
-const mockAvgTimeDataStaff = [
-  { department: "HR", avgTimeIn: "8:15 AM", avgTimeOut: "5:10 PM" },
-  { department: "Clinic", avgTimeIn: "8:05 AM", avgTimeOut: "5:00 PM" },
-  { department: "Security", avgTimeIn: "7:50 AM", avgTimeOut: "5:20 PM" },
-  { department: "Library", avgTimeIn: "8:20 AM", avgTimeOut: "5:15 PM" },
-  { department: "Canteen", avgTimeIn: "7:55 AM", avgTimeOut: "5:18 PM" },
-  { department: "Cleaning Service", avgTimeIn: "7:45 AM", avgTimeOut: "5:25 PM" },
-  { department: "Registrar", avgTimeIn: "8:10 AM", avgTimeOut: "5:05 PM" },
-];
-
-// ✅ Correct mock data: Total = (Faculty + Staff) / 2
-const rawLateMinutesData = [
-  { month: "Jan", faculty: 15, staff: 13 },
-  { month: "Feb", faculty: 18, staff: 16 },
-  { month: "Mar", faculty: 13, staff: 11 },
-  { month: "Apr", faculty: 22, staff: 18 },
-  { month: "May", faculty: 17, staff: 15 },
-  { month: "Jun", faculty: 24, staff: 20 },
-  { month: "Jul", faculty: 26, staff: 22 },
-  { month: "Aug", faculty: 20, staff: 18 },
-  { month: "Sep", faculty: 16, staff: 14 },
-  { month: "Oct", faculty: 14, staff: 12 },
-  { month: "Nov", faculty: 19, staff: 17 },
-  { month: "Dec", faculty: 23, staff: 19 },
-];
-
-// ✅ Compute average instead of total
-const mockLateMinutesData = rawLateMinutesData.map((item) => ({
-  ...item,
-  total: (item.faculty + item.staff) / 2,
-}));
-
-const mockDeptLateMinutesDataFaculty = [
-  { department: "CCS", avgLateMinutes: 20 },
-  { department: "CHS", avgLateMinutes: 22 },
-  { department: "CCJ", avgLateMinutes: 18 },
-  { department: "CED", avgLateMinutes: 19 },
-  { department: "NSTP", avgLateMinutes: 15 },
-  { department: "Gen Ed", avgLateMinutes: 17 },
-  { department: "CBPM", avgLateMinutes: 21 },
-  { department: "CL", avgLateMinutes: 16 },
-  { department: "CAS", avgLateMinutes: 18 },
-];
-
-const mockDeptLateMinutesDataStaff = [
-  { department: "Security", avgLateMinutes: 25 },
-  { department: "HR", avgLateMinutes: 18 },
-  { department: "Library", avgLateMinutes: 15 },
-  { department: "Clinic", avgLateMinutes: 12 },
-  { department: "Canteen", avgLateMinutes: 20 },
-  { department: "Cleaning Service", avgLateMinutes: 22 },
-  { department: "Registrar", avgLateMinutes: 13 },
-];
-
-// Top individuals with late minutes
-const mockTopLateIndividualsFaculty = [
-  { name: "Juan Dela Cruz", staffId: "23-2025-0001", college: "CCS", avgLateMinutes: 35, trend: "increasing" },
-  { name: "Maria Santos", staffId: "23-2025-0005", college: "CHS", avgLateMinutes: 32, trend: "stable" },
-  { name: "Pedro Reyes", staffId: "23-2025-0012", college: "CCJ", avgLateMinutes: 30, trend: "decreasing" },
-  { name: "Ana Garcia", staffId: "23-2025-0018", college: "CED", avgLateMinutes: 28, trend: "increasing" },
-  { name: "Jose Ramos", staffId: "23-2025-0025", college: "CBPM", avgLateMinutes: 27, trend: "stable" },
-];
-
-const mockTopLateIndividualsStaff = [
-  { name: "Carlos Mendoza", staffId: "23-2025-0101", department: "Security", avgLateMinutes: 40, trend: "increasing" },
-  { name: "Lisa Fernandez", staffId: "23-2025-0105", department: "HR", avgLateMinutes: 35, trend: "stable" },
-  { name: "Mark Torres", staffId: "23-2025-0110", department: "Library", avgLateMinutes: 32, trend: "increasing" },
-  { name: "Sofia Cruz", staffId: "23-2025-0115", department: "Clinic", avgLateMinutes: 28, trend: "decreasing" },
-  { name: "Daniel Reyes", staffId: "23-2025-0120", department: "Canteen", avgLateMinutes: 26, trend: "stable" },
-];
 
 interface TimeAnalyticsProps {
   selectedDate?: Date;
@@ -108,12 +27,41 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
   const [avgTimeViewType, setAvgTimeViewType] = useState<"faculty" | "staff">("faculty");
   const [lateMinutesViewType, setLateMinutesViewType] = useState<"faculty" | "staff">("faculty");
   const [showTopIndividuals, setShowTopIndividuals] = useState(false);
+  
+  const [avgTimeData, setAvgTimeData] = useState<any[]>([]);
+  const [lateMinutesData, setLateMinutesData] = useState<any[]>([]);
+  const [deptLateMinutesData, setDeptLateMinutesData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const avgTimeData = avgTimeViewType === "faculty" ? mockAvgTimeDataFaculty : mockAvgTimeDataStaff;
-  const deptLateMinutesData =
-    lateMinutesViewType === "faculty" ? mockDeptLateMinutesDataFaculty : mockDeptLateMinutesDataStaff;
-  const topLateIndividuals =
-    lateMinutesViewType === "faculty" ? mockTopLateIndividualsFaculty : mockTopLateIndividualsStaff;
+  useEffect(() => {
+    fetchData();
+  }, [selectedDate, dateRange, avgTimeViewType, lateMinutesViewType]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const start = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : 
+                    selectedDate ? format(new Date(selectedDate.getFullYear(), 0, 1), 'yyyy-MM-dd') : 
+                    format(new Date(2025, 0, 1), 'yyyy-MM-dd');
+      const end = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : 
+                  selectedDate ? format(new Date(selectedDate.getFullYear(), 11, 31), 'yyyy-MM-dd') : 
+                  format(new Date(2025, 11, 31), 'yyyy-MM-dd');
+
+      const [avgTimeRes, lateMinRes, deptLateRes] = await Promise.all([
+        analyticsApi.getAvgTimePerDept(start, end, avgTimeViewType),
+        analyticsApi.getLateMinutesMonthly(start, end),
+        analyticsApi.getDeptLateMinutes(start, end, lateMinutesViewType)
+      ]);
+
+      setAvgTimeData(avgTimeRes.rows || []);
+      setLateMinutesData(lateMinRes.rows || []);
+      setDeptLateMinutesData(deptLateRes.rows || []);
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -169,7 +117,7 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={mockLateMinutesData}>
+            <LineChart data={lateMinutesData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
@@ -220,53 +168,6 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
             </BarChart>
           </ResponsiveContainer>
 
-          <div className="border-t pt-4">
-            <button
-              onClick={() => setShowTopIndividuals(!showTopIndividuals)}
-              className="text-sm font-medium text-primary hover:underline mb-3"
-            >
-              {showTopIndividuals ? "Hide" : "Show"} Top Individuals with Highest Late Minutes
-            </button>
-
-            {showTopIndividuals && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Staff ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>{lateMinutesViewType === "faculty" ? "College" : "Department"}</TableHead>
-                    <TableHead>Avg Late (mins)</TableHead>
-                    <TableHead>Trend</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topLateIndividuals.map((individual) => (
-                    <TableRow key={individual.staffId}>
-                      <TableCell className="font-mono text-sm">{individual.staffId}</TableCell>
-                      <TableCell className="font-medium">{individual.name}</TableCell>
-                      <TableCell>
-                        {lateMinutesViewType === "faculty" ? individual.college : individual.department}
-                      </TableCell>
-                      <TableCell className="font-bold text-destructive">{individual.avgLateMinutes}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            individual.trend === "increasing"
-                              ? "bg-destructive/20 text-destructive"
-                              : individual.trend === "decreasing"
-                              ? "bg-success/20 text-success"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {individual.trend}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
         </CardContent>
       </Card>
     </>
