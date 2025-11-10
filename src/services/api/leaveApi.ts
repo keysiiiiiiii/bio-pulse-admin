@@ -59,7 +59,7 @@ export const leaveApi = {
     formData.append('date', data.date);
     formData.append('reason', data.reason);
     formData.append('attachment', data.file);
-    return apiFormData<{ ok: boolean; id: number }>('/api/leaves/upload', formData);
+    return apiFormData<{ ok: boolean; id: number }>('/api/leaves/upload', { method: 'POST', body: formData });
   },
 
   // PUT /api/leaves/:id/status

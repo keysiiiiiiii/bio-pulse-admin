@@ -1,7 +1,8 @@
 import { Menu, LayoutDashboard, FileText, FilePlus, Bell, Settings, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/context/AuthContext";
 
 type FacultyView = "dashboard" | "dtr" | "leave" | "notifications" | "settings";
 
@@ -14,6 +15,7 @@ interface FacultySidebarProps {
 
 export const FacultySidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse }: FacultySidebarProps) => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const menuItems: { title: string; view: FacultyView; icon: typeof LayoutDashboard }[] = [
     { title: "Dashboard", view: "dashboard", icon: LayoutDashboard },
@@ -24,8 +26,15 @@ export const FacultySidebar = ({ currentView, onViewChange, collapsed, onToggleC
   ];
 
   const handleLogout = () => {
+    logout();
     navigate("/");
   };
+
+  const initials = user?.name
+    ?.split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase() || "FM";
 
   return (
     <Sidebar className={collapsed ? "w-14" : "w-64"} collapsible="icon">
@@ -33,29 +42,31 @@ export const FacultySidebar = ({ currentView, onViewChange, collapsed, onToggleC
         <div className="flex items-center gap-3 border-b pb-4">
           {!collapsed && (
             <>
-              <Avatar className="h-12 w-12 border-2 border-primary">
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                  JD
+              <Avatar className="h-16 w-16 border-2 border-primary">
+                <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-xl">
+                  {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground truncate">John Doe</p>
-                <p className="text-sm text-muted-foreground truncate">Faculty</p>
-                <p className="text-xs text-muted-foreground">ID: 23-2025-1001</p>
+                <p className="font-semibold text-foreground truncate">{user?.name || "Faculty"}</p>
+                <p className="text-sm text-muted-foreground truncate">{user?.role || "Faculty"}</p>
+                <p className="text-xs text-muted-foreground">ID: {user?.staff_id || "N/A"}</p>
               </div>
             </>
           )}
           {collapsed && (
-            <Avatar className="h-8 w-8 border-2 border-primary mx-auto">
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
-                JD
+            <Avatar className="h-10 w-10 border-2 border-primary mx-auto">
+              <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
+              <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
+                {initials}
               </AvatarFallback>
             </Avatar>
           )}
         </div>
         <div className={collapsed ? "py-2" : "pt-4"}>
           <button onClick={onToggleCollapse} className="w-full flex items-center justify-center p-2 hover:bg-accent rounded-md">
-            <Menu className="h-5 w-5" />
+            {/* Toggle icon here */}
           </button>
         </div>
       </SidebarHeader>

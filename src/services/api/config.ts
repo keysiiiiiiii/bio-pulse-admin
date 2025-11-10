@@ -41,11 +41,12 @@ export async function apiRequest<T>(
 // Helper for multipart/form-data uploads
 export async function apiFormData<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit & { body: FormData }
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   const response = await fetch(url, {
-    ...options,
+    method: options.method || 'POST',
+    body: options.body,
     headers: {
       ...getAuthHeaders(),
       ...(options.headers || {}),

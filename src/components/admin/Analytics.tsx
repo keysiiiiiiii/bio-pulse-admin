@@ -70,19 +70,23 @@ export function Analytics() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode={isRangeMode ? "range" : "single"}
-                selected={isRangeMode ? dateRange : selectedDate}
-                onSelect={(date) => {
-                  if (isRangeMode) {
-                    setDateRange(date as { from: Date; to: Date });
-                  } else {
-                    setSelectedDate(date as Date);
-                  }
-                }}
-                initialFocus
-                className="pointer-events-auto"
-              />
+              {isRangeMode ? (
+                <Calendar
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={(date) => setDateRange(date as { from: Date; to: Date })}
+                  initialFocus
+                  className="pointer-events-auto"
+                />
+              ) : (
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => setSelectedDate(date as Date)}
+                  initialFocus
+                  className="pointer-events-auto"
+                />
+              )}
             </PopoverContent>
           </Popover>
         </div>

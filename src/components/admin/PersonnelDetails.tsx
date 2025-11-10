@@ -138,9 +138,9 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4 pb-4 border-b">
-            <Avatar className="h-20 w-20">
+            <Avatar className="h-24 w-24 border-2 border-primary">
               <AvatarImage src={personnel.avatar_url} alt={personnel.name} />
-              <AvatarFallback className="text-xl bg-primary text-primary-foreground">
+              <AvatarFallback className="text-3xl bg-primary text-primary-foreground">
                 {getInitials(personnel.name)}
               </AvatarFallback>
             </Avatar>

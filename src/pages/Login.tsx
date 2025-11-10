@@ -75,6 +75,11 @@ const Login = () => {
         throw new Error(res.error || "Login failed");
       }
 
+      // Validate that the selected role matches the user's actual role
+      if (res.user.role !== role) {
+        throw new Error("Invalid role selected. Please select the correct role for your account.");
+      }
+
       // Map the response to your User type
       const user = {
         id: res.user.staff_id,

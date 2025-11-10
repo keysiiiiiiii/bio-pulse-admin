@@ -1,7 +1,8 @@
 import { Menu, LayoutDashboard, FileText, FilePlus, Bell, Settings, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/context/AuthContext";
 
 type StaffView = "dashboard" | "dtr" | "leave" | "notifications" | "settings";
 
@@ -14,6 +15,7 @@ interface StaffSidebarProps {
 
 export const StaffSidebar = ({ currentView, onViewChange, collapsed, onToggleCollapse }: StaffSidebarProps) => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const menuItems: { title: string; view: StaffView; icon: typeof LayoutDashboard }[] = [
     { title: "Dashboard", view: "dashboard", icon: LayoutDashboard },
@@ -24,8 +26,15 @@ export const StaffSidebar = ({ currentView, onViewChange, collapsed, onToggleCol
   ];
 
   const handleLogout = () => {
+    logout();
     navigate("/");
   };
+
+  const initials = user?.name
+    ?.split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase() || "SM";
 
   return (
     <Sidebar className={collapsed ? "w-14" : "w-64"} collapsible="icon">
@@ -33,22 +42,24 @@ export const StaffSidebar = ({ currentView, onViewChange, collapsed, onToggleCol
         <div className="flex items-center gap-3 border-b pb-4">
           {!collapsed && (
             <>
-              <Avatar className="h-12 w-12 border-2 border-primary">
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                  MS
+              <Avatar className="h-16 w-16 border-2 border-primary">
+                <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-xl">
+                  {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground truncate">Maria Santos</p>
-                <p className="text-sm text-muted-foreground truncate">Staff</p>
-                <p className="text-xs text-muted-foreground">ID: 23-2025-2001</p>
+                <p className="font-semibold text-foreground truncate">{user?.name || "Staff"}</p>
+                <p className="text-sm text-muted-foreground truncate">{user?.role || "Staff"}</p>
+                <p className="text-xs text-muted-foreground">ID: {user?.staff_id || "N/A"}</p>
               </div>
             </>
           )}
           {collapsed && (
-            <Avatar className="h-8 w-8 border-2 border-primary mx-auto">
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
-                MS
+            <Avatar className="h-10 w-10 border-2 border-primary mx-auto">
+              <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
+              <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
+                {initials}
               </AvatarFallback>
             </Avatar>
           )}

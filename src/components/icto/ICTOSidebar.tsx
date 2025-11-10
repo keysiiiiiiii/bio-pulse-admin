@@ -11,8 +11,9 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 type ICTOView = "profile" | "activity" | "tools";
 
@@ -31,10 +32,18 @@ const menuItems: { id: ICTOView; label: string; icon: any }[] = [
 
 export function ICTOSidebar({ currentView, onViewChange, collapsed, onToggleCollapse }: ICTOSidebarProps) {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const handleLogout = () => {
+    logout();
     navigate("/");
   };
+
+  const initials = user?.name
+    ?.split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase() || "IC";
 
   return (
     <Sidebar className={`border-r border-sidebar-border bg-sidebar transition-all ${collapsed ? 'w-16' : ''}`}>
@@ -51,17 +60,26 @@ export function ICTOSidebar({ currentView, onViewChange, collapsed, onToggleColl
         </div>
         {!collapsed && (
           <div className="flex items-center gap-3">
-            <Avatar className="h-12 w-12 border-2 border-sidebar-primary">
-              <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground font-semibold">
-                TA
+            <Avatar className="h-16 w-16 border-2 border-sidebar-primary">
+              <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
+              <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground font-semibold text-xl">
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sidebar-foreground truncate">Temp Admin</p>
-              <p className="text-sm text-sidebar-foreground/70 truncate">Role: Admin</p>
-              <p className="text-xs text-sidebar-foreground/60">ID: 01-2025-0042</p>
+              <p className="font-semibold text-sidebar-foreground truncate">{user?.name || "ICTO Admin"}</p>
+              <p className="text-sm text-sidebar-foreground/70 truncate">Role: {user?.role || "ICTO"}</p>
+              <p className="text-xs text-sidebar-foreground/60">ID: {user?.staff_id || "N/A"}</p>
             </div>
           </div>
+        )}
+        {collapsed && (
+          <Avatar className="h-10 w-10 border-2 border-sidebar-primary mx-auto">
+            <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
+            <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-semibold">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
         )}
       </SidebarHeader>
 

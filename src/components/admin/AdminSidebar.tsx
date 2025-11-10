@@ -67,16 +67,16 @@ export function AdminSidebar({ currentView, onViewChange }: AdminSidebarProps) {
       .toUpperCase() || "A";
 
   return (
-    <Sidebar className="border-r border-[#38A169]/30 bg-[#38A169] text-[#F0FFF4]">
+    <Sidebar className="border-r border-[#38A169]/30 bg-[#38A169] text-[#F0FFF4]" collapsible="icon">
       {/* ===== Header with dynamic user info ===== */}
       <SidebarHeader className="p-6 border-b border-white/20">
         <div className="flex items-center gap-3">
-          <Avatar className="h-12 w-12 border-2 border-white">
+          <Avatar className="h-16 w-16 border-2 border-white">
             <AvatarImage
               src={user?.photo_url || user?.avatarUrl || ""}
               alt={user?.name}
             />
-            <AvatarFallback className="bg-[#5CB85C] text-white font-semibold">
+            <AvatarFallback className="bg-[#5CB85C] text-white font-semibold text-xl">
               {initials}
             </AvatarFallback>
           </Avatar>
