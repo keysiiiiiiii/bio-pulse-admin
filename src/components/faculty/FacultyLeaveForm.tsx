@@ -4,9 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { CalendarIcon, Upload } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -24,50 +34,77 @@ export const FacultyLeaveForm = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
 
+  // inside the component, replace handleSubmit with:
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) {
       toast({
         title: "Error",
         description: "User not authenticated",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    
+
     if (!startDate || !leaveType || !reason) {
       toast({
         title: "Missing Fields",
         description: "Please fill in all required fields",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    
+
     setLoading(true);
+
     try {
+      const payload = {
+        staff_user_id: user.id, // may be staff_id string — server will map
+        staff_id: user.staff_id || user.id, // explicit staff_id string to help server lookup
+        staff_name: user.name,
+        date: format(startDate, "yyyy-MM-dd"),
+        reason,
+        leave_type: leaveType,
+        start_date: startDate ? format(startDate, "yyyy-MM-dd") : null,
+        end_date: endDate ? format(endDate, "yyyy-MM-dd") : null,
+        num_days: numDays || null,
+      };
+
+      console.log("🧍 user:", user);
+
       if (file) {
-        await leaveApi.createWithFile({
-          staff_name: user.name,
-          date: format(startDate, 'yyyy-MM-dd'),
-          reason,
-          file
+        // multipart form
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append('staff_id', String(user.staff_id || user.id));
+        // append other fields
+        Object.entries(payload).forEach(([k, v]) => {
+          if (v !== undefined && v !== null) formData.append(k, String(v));
         });
+
+        const res = await fetch("/api/leaves/with-file", {
+          method: "POST",
+          body: formData,
+        });
+        const json = await res.json();
+        if (!res.ok || !json.ok) throw new Error(json.error || "Upload failed");
       } else {
-        await leaveApi.create({
-          staff_name: user.name,
-          date: format(startDate, 'yyyy-MM-dd'),
-          reason,
-          status: 'pending-admin'
+        const res = await fetch("/api/leaves", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
+        const json = await res.json();
+        if (!res.ok || !json.ok) throw new Error(json.error || "Create failed");
       }
-      
+
       toast({
         title: "Leave Request Submitted",
         description: "Your leave request has been sent for approval",
       });
-      
+
       // Reset form
       setStartDate(undefined);
       setEndDate(undefined);
@@ -76,10 +113,11 @@ export const FacultyLeaveForm = () => {
       setNumDays("");
       setFile(null);
     } catch (error) {
+      console.error("submit leave error", error);
       toast({
         title: "Error",
         description: "Failed to submit leave request",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -107,21 +145,64 @@ export const FacultyLeaveForm = () => {
                     <SelectValue placeholder="Select leave type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="vacation">Vacation Leave</SelectItem>
-                    <SelectItem value="sick">Sick Leave</SelectItem>
-                    <SelectItem value="emergency">Emergency Leave</SelectItem>
-                    <SelectItem value="personal">Personal Leave</SelectItem>
-                    <SelectItem value="maternity">Maternity Leave</SelectItem>
-                    <SelectItem value="paternity">Paternity Leave</SelectItem>
+                    <SelectItem value="vacation">
+                      Vacation Leave (Sec. 51, Rule XVI, Omnibus Rules
+                      Implementing E.O. No. 292)
+                    </SelectItem>
+                    <SelectItem value="sick">
+                      Sick Leave (Sec. 43, Rule XVI, Omnibus Rules Implementing
+                      E.O. No. 292)
+                    </SelectItem>
+                    <SelectItem value="emergency">
+                      Special Emergency (Calamity) Leave (CSC MC No. 2, s. 2012,
+                      as amended)
+                    </SelectItem>
+                    <SelectItem value="maternity">
+                      Maternity Leave (R.A. No. 11210 / IRR issued by CSC, DOLE
+                      and SSS)
+                    </SelectItem>
+                    <SelectItem value="paternity">
+                      Paternity Leave (R.A. No. 8187 / CSC MC No. 71, s. 1998,
+                      as amended)
+                    </SelectItem>
+                    <SelectItem value="forced">
+                      Mandatory/Forced Leave(Sec. 25, Rule XVI, Omnibus Rules
+                      Implementing E.O. No. 292)
+                    </SelectItem>
+                    <SelectItem value="privilege">
+                      Special Privilege Leave (Sec. 21, Rule XVI, Omnibus Rules
+                      Implementing E.O. No. 292)
+                    </SelectItem>
+                    <SelectItem value="soloparent">
+                      Solo Parent Leave (RA No. 8972 / CSC MC No. 8, s. 2004)
+                    </SelectItem>
+                    <SelectItem value="study">
+                      Study Leave (Sec. 68, Rule XVI, Omnibus Rules Implementing
+                      E.O. No. 292)
+                    </SelectItem>
+                    <SelectItem value="vawc">
+                      10-Day VAWC Leave (RA No. 9262 / CSC MC No. 15, s. 2005)
+                    </SelectItem>
+                    <SelectItem value="rehab">
+                      Rehabilitation Privilege (Sec. 55, Rule XVI, Omnibus Rules
+                      Implementing E.O. No. 292)
+                    </SelectItem>
+                    <SelectItem value="special">
+                      Special Leave Benefits for Women (RA No. 9710 / CSC MC No.
+                      25, s. 2010)
+                    </SelectItem>
+                    <SelectItem value="adoption">
+                      Adoption Leave (R.A. No. 8552)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
                 <Label>Number of Days</Label>
-                <Input 
-                  type="number" 
-                  min="1" 
+                <Input
+                  type="number"
+                  min="1"
                   placeholder="Enter number of days"
                   value={numDays}
                   onChange={(e) => setNumDays(e.target.value)}
@@ -134,13 +215,24 @@ export const FacultyLeaveForm = () => {
                 <Label>Start Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
+                      {startDate ? (
+                        format(startDate, "PPP")
+                      ) : (
+                        <span>Pick a date</span>
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={startDate} onSelect={setStartDate} />
+                    <Calendar
+                      mode="single"
+                      selected={startDate}
+                      onSelect={setStartDate}
+                    />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -149,13 +241,24 @@ export const FacultyLeaveForm = () => {
                 <Label>End Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {endDate ? format(endDate, "PPP") : <span>Pick a date</span>}
+                      {endDate ? (
+                        format(endDate, "PPP")
+                      ) : (
+                        <span>Pick a date</span>
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={endDate} onSelect={setEndDate} />
+                    <Calendar
+                      mode="single"
+                      selected={endDate}
+                      onSelect={setEndDate}
+                    />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -163,8 +266,8 @@ export const FacultyLeaveForm = () => {
 
             <div className="space-y-2">
               <Label>Reason</Label>
-              <Textarea 
-                placeholder="Provide the reason for your leave request" 
+              <Textarea
+                placeholder="Provide the reason for your leave request"
                 rows={4}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
@@ -174,8 +277,8 @@ export const FacultyLeaveForm = () => {
             <div className="space-y-2">
               <Label>Attachment (Optional)</Label>
               <div className="flex items-center gap-2">
-                <Input 
-                  type="file" 
+                <Input
+                  type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
@@ -183,11 +286,15 @@ export const FacultyLeaveForm = () => {
                   <Upload className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">Upload medical certificate or supporting documents</p>
+              <p className="text-xs text-muted-foreground">
+                Upload medical certificate or supporting documents
+              </p>
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline">Cancel</Button>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
               <Button type="submit" disabled={loading}>
                 {loading ? "Submitting..." : "Submit Request"}
               </Button>
