@@ -3,15 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
-import { API_BASE_URL } from "@/services/api/config";
-
-interface Activity {
-  action: string;
-  details: any;
-  actor_staff_id: string;
-  actor_role: string;
-  created_at: string;
-}
+import { activityApi, type Activity } from "@/services/api/activityApi";
+import { toast } from "@/hooks/use-toast";
 
 const getActivityBadge = (type: string) => {
   switch (type) {
@@ -55,21 +48,15 @@ export function ActivityHistory() {
 
   const fetchActivities = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE_URL}/activity/recent?limit=50`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch activities");
-      }
-
-      const data = await response.json();
+      const data = await activityApi.getRecent(50);
       setActivities(data);
     } catch (error) {
       console.error("Error fetching activities:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load activity history",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }

@@ -56,4 +56,21 @@ router.post("/notifications/mark-all-read", async (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/notifications/recent - Get recent activity for current user
+router.get("/notifications/recent", async (req, res) => {
+  const staff_id = getStaffId(req);
+  if (!staff_id) return res.status(400).json({ error: "missing staff_id" });
+
+  const limit = Math.min(Number(req.query.limit || 50), 100);
+  const { data, error } = await supabase
+    .from("account_activity")
+    .select("action, details, actor_staff_id, actor_role, staff_id, created_at")
+    .eq("actor_staff_id", staff_id)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
 module.exports = router;

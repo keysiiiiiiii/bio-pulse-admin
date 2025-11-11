@@ -55,14 +55,9 @@ export function LeaveRequests() {
   const fetchLeaveRequests = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/leaves?status=pending');
-      const result = await response.json();
+      const data = await leaveApi.getAll({ status: 'pending' });
       
-      if (!result.ok || !result.data) {
-        throw new Error('Failed to fetch leave requests');
-      }
-      
-      const formatted = result.data.map((req: any) => ({
+      const formatted = data.data.map((req: any) => ({
         id: String(req.id),
         staffId: req.staff_id || '',
         name: req.staff_name,
@@ -92,17 +87,7 @@ export function LeaveRequests() {
 
   const handleApprove = async (id: string) => {
     try {
-      const response = await fetch(`/api/leaves/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'approved' })
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to approve');
-      }
+      await leaveApi.updateStatus(id, { status: 'approved' });
       
       toast({
         title: "Leave Request Approved",
@@ -131,17 +116,10 @@ export function LeaveRequests() {
     if (!disapproveDialog.requestId) return;
     
     try {
-      const response = await fetch(`/api/leaves/${disapproveDialog.requestId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'denied', remarks: disapproveRemark })
+      await leaveApi.updateStatus(disapproveDialog.requestId, { 
+        status: 'denied', 
+        remarks: disapproveRemark 
       });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to disapprove');
-      }
       
       toast({
         title: "Leave Request Disapproved",

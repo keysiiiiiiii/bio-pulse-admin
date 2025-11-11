@@ -7,8 +7,18 @@ export interface LeaveRequest {
   staff_name: string;
   date: string;
   reason: string;
-  status: 'pending-admin' | 'approved' | 'denied' | 'cancelled';
+  status: 'pending' | 'pending-admin' | 'approved' | 'denied' | 'cancelled';
   attachment_url?: string;
+  file_url?: string;
+  leave_form_url?: string;
+  fields?: {
+    leave_type?: string;
+    start_date?: string;
+    end_date?: string;
+    num_days?: number;
+  };
+  admin_remarks?: string;
+  remarks?: string;
   created_at: string;
   updated_at?: string;
 }
@@ -21,7 +31,7 @@ export const leaveApi = {
     if (params?.start) query.set('start', params.start);
     if (params?.end) query.set('end', params.end);
     const queryString = query.toString();
-    return apiRequest<LeaveRequest[]>(`/api/leaves${queryString ? '?' + queryString : ''}`);
+    return apiRequest<{ ok: boolean; data: LeaveRequest[] }>(`/api/leaves${queryString ? '?' + queryString : ''}`);
   },
 
   // GET /api/leaves/:id
@@ -62,11 +72,11 @@ export const leaveApi = {
     return apiFormData<{ ok: boolean; id: number }>('/api/leaves/upload', { method: 'POST', body: formData });
   },
 
-  // PUT /api/leaves/:id/status
-  updateStatus: (id: number, status: string) =>
+  // PATCH /api/leaves/:id/status
+  updateStatus: (id: string | number, data: { status: string; remarks?: string }) =>
     apiRequest<{ ok: boolean }>(`/api/leaves/${id}/status`, {
-      method: 'PUT',
-      body: JSON.stringify({ status }),
+      method: 'PATCH',
+      body: JSON.stringify(data),
     }),
 
   // DELETE /api/leaves/:id

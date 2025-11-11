@@ -6,6 +6,7 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
+    host: true, // This enables network access and shows IP in terminal
     port: 8080,
     proxy: {
       '/api': {
