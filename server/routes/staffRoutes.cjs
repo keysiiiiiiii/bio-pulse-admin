@@ -365,15 +365,18 @@ router.post('/users',
       let dept = (department || '').trim();
 
       const COLLEGE_MAP = {
-        CCS: 'CCS - College of Computer Studies',
+        CCS: 'CCS - College of Computing Studies',
         CAS: 'CAS - College of Arts and Sciences',
         CHS: 'CHS - College of Health Sciences',
         CCJ: 'CCJ - College of Criminal Justice',
-        CBA: 'CBA - College of Business Administration',
         CED: 'CED - College of Education',
-        NTSP: 'NTSP - National Service Training Program'
+        CBPM: 'CBPM - College of Business and Public Management',
+        CL: 'CL - College of Law',
+        'Gen Ed': 'Gen Ed - General Education',
+        GenEd: 'Gen Ed - General Education',
+        NSTP: 'NSTP - National Service Training Program'
       };
-      const STAFF_WHITELIST = ['Canteen', 'Cleaning Services', 'Clinic', 'Library', 'Security'];
+      const STAFF_WHITELIST = ['Canteen', 'Cleaning Service', 'Clinic', 'Library', 'Security', 'Human Resource (HR)', 'Registrar'];
       const isCollege = (d) => !!d && (
         /college/i.test(d) ||
         Object.values(COLLEGE_MAP).includes(d) ||
@@ -434,7 +437,16 @@ router.post('/users',
 
       if (insErr) {
         console.error('Create user failed:', insErr);
-        return res.status(insCode || 500).json({ message: 'Failed to create account' });
+        
+        // Better error messages
+        if (insErr.code === '23505') {
+          if (insErr.message.includes('email')) {
+            return res.status(409).json({ message: 'Email already exists in the system' });
+          }
+          return res.status(409).json({ message: 'Staff ID already exists in the system' });
+        }
+        
+        return res.status(insCode || 500).json({ message: insErr.message || 'Failed to create account' });
       }
 
       // Log: account created

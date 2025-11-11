@@ -290,10 +290,13 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
       onSuccess();
     } catch (err) {
       console.error('❌ Create account error:', err);
+      
+      const errorMessage = (err as Error).message || 'Failed to create account. Please try again.';
+      
       toast({
         variant: 'destructive',
         title: 'Error Creating Account',
-        description: (err as Error).message || 'Failed to create account. Please try again.',
+        description: errorMessage,
       });
     } finally {
       setIsSubmitting(false);
