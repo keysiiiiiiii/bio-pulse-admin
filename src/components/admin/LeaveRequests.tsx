@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Search, CheckCircle, XCircle, FileText, Pin } from "lucide-react";
+import { Search, CheckCircle, XCircle, FileText, Pin, Download, Eye } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { leaveApi } from "@/services/api/leaveApi";
 
@@ -19,6 +19,11 @@ interface LeaveRequest {
   type: string;
   status: "pending" | "pinned";
   attachment?: string;
+  leaveForm?: string;
+  leaveType?: string;
+  startDate?: string;
+  endDate?: string;
+  numDays?: number;
 }
 
 const mockRequests: LeaveRequest[] = [
@@ -38,6 +43,10 @@ export function LeaveRequests() {
     requestId: null 
   });
   const [disapproveRemark, setDisapproveRemark] = useState("");
+  const [previewDialog, setPreviewDialog] = useState<{ open: boolean; request: LeaveRequest | null }>({
+    open: false,
+    request: null
+  });
   
   useEffect(() => {
     fetchLeaveRequests();
@@ -46,19 +55,31 @@ export function LeaveRequests() {
   const fetchLeaveRequests = async () => {
     setLoading(true);
     try {
-      const data = await leaveApi.getAll({ status: 'pending-admin' });
-      const formatted = data.map(req => ({
+      const response = await fetch('/api/leaves?status=pending');
+      const result = await response.json();
+      
+      if (!result.ok || !result.data) {
+        throw new Error('Failed to fetch leave requests');
+      }
+      
+      const formatted = result.data.map((req: any) => ({
         id: String(req.id),
         staffId: req.staff_id || '',
         name: req.staff_name,
         date: req.date,
-        reason: req.reason,
-        type: 'Leave Request',
+        reason: req.reason || '',
+        type: req.fields?.leave_type || 'Leave Request',
         status: 'pending' as const,
-        attachment: req.attachment_url
+        attachment: req.file_url,
+        leaveForm: req.leave_form_url,
+        leaveType: req.fields?.leave_type,
+        startDate: req.fields?.start_date,
+        endDate: req.fields?.end_date,
+        numDays: req.fields?.num_days
       }));
       setRequests(formatted);
     } catch (error) {
+      console.error('Fetch error:', error);
       toast({
         title: "Error",
         description: "Failed to fetch leave requests",
@@ -71,16 +92,27 @@ export function LeaveRequests() {
 
   const handleApprove = async (id: string) => {
     try {
-      await leaveApi.updateStatus(parseInt(id), 'approved');
+      const response = await fetch(`/api/leaves/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'approved' })
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to approve');
+      }
+      
       toast({
         title: "Leave Request Approved",
-        description: "The leave request has been approved successfully",
+        description: "The leave request has been approved and moved to history",
       });
       fetchLeaveRequests();
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to approve leave request",
+        description: error.message || "Failed to approve leave request",
         variant: "destructive"
       });
     }
@@ -99,22 +131,59 @@ export function LeaveRequests() {
     if (!disapproveDialog.requestId) return;
     
     try {
-      await leaveApi.updateStatus(parseInt(disapproveDialog.requestId), 'denied');
+      const response = await fetch(`/api/leaves/${disapproveDialog.requestId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'denied', remarks: disapproveRemark })
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to disapprove');
+      }
+      
       toast({
         title: "Leave Request Disapproved",
-        description: "The leave request has been disapproved with remarks",
+        description: "The leave request has been disapproved and moved to history",
       });
       fetchLeaveRequests();
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to disapprove leave request",
+        description: error.message || "Failed to disapprove leave request",
         variant: "destructive"
       });
     }
     
     setDisapproveDialog({ open: false, requestId: null });
     setDisapproveRemark("");
+  };
+
+  const handleDownload = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      toast({
+        title: "Download Started",
+        description: `Downloading ${filename}...`,
+      });
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "Unable to download the file",
+        variant: "destructive"
+      });
+    }
   };
 
   const filteredRequests = requests
@@ -175,60 +244,202 @@ export function LeaveRequests() {
 
       {/* Requests List */}
       <div className="grid gap-4">
-        {filteredRequests.map((request) => (
-          <Card key={request.id} className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <CardTitle className="text-lg">{request.name}</CardTitle>
-                    {request.status === "pinned" && <Pin className="h-4 w-4 text-accent" />}
+        {loading ? (
+          <div className="text-center p-8 text-muted-foreground">Loading requests...</div>
+        ) : filteredRequests.length === 0 ? (
+          <div className="text-center p-8 text-muted-foreground">No pending leave requests</div>
+        ) : (
+          filteredRequests.map((request) => (
+            <Card key={request.id} className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CardTitle className="text-lg">{request.name}</CardTitle>
+                      {request.status === "pinned" && <Pin className="h-4 w-4 text-accent" />}
+                    </div>
+                    <p className="text-sm text-muted-foreground">Staff ID: {request.staffId}</p>
                   </div>
-                  <p className="text-sm text-muted-foreground">Staff ID: {request.staffId}</p>
+                  <Badge variant="outline" className="bg-primary-light text-primary">
+                    {request.type}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="bg-primary-light text-primary">
-                  {request.type}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Leave Date</p>
-                  <p className="text-base">{new Date(request.date).toLocaleDateString()}</p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Leave Date</p>
+                    <p className="text-base">{new Date(request.date).toLocaleDateString()}</p>
+                  </div>
+                  {request.startDate && request.endDate && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Leave Period</p>
+                      <p className="text-base">{request.startDate} to {request.endDate} ({request.numDays} days)</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Reason</p>
+                    <p className="text-base">{request.reason || 'No reason provided'}</p>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-2"
+                      onClick={() => setPreviewDialog({ open: true, request })}
+                    >
+                      <Eye className="h-4 w-4" />
+                      Preview
+                    </Button>
+                    {request.leaveForm && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2"
+                        onClick={() => handleDownload(request.leaveForm!, `leave_form_${request.name}.xlsx`)}
+                      >
+                        <Download className="h-4 w-4" />
+                        Download Form
+                      </Button>
+                    )}
+                    {request.attachment && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2"
+                        onClick={() => handleDownload(request.attachment!, `attachment_${request.name}`)}
+                      >
+                        <Download className="h-4 w-4" />
+                        Download Attachment
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      onClick={() => handleApprove(request.id)}
+                      className="flex-1 bg-success hover:bg-success/90 text-success-foreground gap-2"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={() => setDisapproveDialog({ open: true, requestId: request.id })}
+                      variant="destructive"
+                      className="flex-1 gap-2"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Disapprove
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Reason</p>
-                  <p className="text-base">{request.reason}</p>
-                </div>
-                {request.attachment && (
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <FileText className="h-4 w-4" />
-                    View Attachment
-                  </Button>
-                )}
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    onClick={() => handleApprove(request.id)}
-                    className="flex-1 bg-success hover:bg-success/90 text-success-foreground gap-2"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    Approve
-                  </Button>
-                  <Button
-                    onClick={() => setDisapproveDialog({ open: true, requestId: request.id })}
-                    variant="destructive"
-                    className="flex-1 gap-2"
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Disapprove
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
+
+      {/* Preview Dialog */}
+      <Dialog open={previewDialog.open} onOpenChange={(open) => setPreviewDialog({ open, request: null })}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Leave Request Preview</DialogTitle>
+            <DialogDescription>
+              Review the details of this leave request
+            </DialogDescription>
+          </DialogHeader>
+          {previewDialog.request && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Staff Name</p>
+                  <p className="text-base font-semibold">{previewDialog.request.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Staff ID</p>
+                  <p className="text-base font-semibold">{previewDialog.request.staffId}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Leave Type</p>
+                  <p className="text-base">{previewDialog.request.leaveType || previewDialog.request.type}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Filing Date</p>
+                  <p className="text-base">{new Date(previewDialog.request.date).toLocaleDateString()}</p>
+                </div>
+                {previewDialog.request.startDate && (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Start Date</p>
+                      <p className="text-base">{previewDialog.request.startDate}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">End Date</p>
+                      <p className="text-base">{previewDialog.request.endDate}</p>
+                    </div>
+                  </>
+                )}
+                {previewDialog.request.numDays && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Number of Days</p>
+                    <p className="text-base">{previewDialog.request.numDays} days</p>
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Reason</p>
+                <p className="text-base mt-1">{previewDialog.request.reason || 'No reason provided'}</p>
+              </div>
+              
+              {(previewDialog.request.leaveForm || previewDialog.request.attachment) && (
+                <div className="border-t pt-4">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Attachments</p>
+                  <div className="flex flex-col gap-2">
+                    {previewDialog.request.leaveForm && (
+                      <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-5 w-5 text-primary" />
+                          <span className="text-sm">Leave Form (Excel)</span>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleDownload(previewDialog.request!.leaveForm!, `leave_form_${previewDialog.request!.name}.xlsx`)}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                      </div>
+                    )}
+                    {previewDialog.request.attachment && (
+                      <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-5 w-5 text-accent" />
+                          <span className="text-sm">Supporting Document</span>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleDownload(previewDialog.request!.attachment!, `attachment_${previewDialog.request!.name}`)}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewDialog({ open: false, request: null })}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Disapprove Dialog */}
       <Dialog open={disapproveDialog.open} onOpenChange={(open) => setDisapproveDialog({ open, requestId: null })}>

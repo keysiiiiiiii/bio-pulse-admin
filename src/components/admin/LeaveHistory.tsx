@@ -62,21 +62,34 @@ export function LeaveHistory() {
   const fetchHistory = async () => {
     setLoading(true);
     try {
-      const data = await leaveApi.getAll();
-      const formatted = data
-        .filter(req => req.status === 'approved' || req.status === 'denied')
-        .map(req => ({
-          id: String(req.id),
-          staffId: req.staff_id || '',
-          name: req.staff_name,
-          date: req.date,
-          reason: req.reason,
-          type: 'Leave Request',
-          status: req.status === 'approved' ? 'approved' as const : 'disapproved' as const,
-          attachment: req.attachment_url,
-        }));
+      // Fetch leave requests from backend
+      const response = await fetch('/api/leaves');
+      const result = await response.json();
+      
+      if (!result.ok || !result.data) {
+        throw new Error('Failed to fetch leave history');
+      }
+      
+      // Filter only approved and denied requests
+      const filtered = result.data.filter((req: any) => 
+        req.status === 'approved' || req.status === 'denied'
+      );
+      
+      const formatted: LeaveRecord[] = filtered.map((req: any) => ({
+        id: String(req.id),
+        staffId: req.staff_id || '',
+        name: req.staff_name,
+        date: req.date,
+        reason: req.reason || '',
+        type: req.fields?.leave_type || 'Leave Request',
+        status: req.status === 'approved' ? 'approved' as const : 'disapproved' as const,
+        remarks: req.admin_remarks || req.remarks,
+        attachment: req.file_url
+      }));
+      
       setHistory(formatted);
     } catch (error) {
+      console.error('Fetch error:', error);
       toast({
         title: "Error",
         description: "Failed to fetch leave history",
