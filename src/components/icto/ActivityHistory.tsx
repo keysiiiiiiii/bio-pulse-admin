@@ -1,55 +1,80 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2 } from "lucide-react";
+import { API_BASE_URL } from "@/services/api/config";
 
-// Mock activity data
-const activities = [
-  {
-    id: 1,
-    timestamp: "10/21/2025, 11:57:35 AM",
-    type: "password_change",
-    details: "Password changed by Admin (01-2025-0042)",
-  },
-  {
-    id: 2,
-    timestamp: "10/21/2025, 11:56:10 AM",
-    type: "password_reset",
-    details: "Password reset to default by ICTO (66-2025-0004)",
-  },
-  {
-    id: 3,
-    timestamp: "10/7/2025, 6:12:12 PM",
-    type: "create",
-    details: "Account created (role: Admin, dept: HR Office) by ICTO (66-2025-0004)",
-  },
-  {
-    id: 4,
-    timestamp: "10/5/2025, 3:45:20 PM",
-    type: "password_reset",
-    details: "Password reset to default for user (15-2025-0026)",
-  },
-  {
-    id: 5,
-    timestamp: "10/3/2025, 10:30:15 AM",
-    type: "create",
-    details: "Account created (role: Faculty, dept: College of Engineering) by ICTO (01-2025-0042)",
-  },
-];
+interface Activity {
+  action: string;
+  details: any;
+  actor_staff_id: string;
+  actor_role: string;
+  created_at: string;
+}
 
 const getActivityBadge = (type: string) => {
   switch (type) {
-    case "password_change":
-      return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">Password Change</Badge>;
-    case "password_reset":
-      return <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">Password Reset</Badge>;
     case "create":
       return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">Create Account</Badge>;
+    case "password_reset":
+      return <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">Password Reset</Badge>;
+    case "password_change":
+      return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-200">Password Change</Badge>;
     default:
-      return <Badge variant="outline">Action</Badge>;
+      return <Badge variant="outline">{type}</Badge>;
+  }
+};
+
+const formatActivityDetails = (activity: Activity) => {
+  const details = activity.details || {};
+  const actorInfo = activity.actor_staff_id 
+    ? `by ${activity.actor_role || 'User'} (${activity.actor_staff_id})`
+    : '';
+
+  switch (activity.action) {
+    case "create":
+      return `Account created (role: ${details.role || 'N/A'}, dept: ${details.dept || 'N/A'}) ${actorInfo}`;
+    case "password_reset":
+      const reason = details.reason || 'reset_to_default';
+      return `Password ${reason === 'reset_to_default' ? 'reset to default' : 'changed'} ${actorInfo}`;
+    case "password_change":
+      return `Password changed ${actorInfo}`;
+    default:
+      return `${activity.action} ${actorInfo}`;
   }
 };
 
 export function ActivityHistory() {
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchActivities();
+  }, []);
+
+  const fetchActivities = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${API_BASE_URL}/activity/recent?limit=50`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch activities");
+      }
+
+      const data = await response.json();
+      setActivities(data);
+    } catch (error) {
+      console.error("Error fetching activities:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -59,23 +84,35 @@ export function ActivityHistory() {
         </p>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[calc(100vh-280px)]">
-          <div className="space-y-4">
-            {activities.map((activity) => (
-              <div key={activity.id} className="border-l-2 border-primary/20 pl-4 pb-4">
-                <div className="flex items-start justify-between gap-4 mb-2">
-                  <div className="flex-1">
-                    {getActivityBadge(activity.type)}
-                  </div>
-                  <time className="text-xs text-muted-foreground whitespace-nowrap">
-                    {activity.timestamp}
-                  </time>
-                </div>
-                <p className="text-sm text-foreground">{activity.details}</p>
-              </div>
-            ))}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        </ScrollArea>
+        ) : activities.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            No activity history found
+          </div>
+        ) : (
+          <ScrollArea className="h-[calc(100vh-280px)]">
+            <div className="space-y-4">
+              {activities.map((activity, index) => (
+                <div key={index} className="border-l-2 border-primary/20 pl-4 pb-4">
+                  <div className="flex items-start justify-between gap-4 mb-2">
+                    <div className="flex-1">
+                      {getActivityBadge(activity.action)}
+                    </div>
+                    <time className="text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(activity.created_at).toLocaleString()}
+                    </time>
+                  </div>
+                  <p className="text-sm text-foreground">
+                    {formatActivityDetails(activity)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
       </CardContent>
     </Card>
   );

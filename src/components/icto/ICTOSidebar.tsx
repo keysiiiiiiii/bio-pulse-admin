@@ -1,4 +1,4 @@
-import { User, History, Settings, LogOut } from "lucide-react";
+import { User, History, Settings, LogOut, UserCog } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -15,7 +15,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/context/AuthContext";
 
-type ICTOView = "profile" | "activity" | "tools";
+type ICTOView = "profile" | "activity" | "tools" | "settings";
 
 interface ICTOSidebarProps {
   currentView: ICTOView;
@@ -28,6 +28,7 @@ const menuItems: { id: ICTOView; label: string; icon: any }[] = [
   { id: "profile", label: "Profile Info", icon: User },
   { id: "activity", label: "Activity History", icon: History },
   { id: "tools", label: "Account Tools", icon: Settings },
+  { id: "settings", label: "Account Settings", icon: UserCog },
 ];
 
 export function ICTOSidebar({ currentView, onViewChange, collapsed, onToggleCollapse }: ICTOSidebarProps) {

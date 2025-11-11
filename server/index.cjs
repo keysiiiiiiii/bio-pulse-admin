@@ -108,6 +108,9 @@ if (gsheetsRoutes) app.use('/', gsheetsRoutes);
 const dtrRoutes = loadRoute('./routes/dtrRoutes.cjs', 'DTR Routes');
 if (dtrRoutes) app.use('/api/dtr', dtrRoutes);
 
+const activityRoutes = loadRoute('./routes/activityRoutes.cjs', 'Activity Routes');
+if (activityRoutes) app.use('/api/activity', activityRoutes);
+
 console.log('\n✅ Route loading complete!\n');
 
 // ===================== DIAGNOSTICS =====================

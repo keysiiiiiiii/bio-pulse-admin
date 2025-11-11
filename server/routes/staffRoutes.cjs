@@ -600,6 +600,46 @@ router.patch(
   }
 );
 
+// POST /users/:staff_id/reset-password - Reset password to default (ICTO/Admin only)
+router.post(
+  '/users/:staff_id/reset-password',
+  verifyToken,
+  requireRole('Admin', 'Vice President', 'ICTO'),
+  async (req, res) => {
+    try {
+      const targetId = String(req.params.staff_id);
+      const defaultPassword = 'default123';
+      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+      const { error, data } = await db
+        .from('staff_users')
+        .update({ password: hashedPassword })
+        .eq('staff_id', targetId)
+        .select('staff_id, name');
+
+      if (error) return res.status(500).json({ message: 'Database error' });
+      if (!data || data.length === 0) return res.status(404).json({ message: 'User not found' });
+
+      // Log the password reset activity
+      try {
+        await logActivity({
+          staff_id: targetId,
+          action: 'password_reset',
+          details: { reason: 'reset_to_default' },
+          actor: req.user || {}
+        });
+      } catch (e) {
+        console.warn('Failed to log activity:', e);
+      }
+
+      return res.json({ message: 'Password reset successfully', user: data[0] });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ message: 'Server error' });
+    }
+  }
+);
+
 /* =========================
    MOBILE (aligned to your schema)
    =========================
