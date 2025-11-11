@@ -56,12 +56,12 @@ const roles = [
   'Vice President',
 ];
 
-// FIXED: Allow 2-6 characters for prefix (not full ID format)
+// Accept full Staff ID (no prefix - use AS IS)
 const schema = z.object({
-  staff_id_prefix: z.string()
-    .min(2, 'Prefix must be at least 2 characters')
-    .max(6, 'Prefix must be at most 6 characters')
-    .regex(/^[A-Za-z0-9]+$/, 'Prefix must contain only letters and numbers'),
+  staff_id: z.string()
+    .min(2, 'Staff ID is required')
+    .max(50, 'Staff ID is too long')
+    .regex(/^[A-Za-z0-9-]+$/, 'Staff ID must contain only letters, numbers, and hyphens'),
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -94,7 +94,7 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      staff_id_prefix: '11',
+      staff_id: '',
       password: 'default123',
     },
   });
@@ -183,12 +183,10 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
         setValue('contact_number', data.phone);
       }
 
-      // Extract just the prefix from faculty_number (e.g., "11" from "11-2025-0001")
+      // Use full Staff ID AS IS from Groq AI (no extraction, no auto-generation)
       if (data.faculty_number) {
-        const prefixMatch = data.faculty_number.match(/^([A-Za-z0-9]{2,6})/);
-        const prefix = prefixMatch ? prefixMatch[1] : data.faculty_number;
-        console.log('Setting staff_id_prefix:', prefix);
-        setValue('staff_id_prefix', prefix);
+        console.log('Setting staff_id AS IS:', data.faculty_number);
+        setValue('staff_id', data.faculty_number);
       }
 
       // Determine role from AI data
@@ -264,7 +262,7 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
       }
 
       const payload = {
-        staff_id_prefix: data.staff_id_prefix,
+        staff_id: data.staff_id, // Send full staff_id AS IS
         name: data.name,
         email: data.email,
         password: data.password,
@@ -345,23 +343,23 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
 
         {/* FORM */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Staff ID Prefix - FIXED */}
+          {/* Staff ID - Full Format */}
           <div className="space-y-2">
-            <Label htmlFor="staff_id_prefix">
-              Staff ID Prefix <span className="text-destructive">*</span>
+            <Label htmlFor="staff_id">
+              Staff ID <span className="text-destructive">*</span>
             </Label>
             <Input
-              id="staff_id_prefix"
-              placeholder="e.g., 11, 69, ABC (2-6 characters)"
-              {...register('staff_id_prefix')}
+              id="staff_id"
+              placeholder="e.g., 22-2003-0915"
+              {...register('staff_id')}
               disabled={isSubmitting || isScanning}
-              maxLength={6}
+              maxLength={50}
             />
-            {errors.staff_id_prefix && (
-              <p className="text-sm text-destructive">{errors.staff_id_prefix.message}</p>
+            {errors.staff_id && (
+              <p className="text-sm text-destructive">{errors.staff_id.message}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Enter 2-6 character prefix. Full ID will be auto-generated as: <strong>PREFIX-2025-0001</strong>
+              Enter the complete Staff ID (e.g., <strong>22-2003-0915</strong>)
             </p>
           </div>
 

@@ -346,14 +346,16 @@ router.post('/users',
       }
 
       const prefixRe = /^[A-Za-z0-9]{2,6}$/;
+      // Use staff_id AS IS (no trimming, no auto-generation)
       let finalStaffId = staff_id;
 
+      // Fallback: if staff_id_prefix is provided, auto-generate (backward compatibility)
       if (!finalStaffId && prefixRe.test(staff_id_prefix || '')) {
         finalStaffId = await generateNextStaffId(staff_id_prefix);
       }
 
       if (!finalStaffId) {
-        return res.status(400).json({ message: 'Invalid staff_id / staff_id_prefix' });
+        return res.status(400).json({ message: 'Staff ID is required' });
       }
 
 
