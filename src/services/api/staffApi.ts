@@ -210,4 +210,24 @@ export const staffApi = {
     
     return response.json();
   },
+
+  // Scan account form using AI (Groq)
+  scanAccountForm: async (formData: FormData) => {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`${API_BASE}/staff/llm/parse-form`, {
+      method: "POST",
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        // Don't set Content-Type for FormData - browser will set it with boundary
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Failed to scan form" }));
+      throw new Error(error.message || "Failed to scan form");
+    }
+    
+    return response.json();
+  },
 };

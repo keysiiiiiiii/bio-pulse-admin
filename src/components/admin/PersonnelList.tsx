@@ -45,7 +45,8 @@ const DEPARTMENTS = [
   "Canteen",
   "Library",
   "Cleaning Service",
-  "Human Resource (HR)"
+  "Human Resource (HR)",
+  "Registrar"
 ];
 
 export function PersonnelList() {
