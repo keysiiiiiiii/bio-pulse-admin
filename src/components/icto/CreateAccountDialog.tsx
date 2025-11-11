@@ -23,7 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { staffApi } from '@/services/api/staffApi';
-import { Upload, Loader2 } from 'lucide-react';
+import { Upload, Loader2, CheckCircle2 } from 'lucide-react';
 
 // Department lists
 const collegeDepartments = [
@@ -56,13 +56,17 @@ const roles = [
   'Vice President',
 ];
 
+// FIXED: Allow 2-6 characters for prefix (not full ID format)
 const schema = z.object({
-  staff_id_prefix: z.string().min(2, 'Prefix must be 2 digits').max(2, 'Prefix must be 2 digits (e.g., 00, 11, 69)'),
-  name: z.string().min(1, 'Name required'),
-  email: z.string().email('Invalid email'),
-  password: z.string().min(8, 'Password must be 8+ characters'),
-  role: z.string().min(1, 'Role required'),
-  department: z.string().min(1, 'Department required'),
+  staff_id_prefix: z.string()
+    .min(2, 'Prefix must be at least 2 characters')
+    .max(6, 'Prefix must be at most 6 characters')
+    .regex(/^[A-Za-z0-9]+$/, 'Prefix must contain only letters and numbers'),
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  role: z.string().min(1, 'Role is required'),
+  department: z.string().min(1, 'Department is required'),
   contact_number: z.string().optional(),
 });
 
@@ -78,7 +82,6 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [selectedRole, setSelectedRole] = useState('');
 
   const {
     register,
@@ -131,7 +134,7 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
     return rawText; // Return as-is if no match
   };
 
-  // AI Scan Handler
+  // AI Scan Handler - FIXED
   const handleAiScan = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -148,8 +151,8 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
 
     setIsScanning(true);
     toast({
-      title: 'Scanning Image...',
-      description: 'Please wait while AI processes the document.',
+      title: '🔍 Scanning Image...',
+      description: 'AI is reading the document. Please wait.',
     });
 
     try {
@@ -157,30 +160,43 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
       const formData = new FormData();
       formData.append('image', file);
 
+      console.log('📤 Sending image to Groq API...');
+
       // Call the API
       const data = await staffApi.scanAccountForm(formData);
 
+      console.log('✅ Groq API response:', data);
+
       // Fill the form with AI-extracted data
       if (data.name) {
+        console.log('Setting name:', data.name);
         setValue('name', data.name);
       }
       
       if (data.email) {
+        console.log('Setting email:', data.email);
         setValue('email', data.email);
       }
       
       if (data.phone) {
+        console.log('Setting phone:', data.phone);
         setValue('contact_number', data.phone);
       }
 
+      // Extract just the prefix from faculty_number (e.g., "11" from "11-2025-0001")
       if (data.faculty_number) {
-        setValue('staff_id_prefix', data.faculty_number);
+        const prefixMatch = data.faculty_number.match(/^([A-Za-z0-9]{2,6})/);
+        const prefix = prefixMatch ? prefixMatch[1] : data.faculty_number;
+        console.log('Setting staff_id_prefix:', prefix);
+        setValue('staff_id_prefix', prefix);
       }
 
       // Determine role from AI data
       let detectedRole = data.role || '';
       const deptText = (data.department || '').toLowerCase();
       
+      console.log('Detected role:', detectedRole, 'Department text:', deptText);
+
       // Smart role detection
       if (deptText.includes('college') || deptText.includes('ccs') || 
           deptText.includes('cas') || deptText.includes('chs') ||
@@ -201,26 +217,27 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
 
       // Set role if detected
       if (detectedRole && roles.includes(detectedRole)) {
+        console.log('Setting role:', detectedRole);
         setValue('role', detectedRole);
-        setSelectedRole(detectedRole);
       }
 
       // Set department after role is determined
       if (data.department && detectedRole) {
         const normalized = normalizeDepartment(data.department, detectedRole);
+        console.log('Setting department:', normalized);
         setValue('department', normalized);
       }
 
       toast({
-        title: 'Scan Complete!',
+        title: '✅ Scan Complete!',
         description: 'Form fields have been populated. Please verify the information.',
       });
     } catch (err) {
-      console.error('AI Scan Error:', err);
+      console.error('❌ AI Scan Error:', err);
       toast({
         variant: 'destructive',
         title: 'Scan Failed',
-        description: (err as Error).message || 'Failed to scan the image. Please try again.',
+        description: (err as Error).message || 'Failed to scan the image. Please check console for details.',
       });
     } finally {
       setIsScanning(false);
@@ -232,6 +249,8 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
+      console.log('📝 Creating account with data:', data);
+
       // Map role to employee_type and prepare department
       let employee_type = data.role;
       let department = data.department;
@@ -255,21 +274,26 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
         contact_number: data.contact_number || null,
       };
 
+      console.log('📤 Sending payload to API:', payload);
+
       const result = await staffApi.create(payload);
       
+      console.log('✅ Account created:', result);
+
       toast({
-        title: 'Account Created',
-        description: `Successfully created account for ${data.name} with ID ${result.staff_id}.${result.device_pin ? ` PIN: ${result.device_pin}` : ''}`,
+        title: '✅ Account Created Successfully',
+        description: `Created account for ${data.name} with ID ${result.staff_id}.${result.device_pin ? ` Biometric PIN: ${result.device_pin}` : ''}`,
       });
       
       reset();
       onOpenChange(false);
       onSuccess();
     } catch (err) {
+      console.error('❌ Create account error:', err);
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: (err as Error).message || 'Failed to create account.',
+        title: 'Error Creating Account',
+        description: (err as Error).message || 'Failed to create account. Please try again.',
       });
     } finally {
       setIsSubmitting(false);
@@ -286,9 +310,10 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        {/* AI SCAN UPLOAD */}
-        <div className="space-y-2 border-b pb-4">
-          <Label htmlFor="ai-scan" className="text-base font-semibold">
+        {/* AI SCAN UPLOAD - FIXED */}
+        <div className="space-y-2 border-b pb-4 bg-muted/50 p-4 rounded-lg">
+          <Label htmlFor="ai-scan" className="text-base font-semibold flex items-center gap-2">
+            <Upload className="h-5 w-5" />
             Scan ID or Form (Optional)
           </Label>
           <div className="flex items-center gap-2">
@@ -303,35 +328,37 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
             {isScanning && (
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
             )}
-            {!isScanning && (
-              <Upload className="h-5 w-5 text-muted-foreground" />
-            )}
           </div>
           {isScanning && (
-            <p className="text-sm text-primary font-medium">
-              Scanning document... please wait.
-            </p>
+            <div className="flex items-center gap-2 text-sm text-primary font-medium">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>AI is scanning the document... please wait.</span>
+            </div>
           )}
+          <p className="text-xs text-muted-foreground">
+            Upload an ID card or form image. AI will automatically extract and fill the form fields.
+          </p>
         </div>
 
         {/* FORM */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Staff ID Prefix */}
+          {/* Staff ID Prefix - FIXED */}
           <div className="space-y-2">
             <Label htmlFor="staff_id_prefix">
               Staff ID Prefix <span className="text-destructive">*</span>
             </Label>
             <Input
               id="staff_id_prefix"
-              placeholder="e.g., 11 (2-6 characters)"
+              placeholder="e.g., 11, 69, ABC (2-6 characters)"
               {...register('staff_id_prefix')}
               disabled={isSubmitting || isScanning}
+              maxLength={6}
             />
             {errors.staff_id_prefix && (
               <p className="text-sm text-destructive">{errors.staff_id_prefix.message}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Enter 2-6 digit prefix. Full ID will be auto-generated (e.g., 11-2025-0001)
+              Enter 2-6 character prefix. Full ID will be auto-generated as: <strong>PREFIX-2025-0001</strong>
             </p>
           </div>
 
@@ -397,7 +424,6 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
                 <Select
                   onValueChange={(value) => {
                     field.onChange(value);
-                    setSelectedRole(value);
                     setValue('department', ''); // Reset department when role changes
                   }}
                   value={field.value}
@@ -510,7 +536,10 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
                   Creating...
                 </>
               ) : (
-                'Create Account'
+                <>
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Create Account
+                </>
               )}
             </Button>
           </DialogFooter>
