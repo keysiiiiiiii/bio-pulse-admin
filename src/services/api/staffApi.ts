@@ -214,7 +214,7 @@ export const staffApi = {
   // Scan account form using AI (Groq)
   scanAccountForm: async (formData: FormData) => {
     const token = localStorage.getItem("token");
-    const response = await fetch(`${API_BASE}/staff/llm/parse-form`, {
+    const response = await fetch(`${API_BASE}/llm/parse-form`, {
       method: "POST",
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),

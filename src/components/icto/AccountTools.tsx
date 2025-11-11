@@ -88,6 +88,10 @@ export function AccountTools({ selectedUser }: AccountToolsProps) {
         <CreateAccountDialog
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
+          onSuccess={() => {
+            // Refresh user list or handle success
+            setCreateDialogOpen(false);
+          }}
         />
       </CardContent>
     </Card>
