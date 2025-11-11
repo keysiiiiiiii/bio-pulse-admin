@@ -631,11 +631,27 @@ router.post(
   memUpload.single('image'),
   async (req, res) => {
     try {
+      console.log('[LLM] Scan request received');
+      
+      // Check if GROQ_API_KEY is set
+      if (!process.env.GROQ_API_KEY) {
+        console.error('[LLM] GROQ_API_KEY not set in environment');
+        return res.status(500).json({ message: 'GROQ_API_KEY not configured on server' });
+      }
+
       // Validate input
       const file = req.file;
       if (!file) {
+        console.error('[LLM] No file uploaded');
         return res.status(400).json({ message: 'image file required' });
       }
+
+      console.log('[LLM] File received:', {
+        mimetype: file.mimetype,
+        size: file.size,
+        originalname: file.originalname
+      });
+
       // Convert the image buffer to a base64 data URI
       const mime = file.mimetype || 'image/png';
       const base64 = file.buffer.toString('base64');
@@ -643,9 +659,7 @@ router.post(
 
       // Prepare the messages for the Groq API. We instruct the model to
       // extract the required fields. If any field is missing in the image,
-      // the model should provide an empty string for that field. The
-      // response_format is set to json_object so that the model returns
-      // a strict JSON object instead of free-form text.
+      // the model should provide an empty string for that field.
       const messages = [
         {
           role: 'user',
@@ -655,23 +669,24 @@ router.post(
               text:
                 'The following image contains text describing a university staff or faculty member. ' +
                 'Extract the following fields and output them as a JSON object with these exact keys: ' +
-                'name, email, faculty_number, department, phone, status, role. ' +   // <— added role
-                'If a field is not present, set its value to an empty string. Do not include any additional keys.',
+                'name, email, faculty_number, department, phone, status, role. ' +
+                'If a field is not present, set its value to an empty string. Do not include any additional keys. ' +
+                'Return ONLY the JSON object, no additional text.',
             },
             { type: 'image_url', image_url: { url: dataUri } }
           ],
         }
       ];
 
-      // Call the Groq chat completion endpoint. We use a multimodal model that
-      // supports both images and JSON responses. The API key is read from
-      // environment variables. Adjust the max_completion_tokens if needed.
+      // Call the Groq chat completion endpoint using a vision-capable model
       const groqReqBody = {
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        model: 'llama-3.2-90b-vision-preview',
         messages: messages,
-        max_completion_tokens: 512,
-        response_format: { type: 'json_object' },
+        max_tokens: 512,
+        temperature: 0.1,
       };
+
+      console.log('[LLM] Calling Groq API...');
       const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -683,17 +698,43 @@ router.post(
 
       if (!groqRes.ok) {
         const text = await groqRes.text().catch(() => '');
-        return res.status(500).json({ message: 'LLM request failed', status: groqRes.status, body: text });
+        console.error('[LLM] Groq API error:', {
+          status: groqRes.status,
+          statusText: groqRes.statusText,
+          body: text
+        });
+        return res.status(500).json({ 
+          message: 'LLM request failed', 
+          status: groqRes.status, 
+          details: text.substring(0, 200) 
+        });
       }
+
       const groqJson = await groqRes.json();
+      console.log('[LLM] Groq API response received');
+
       // The Groq API returns choices array with messages. Extract the content.
       const content = groqJson?.choices?.[0]?.message?.content;
       if (!content) {
+        console.error('[LLM] Invalid response structure:', groqJson);
         return res.status(500).json({ message: 'Invalid LLM response', response: groqJson });
       }
+
+      console.log('[LLM] Raw content:', content);
+
       let parsed;
-      try { parsed = JSON.parse(content); }
-      catch { return res.status(500).json({ message: 'Failed to parse JSON from LLM', raw: content }); }
+      try { 
+        // Try to extract JSON from the content (in case there's extra text)
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        const jsonStr = jsonMatch ? jsonMatch[0] : content;
+        parsed = JSON.parse(jsonStr); 
+        console.log('[LLM] Parsed JSON:', parsed);
+      }
+      catch (err) { 
+        console.error('[LLM] Failed to parse JSON:', err);
+        return res.status(500).json({ message: 'Failed to parse JSON from LLM', raw: content }); 
+      }
+
       const out = {
         name: parsed.name ?? '',
         email: parsed.email ?? '',
@@ -703,10 +744,16 @@ router.post(
         status: parsed.status ?? '',
         role: parsed.role ?? ''
       };
+
+      console.log('[LLM] Scan successful:', out);
       return res.json(out);
+
     } catch (e) {
-      console.error('LLM parse error:', e);
-      return res.status(500).json({ message: 'Unexpected server error', error: e.message || e.toString() });
+      console.error('[LLM] Unexpected error:', e);
+      return res.status(500).json({ 
+        message: 'Unexpected server error', 
+        error: e.message || e.toString() 
+      });
     }
   },
 );
