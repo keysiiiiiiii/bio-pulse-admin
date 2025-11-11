@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { staffApi } from "@/services/api/staffApi";
 import { toast } from "@/hooks/use-toast";
@@ -92,6 +92,7 @@ export function UserList({ selectedUser, onSelectUser }: UserListProps) {
                   }`}
                 >
                   <Avatar className="h-10 w-10">
+                    <AvatarImage src={user.photo_url} alt={user.name} />
                     <AvatarFallback className="bg-primary/10 text-primary font-semibold">
                       {getInitials(user.name)}
                     </AvatarFallback>
