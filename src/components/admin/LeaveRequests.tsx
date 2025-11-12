@@ -53,7 +53,7 @@ export function LeaveRequests() {
       // Get token from localStorage
       const token = localStorage.getItem('token');
       
-      const response = await fetch('/api/leaves?status=pending', {
+      const response = await fetch('/api/leaves?status=pending-admin', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +112,8 @@ export function LeaveRequests() {
       
       const token = localStorage.getItem('token');
       
-      const response = await fetch(`/api/leaves/${id}/status`, {
+      // Try with capitalized first
+      let response = await fetch(`/api/leaves/${id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -120,6 +121,18 @@ export function LeaveRequests() {
         },
         body: JSON.stringify({ status: 'approved' })
       });
+      
+      // If it fails, try lowercase
+      if (!response.ok && response.status === 500) {
+        response = await fetch(`/api/leaves/${id}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify({ status: 'approved' })
+        });
+      }
       
       if (!response.ok) {
         const errorText = await response.text();
