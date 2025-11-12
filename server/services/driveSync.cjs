@@ -192,11 +192,15 @@ async function upsertToSupabase(files, dry) {
       }
     }
 
+    // Use file creation date as fallback if date parsing fails
+    const fallbackDate = f.createdTime ? f.createdTime.split('T')[0] : now.split('T')[0];
+    const finalDate = date || fallbackDate;
+
     const payload = {
       drive_id: f.id,
       staff_user_id,
       staff_name,
-      date: date || null,
+      date: finalDate,
       file_url: f.webViewLink || null,
 
       status: 'Pending',    // fits your enum from screenshot
