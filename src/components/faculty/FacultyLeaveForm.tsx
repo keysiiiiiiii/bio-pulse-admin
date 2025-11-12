@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { leaveApi } from "@/services/api/leaveApi";
 
 export const FacultyLeaveForm = () => {
   const [startDate, setStartDate] = useState<Date>();
@@ -274,7 +275,7 @@ export const FacultyLeaveForm = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>Attachment (Optional)</Label>
+              <Label>Attachment (Send files)</Label>
               <div className="flex items-center gap-2">
                 <Input
                   type="file"
