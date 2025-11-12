@@ -84,7 +84,7 @@ function normStatus(s) {
   const v = String(s || '').toLowerCase();
   if (v.startsWith('pending')) return 'pending-admin';
   if (v === 'approved') return 'approved';
-  if (v === 'denied') return 'denied';
+  if (v === 'denied' || v === 'rejected' || v === 'disapproved') return 'rejected';
   if (v === 'cancelled' || v === 'canceled') return 'cancelled';
   return 'pending-admin';
 }
@@ -360,11 +360,11 @@ router.get('/api/leaves', verifyToken, async (req, res) => {
     if (staffUserId) query = query.eq('staff_user_id', Number(staffUserId));
     if (!archived) query = query.or('archived.is.null,archived.eq.false');
 
-    // Better status filtering - handle enum properly
+    // Better status filtering - handle both old "Pending" and new "pending-admin" records
     if (status && status !== 'all') {
       if (status === 'pending') {
-        // Match pending-admin only (the valid enum value)
-        query = query.eq('status', 'pending-admin');
+        // Match both old "Pending" records and new "pending-admin" records
+        query = query.or('status.eq.Pending,status.eq.pending,status.eq.pending-admin');
       } else {
         query = query.eq('status', status);
       }
@@ -423,14 +423,14 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
     const remarks = req.body?.remarks?.trim();
 
     if (!id) return res.status(400).json({ error: 'Invalid id' });
-    if (status === 'denied' && !remarks) {
+    if (status === 'rejected' && !remarks) {
       return res.status(400).json({ error: 'Remarks required for denial' });
     }
 
     const patch = {
       status,
       admin_remarks: remarks || null,
-      finalized_at: (status === 'approved' || status === 'denied') ? new Date().toISOString() : null
+      finalized_at: (status === 'approved' || status === 'rejected') ? new Date().toISOString() : null
     };
 
     const { data, error } = await db.from('leave_requests').update(patch).eq('id', id).select().single();
@@ -442,8 +442,8 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
 
     console.log('✅ Updated:', data);
 
-    const title = status === 'approved' ? 'Leave Approved' : status === 'denied' ? 'Leave Denied' : 'Leave Updated';
-    const message = status === 'denied' && remarks ? `Denied: ${remarks}` : `Status: ${status}`;
+    const title = status === 'approved' ? 'Leave Approved' : status === 'rejected' ? 'Leave Denied' : 'Leave Updated';
+    const message = status === 'rejected' && remarks ? `Denied: ${remarks}` : `Status: ${status}`;
 
     await safeNotify({ staff_user_id: data.staff_user_id, title, message, link: '' });
     

@@ -31,6 +31,13 @@ export const FacultyLeaveForm = () => {
   const [numDays, setNumDays] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // Conditional leave details
+  const [vacationLocation, setVacationLocation] = useState<"philippines" | "abroad" | "">("");
+  const [vacationSpecify, setVacationSpecify] = useState("");
+  const [sickLeaveType, setSickLeaveType] = useState<"hospital" | "outpatient" | "">("");
+  const [sickLeaveSpecify, setSickLeaveSpecify] = useState("");
+  
   const { user } = useAuth();
 
   // inside the component, replace handleSubmit with:
@@ -59,9 +66,20 @@ export const FacultyLeaveForm = () => {
     setLoading(true);
 
     try {
+      // Build leave details based on type
+      const leaveDetails: any = {};
+      if (leaveType === "vacation" || leaveType === "privilege") {
+        leaveDetails.vacation_location = vacationLocation;
+        leaveDetails.vacation_specify = vacationSpecify;
+      }
+      if (leaveType === "sick") {
+        leaveDetails.sick_leave_type = sickLeaveType;
+        leaveDetails.sick_leave_specify = sickLeaveSpecify;
+      }
+
       const payload = {
-        staff_user_id: user.id, // may be staff_id string — server will map
-        staff_id: user.staff_id || user.id, // explicit staff_id string to help server lookup
+        staff_user_id: user.id,
+        staff_id: user.staff_id || user.id,
         staff_name: user.name,
         date: format(startDate, "yyyy-MM-dd"),
         reason,
@@ -69,6 +87,7 @@ export const FacultyLeaveForm = () => {
         start_date: startDate ? format(startDate, "yyyy-MM-dd") : null,
         end_date: endDate ? format(endDate, "yyyy-MM-dd") : null,
         num_days: numDays || null,
+        ...leaveDetails,
       };
 
       console.log("🧍 user:", user);
@@ -111,6 +130,10 @@ export const FacultyLeaveForm = () => {
       setReason("");
       setNumDays("");
       setFile(null);
+      setVacationLocation("");
+      setVacationSpecify("");
+      setSickLeaveType("");
+      setSickLeaveSpecify("");
     } catch (error) {
       console.error("submit leave error", error);
       toast({
@@ -272,6 +295,98 @@ export const FacultyLeaveForm = () => {
                 onChange={(e) => setReason(e.target.value)}
               />
             </div>
+
+            {/* Conditional Fields for Vacation/Privilege Leave */}
+            {(leaveType === "vacation" || leaveType === "privilege") && (
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                <Label className="text-base font-semibold">6.B Details of Leave - Vacation/Special Privilege</Label>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="philippines"
+                      name="vacation-location"
+                      checked={vacationLocation === "philippines"}
+                      onChange={() => setVacationLocation("philippines")}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="philippines" className="font-normal cursor-pointer">Within the Philippines</Label>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        id="abroad"
+                        name="vacation-location"
+                        checked={vacationLocation === "abroad"}
+                        onChange={() => setVacationLocation("abroad")}
+                        className="h-4 w-4"
+                      />
+                      <Label htmlFor="abroad" className="font-normal cursor-pointer">Abroad (Specify)</Label>
+                    </div>
+                    {vacationLocation === "abroad" && (
+                      <Input
+                        placeholder="Specify country/location"
+                        value={vacationSpecify}
+                        onChange={(e) => setVacationSpecify(e.target.value)}
+                        className="ml-6"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Conditional Fields for Sick Leave */}
+            {leaveType === "sick" && (
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                <Label className="text-base font-semibold">6.B Details of Leave - In case of Sick Leave</Label>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        id="hospital"
+                        name="sick-type"
+                        checked={sickLeaveType === "hospital"}
+                        onChange={() => setSickLeaveType("hospital")}
+                        className="h-4 w-4"
+                      />
+                      <Label htmlFor="hospital" className="font-normal cursor-pointer">In Hospital (Specify Illness)</Label>
+                    </div>
+                    {sickLeaveType === "hospital" && (
+                      <Input
+                        placeholder="Specify illness"
+                        value={sickLeaveSpecify}
+                        onChange={(e) => setSickLeaveSpecify(e.target.value)}
+                        className="ml-6"
+                      />
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        id="outpatient"
+                        name="sick-type"
+                        checked={sickLeaveType === "outpatient"}
+                        onChange={() => setSickLeaveType("outpatient")}
+                        className="h-4 w-4"
+                      />
+                      <Label htmlFor="outpatient" className="font-normal cursor-pointer">Out Patient (Specify Illness)</Label>
+                    </div>
+                    {sickLeaveType === "outpatient" && (
+                      <Input
+                        placeholder="Specify illness"
+                        value={sickLeaveSpecify}
+                        onChange={(e) => setSickLeaveSpecify(e.target.value)}
+                        className="ml-6"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Attachment (Optional)</Label>
