@@ -307,6 +307,7 @@ export const StaffLeaveForm = () => {
                       checked={vacationLocation === "philippines"}
                       onChange={() => setVacationLocation("philippines")}
                       className="h-4 w-4"
+                      aria-label="Within the Philippines"
                     />
                     <Label htmlFor="philippines" className="font-normal cursor-pointer">Within the Philippines</Label>
                   </div>
@@ -319,6 +320,7 @@ export const StaffLeaveForm = () => {
                         checked={vacationLocation === "abroad"}
                         onChange={() => setVacationLocation("abroad")}
                         className="h-4 w-4"
+                        aria-label="Abroad"
                       />
                       <Label htmlFor="abroad" className="font-normal cursor-pointer">Abroad (Specify)</Label>
                     </div>
@@ -349,6 +351,7 @@ export const StaffLeaveForm = () => {
                         checked={sickLeaveType === "hospital"}
                         onChange={() => setSickLeaveType("hospital")}
                         className="h-4 w-4"
+                        aria-label="In Hospital"
                       />
                       <Label htmlFor="hospital" className="font-normal cursor-pointer">In Hospital (Specify Illness)</Label>
                     </div>
@@ -370,6 +373,7 @@ export const StaffLeaveForm = () => {
                         checked={sickLeaveType === "outpatient"}
                         onChange={() => setSickLeaveType("outpatient")}
                         className="h-4 w-4"
+                        aria-label="Out Patient"
                       />
                       <Label htmlFor="outpatient" className="font-normal cursor-pointer">Out Patient (Specify Illness)</Label>
                     </div>
