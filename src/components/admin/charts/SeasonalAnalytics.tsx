@@ -1,8 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
 import { useState, useEffect } from "react";
 import { analyticsApi } from "@/services/api/analyticsApi";
+import { format } from "date-fns";
 
 interface SeasonalAnalyticsProps {
   selectedDate?: Date;
@@ -14,6 +15,7 @@ export function SeasonalAnalytics({ selectedDate, dateRange }: SeasonalAnalytics
   const [rainySeasonData, setRainySeasonData] = useState<any[]>([]);
   const [summerData, setSummerData] = useState<any[]>([]);
   const [holidayData, setHolidayData] = useState<any[]>([]);
+  const [lateMinutesData, setLateMinutesData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -24,11 +26,18 @@ export function SeasonalAnalytics({ selectedDate, dateRange }: SeasonalAnalytics
     setLoading(true);
     try {
       const year = selectedDate ? selectedDate.getFullYear().toString() : '2025';
+      const start = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : 
+                    selectedDate ? format(new Date(selectedDate.getFullYear(), 0, 1), 'yyyy-MM-dd') : 
+                    format(new Date(2025, 0, 1), 'yyyy-MM-dd');
+      const end = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : 
+                  selectedDate ? format(new Date(selectedDate.getFullYear(), 11, 31), 'yyyy-MM-dd') : 
+                  format(new Date(2025, 11, 31), 'yyyy-MM-dd');
 
-      const [rainyRes, summerRes, holidayRes] = await Promise.all([
+      const [rainyRes, summerRes, holidayRes, lateMinRes] = await Promise.all([
         analyticsApi.getSeasonalAbsences(year, 'rainy'),
         analyticsApi.getSeasonalAbsences(year, 'summer'),
-        analyticsApi.getSeasonalAbsences(year, 'holiday')
+        analyticsApi.getSeasonalAbsences(year, 'holiday'),
+        analyticsApi.getLateMinutesMonthly(start, end)
       ]);
 
       setRainySeasonData(rainyRes.rows || []);
@@ -37,6 +46,7 @@ export function SeasonalAnalytics({ selectedDate, dateRange }: SeasonalAnalytics
         { category: 'Staff', leaves: Math.floor((summerRes.rows || []).reduce((a, b) => a + (b.absent || 0), 0) * 0.3) }
       ]);
       setHolidayData(holidayRes.rows || []);
+      setLateMinutesData(lateMinRes.rows || []);
     } catch (error) {
       console.error('Failed to fetch seasonal analytics:', error);
     } finally {
@@ -46,6 +56,30 @@ export function SeasonalAnalytics({ selectedDate, dateRange }: SeasonalAnalytics
 
   return (
     <>
+      {/* Average Minutes Late per Month - MOVED FROM TimeAnalytics */}
+      <Card className="shadow-md">
+        <CardHeader>
+          <CardTitle>Average Minutes Late per Month</CardTitle>
+          <CardDescription>
+            Identify trends (e.g., rainy season = more lates) - Total, Faculty, Staff
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={lateMinutesData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="total" stroke="#f97316" strokeWidth={2} name="Overall Average" />
+              <Line type="monotone" dataKey="faculty" stroke="#16a34a" strokeWidth={2} name="Faculty Average" />
+              <Line type="monotone" dataKey="staff" stroke="#2563eb" strokeWidth={2} name="Staff Average" />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
       {/* Rainy-Season Absenteeism (Jun-Sep) */}
       <Card className="shadow-md">
         <CardHeader>

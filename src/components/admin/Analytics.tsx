@@ -92,28 +92,7 @@ export function Analytics() {
         </div>
       </div>
 
-      {/* Group 1: Time & Lateness Analytics */}
-      <div className="space-y-6">
-        <div className="border-l-4 border-primary pl-4">
-          <h3 className="text-xl font-semibold">Time & Lateness Analytics</h3>
-          <p className="text-sm text-muted-foreground">Track punctuality patterns and time management</p>
-        </div>
-        <TimeAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-      </div>
-
-      {/* Group 2: Overtime & Undertime Analytics */}
-      <div className="space-y-6">
-        <div className="border-l-4 border-blue-500 pl-4">
-          <h3 className="text-xl font-semibold">Overtime & Undertime Analytics</h3>
-          <p className="text-sm text-muted-foreground">Monitor work hours and overtime patterns</p>
-        </div>
-        <div className="grid gap-6">
-          <TrendAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-          <OvertimeUndertimeAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-        </div>
-      </div>
-
-      {/* Group 3: Seasonal Trends */}
+      {/* Group 1: Seasonal Trends - MOVED TO TOP */}
       <div className="space-y-6">
         <div className="border-l-4 border-orange-500 pl-4">
           <h3 className="text-xl font-semibold">Seasonal Trends</h3>
@@ -122,13 +101,34 @@ export function Analytics() {
         <SeasonalAnalytics selectedDate={selectedDate} dateRange={dateRange} />
       </div>
 
-      {/* Group 4: Predictive Analytics */}
+      {/* Group 2: Predictive Analytics */}
       <div className="space-y-6">
         <div className="border-l-4 border-purple-500 pl-4">
           <h3 className="text-xl font-semibold">Predictive Analytics</h3>
-          <p className="text-sm text-muted-foreground">Forecast future trends and identify high-risk patterns</p>
+          <p className="text-sm text-muted-foreground">Forecast future trends and identify high-risk patterns (Note: Top Employees moved to Dashboard)</p>
         </div>
         <PredictiveAnalytics selectedDate={selectedDate} dateRange={dateRange} />
+      </div>
+
+      {/* Group 3: Overtime & Undertime Analytics */}
+      <div className="space-y-6">
+        <div className="border-l-4 border-blue-500 pl-4">
+          <h3 className="text-xl font-semibold">Overtime & Undertime Analytics</h3>
+          <p className="text-sm text-muted-foreground">Monitor work hours and overtime patterns</p>
+        </div>
+        <div className="grid gap-6">
+          <OvertimeUndertimeAnalytics selectedDate={selectedDate} dateRange={dateRange} />
+          <TrendAnalytics selectedDate={selectedDate} dateRange={dateRange} />
+        </div>
+      </div>
+
+      {/* Group 4: Time & Lateness Analytics */}
+      <div className="space-y-6">
+        <div className="border-l-4 border-primary pl-4">
+          <h3 className="text-xl font-semibold">Time & Lateness Analytics</h3>
+          <p className="text-sm text-muted-foreground">Track punctuality patterns and time management (Note: Average Minutes Late moved to Seasonal Trends)</p>
+        </div>
+        <TimeAnalytics selectedDate={selectedDate} dateRange={dateRange} />
       </div>
     </div>
   );

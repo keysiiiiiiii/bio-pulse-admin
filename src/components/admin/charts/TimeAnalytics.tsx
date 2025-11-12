@@ -5,6 +5,9 @@ import {
   Bar,
   LineChart,
   Line,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -63,9 +66,19 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
     }
   };
 
+  // Transform data for pie chart
+  const pieChartData = avgTimeData.map((dept, index) => ({
+    name: dept.department,
+    value: 1, // Each department gets equal representation
+    avgTimeIn: dept.avgTimeIn,
+    avgTimeOut: dept.avgTimeOut,
+  }));
+
+  const COLORS = ['#2563eb', '#16a34a', '#f97316', '#9333ea', '#0891b2', '#dc2626', '#ca8a04', '#ec4899'];
+
   return (
     <>
-      {/* Average Time-In/Time-Out per Department */}
+      {/* Average Time-In/Time-Out per Department - PIE CHART */}
       <Card className="shadow-md">
         <CardHeader>
           <div className="flex justify-between items-start">
@@ -89,50 +102,62 @@ export function TimeAnalytics({ selectedDate, dateRange }: TimeAnalyticsProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {avgTimeData.map((dept) => (
-              <div key={dept.department} className="flex justify-between items-center p-3 border rounded-lg">
-                <span className="font-medium">{dept.department}</span>
-                <div className="flex gap-6 text-sm">
-                  <span className="text-muted-foreground">
-                    In: <span className="text-foreground font-medium">{dept.avgTimeIn}</span>
-                  </span>
-                  <span className="text-muted-foreground">
-                    Out: <span className="text-foreground font-medium">{dept.avgTimeOut}</span>
-                  </span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={pieChartData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name }) => name}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {pieChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip content={({ payload }) => {
+                  if (payload && payload.length > 0) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-background border rounded-lg p-3 shadow-lg">
+                        <p className="font-medium">{data.name}</p>
+                        <p className="text-sm text-muted-foreground">In: {data.avgTimeIn}</p>
+                        <p className="text-sm text-muted-foreground">Out: {data.avgTimeOut}</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+            
+            <div className="space-y-3">
+              {avgTimeData.map((dept, index) => (
+                <div key={dept.department} className="flex items-center gap-3 p-2 border rounded-lg">
+                  <div 
+                    className="w-4 h-4 rounded-full flex-shrink-0" 
+                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                  />
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{dept.department}</p>
+                    <div className="flex gap-4 text-xs text-muted-foreground">
+                      <span>In: {dept.avgTimeIn}</span>
+                      <span>Out: {dept.avgTimeOut}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Average Minutes Late per Month - 3 Lines */}
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle>Average Minutes Late per Month</CardTitle>
-          <CardDescription>
-            Identify trends (e.g., rainy season = more lates) - Total, Faculty, Staff
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={lateMinutesData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              {/* ✅ Fixed colors and correct average logic */}
-              <Line type="monotone" dataKey="total" stroke="#f97316" strokeWidth={2} name="Overall Average" />
-              <Line type="monotone" dataKey="faculty" stroke="#16a34a" strokeWidth={2} name="Faculty Average" />
-              <Line type="monotone" dataKey="staff" stroke="#2563eb" strokeWidth={2} name="Staff Average" />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Department-wise Average Late Minutes with Top Individuals */}
+      {/* Department-wise Average Late Minutes */}
       <Card className="shadow-md">
         <CardHeader>
           <div className="flex justify-between items-start">

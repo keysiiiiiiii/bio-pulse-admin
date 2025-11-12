@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useState } from "react";
 
 // Mock data
@@ -11,43 +11,13 @@ const mockStatusData = [
   { name: "Leave", value: 3, color: "hsl(var(--primary))" },
 ];
 
-const mockWorkHoursData = [
-  { name: "Under Schedule", value: 5 },
-  { name: "On Schedule", value: 45 },
-  { name: "Over Schedule", value: 11 },
-];
-
-// Mock data for Day-of-Week Analysis (by week)
-const mockDayOfWeekDataWeek1 = [
-  { day: "Mon", present: 52, late: 8, absent: 1 },
-  { day: "Tue", present: 55, late: 4, absent: 2 },
-  { day: "Wed", present: 54, late: 5, absent: 2 },
-  { day: "Thu", present: 53, late: 6, absent: 2 },
-  { day: "Fri", present: 48, late: 10, absent: 3 },
-];
-
-const mockDayOfWeekDataWeek2 = [
-  { day: "Mon", present: 50, late: 9, absent: 2 },
-  { day: "Tue", present: 54, late: 5, absent: 2 },
-  { day: "Wed", present: 53, late: 6, absent: 2 },
-  { day: "Thu", present: 52, late: 7, absent: 2 },
-  { day: "Fri", present: 46, late: 11, absent: 4 },
-];
-
-const mockDayOfWeekDataWeek3 = [
-  { day: "Mon", present: 51, late: 7, absent: 3 },
-  { day: "Tue", present: 56, late: 3, absent: 2 },
-  { day: "Wed", present: 55, late: 4, absent: 2 },
-  { day: "Thu", present: 54, late: 5, absent: 2 },
-  { day: "Fri", present: 47, late: 12, absent: 2 },
-];
-
-const mockDayOfWeekDataWeek4 = [
-  { day: "Mon", present: 49, late: 10, absent: 2 },
-  { day: "Tue", present: 53, late: 6, absent: 2 },
-  { day: "Wed", present: 52, late: 7, absent: 2 },
-  { day: "Thu", present: 51, late: 8, absent: 2 },
-  { day: "Fri", present: 45, late: 13, absent: 3 },
+// Mock data for Day-of-Week Analysis (combined for line graph)
+const mockDayOfWeekCombined = [
+  { day: "Mon", week1: 52, week2: 50, week3: 51, week4: 49 },
+  { day: "Tue", week1: 55, week2: 54, week3: 56, week4: 53 },
+  { day: "Wed", week1: 54, week2: 53, week3: 55, week4: 52 },
+  { day: "Thu", week1: 53, week2: 52, week3: 54, week4: 51 },
+  { day: "Fri", week1: 48, week2: 46, week3: 47, week4: 45 },
 ];
 
 const mockFacultyStaffData = [
@@ -62,18 +32,6 @@ interface StatusAnalyticsProps {
 
 export function StatusAnalytics({ selectedDate, dateRange }: StatusAnalyticsProps) {
   const [statusGraphType, setStatusGraphType] = useState<"pie" | "bar">("pie");
-  const [dayGraphType, setDayGraphType] = useState<"bar" | "line">("bar");
-  const [selectedWeek, setSelectedWeek] = useState<string>("week1");
-
-  const getDayOfWeekData = () => {
-    switch (selectedWeek) {
-      case "week1": return mockDayOfWeekDataWeek1;
-      case "week2": return mockDayOfWeekDataWeek2;
-      case "week3": return mockDayOfWeekDataWeek3;
-      case "week4": return mockDayOfWeekDataWeek4;
-      default: return mockDayOfWeekDataWeek1;
-    }
-  };
 
   return (
     <>
@@ -133,80 +91,25 @@ export function StatusAnalytics({ selectedDate, dateRange }: StatusAnalyticsProp
         </CardContent>
       </Card>
 
-      {/* Work Hours vs. Schedule */}
+      {/* Day-of-Week Analysis - Line Graph comparing 4 weeks */}
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Work Hours vs. Schedule</CardTitle>
-          <CardDescription>Are employees under- or over-working?</CardDescription>
+          <CardTitle>Day-of-Week Analysis (Week 1 vs Week 2 vs Week 3 vs Week 4)</CardTitle>
+          <CardDescription>Compare attendance patterns across different weeks</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={mockWorkHoursData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                <Cell fill="hsl(var(--destructive))" />
-                <Cell fill="hsl(var(--success))" />
-                <Cell fill="hsl(var(--primary))" />
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Day-of-Week Analysis */}
-      <Card className="shadow-md">
-        <CardHeader>
-          <div className="flex justify-between items-start">
-            <div>
-              <CardTitle>Day-of-Week Analysis</CardTitle>
-              <CardDescription>Are Mondays or Fridays the worst attendance days?</CardDescription>
-            </div>
-            <div className="flex gap-2">
-              <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="week1">Week 1</SelectItem>
-                  <SelectItem value="week2">Week 2</SelectItem>
-                  <SelectItem value="week3">Week 3</SelectItem>
-                  <SelectItem value="week4">Week 4</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={dayGraphType} onValueChange={(val) => setDayGraphType(val as "bar" | "line")}>
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bar">Bar Chart</SelectItem>
-                  <SelectItem value="line">Line Chart</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={getDayOfWeekData()}>
+            <LineChart data={mockDayOfWeekCombined}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="day" />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="present" fill="hsl(var(--success))" name="Present" />
-              <Bar dataKey="late" fill="hsl(var(--warning))" name="Late" />
-              <Bar dataKey="absent" fill="hsl(var(--destructive))" name="Absent" />
-            </BarChart>
+              <Line type="monotone" dataKey="week1" stroke="#2563eb" strokeWidth={2} name="Week 1" />
+              <Line type="monotone" dataKey="week2" stroke="#16a34a" strokeWidth={2} name="Week 2" />
+              <Line type="monotone" dataKey="week3" stroke="#f97316" strokeWidth={2} name="Week 3" />
+              <Line type="monotone" dataKey="week4" stroke="#9333ea" strokeWidth={2} name="Week 4" />
+            </LineChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>

@@ -2,6 +2,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useEffect, useState } from "react";
 import { analyticsApi } from "@/services/api";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 
 // Mock data structure with all 13 leave types
 const mockData = [
@@ -52,6 +53,10 @@ export function LeaveAnalyticsChart({ selectedDate, dateRange }: LeaveAnalyticsC
         ? prev.filter(k => k !== key)
         : [...prev, key]
     );
+  };
+
+  const unselectAll = () => {
+    setSelectedLeaveTypes([]);
   };
 
   useEffect(() => {
@@ -107,19 +112,31 @@ export function LeaveAnalyticsChart({ selectedDate, dateRange }: LeaveAnalyticsC
   return (
     <div className="space-y-4">
       {/* Leave Type Filters */}
-      <div className="flex flex-wrap gap-3 pb-4 border-b">
-        {leaveTypes.map((type) => (
-          <div key={type.key} className="flex items-center gap-2">
-            <Checkbox 
-              id={type.key} 
-              checked={selectedLeaveTypes.includes(type.key)}
-              onCheckedChange={() => toggleLeaveType(type.key)}
-            />
-            <label htmlFor={type.key} className="text-sm cursor-pointer">
-              {type.label}
-            </label>
-          </div>
-        ))}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <p className="text-sm text-muted-foreground">Select leave types to display</p>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={unselectAll}
+          >
+            Unselect All
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-3 pb-4 border-b">
+          {leaveTypes.map((type) => (
+            <div key={type.key} className="flex items-center gap-2">
+              <Checkbox 
+                id={type.key} 
+                checked={selectedLeaveTypes.includes(type.key)}
+                onCheckedChange={() => toggleLeaveType(type.key)}
+              />
+              <label htmlFor={type.key} className="text-sm cursor-pointer">
+                {type.label}
+              </label>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Scrollable Chart */}

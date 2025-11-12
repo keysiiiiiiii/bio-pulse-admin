@@ -6,6 +6,8 @@ import { AttendanceChart } from "./charts/AttendanceChart";
 import { LeaveAnalyticsChart } from "./charts/LeaveAnalyticsChart";
 import { TardinessChart } from "./charts/TardinessChart";
 import { StatusAnalytics } from "./charts/StatusAnalytics";
+import { TopLateAbsentEmployees } from "./charts/TopLateAbsentEmployees";
+import { TopEmployeesDashboard } from "./charts/TopEmployeesDashboard";
 import { Users, UserCheck, UserX, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +30,7 @@ export function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [stats, setStats] = useState({ total: 0, present: 0, absent: 0, late: 0 });
   const [dailyAttendance, setDailyAttendance] = useState<any[]>([]);
+  const [attendanceFilter, setAttendanceFilter] = useState<"all" | "faculty" | "staff">("all");
   
   useEffect(() => {
     if (selectedDate) {
@@ -174,8 +177,22 @@ export function Dashboard() {
       {isSingleDate && selectedDate && (
         <Card className="shadow-md">
           <CardHeader>
-            <CardTitle>Daily Attendance Detail</CardTitle>
-            <CardDescription>Attendance records for {format(selectedDate, "PPPP")}</CardDescription>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle>Daily Attendance Detail</CardTitle>
+                <CardDescription>Attendance records for {format(selectedDate, "PPPP")}</CardDescription>
+              </div>
+              <Select value={attendanceFilter} onValueChange={(val) => setAttendanceFilter(val as "all" | "faculty" | "staff")}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="faculty">Faculty</SelectItem>
+                  <SelectItem value="staff">Staff</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -190,7 +207,14 @@ export function Dashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dailyAttendance.map((record) => (
+                {dailyAttendance
+                  .filter(record => {
+                    if (attendanceFilter === "all") return true;
+                    if (attendanceFilter === "faculty") return record.role === "Faculty";
+                    if (attendanceFilter === "staff") return record.role === "Staff";
+                    return true;
+                  })
+                  .map((record) => (
                   <TableRow key={record.staff_id}>
                     <TableCell className="font-medium">{record.staff_id}</TableCell>
                     <TableCell>{record.name}</TableCell>
@@ -227,6 +251,12 @@ export function Dashboard() {
 
       {/* Tardiness Analytics */}
       <TardinessChart selectedDate={selectedDate} />
+
+      {/* Top Employees - Moved from Analytics */}
+      <TopEmployeesDashboard selectedDate={selectedDate} dateRange={dateRange} />
+
+      {/* Top Late/Absent Employees - NEW */}
+      <TopLateAbsentEmployees selectedDate={selectedDate} dateRange={dateRange} />
 
       {/* Status Analytics */}
       <StatusAnalytics selectedDate={selectedDate} dateRange={dateRange} />
