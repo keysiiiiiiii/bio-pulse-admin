@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Search, FileText } from "lucide-react";
-import { leaveApi } from "@/services/api/leaveApi";
 import { toast } from "@/hooks/use-toast";
 
 interface LeaveRecord {
@@ -19,37 +18,6 @@ interface LeaveRecord {
   attachment?: string;
 }
 
-const mockHistory: LeaveRecord[] = [
-  { 
-    id: "1", 
-    staffId: "50-2025-0035", 
-    name: "Adrienne Colline M. Mauleon", 
-    date: "2024-10-15", 
-    reason: "Annual vacation", 
-    type: "Vacation Leave", 
-    status: "approved" 
-  },
-  { 
-    id: "2", 
-    staffId: "15-2025-0026", 
-    name: "Aira Magno", 
-    date: "2024-10-10", 
-    reason: "Flu symptoms", 
-    type: "Sick Leave", 
-    status: "approved" 
-  },
-  { 
-    id: "3", 
-    staffId: "12-2025-0021", 
-    name: "Allan Valdez", 
-    date: "2024-09-25", 
-    reason: "Personal matters", 
-    type: "Emergency Leave", 
-    status: "disapproved",
-    remarks: "Insufficient supporting documents provided" 
-  },
-];
-
 export function LeaveHistory() {
   const [searchTerm, setSearchTerm] = useState("");
   const [history, setHistory] = useState<LeaveRecord[]>([]);
@@ -62,18 +30,41 @@ export function LeaveHistory() {
   const fetchHistory = async () => {
     setLoading(true);
     try {
-      // Fetch leave requests from backend
-      const response = await fetch('/api/leaves');
+      console.log('📚 Fetching leave history...');
+      
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+      
+      // Fetch ALL leave requests first
+      const response = await fetch('/api/leaves', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
+      
+      console.log('📡 Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Response error:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
       const result = await response.json();
+      console.log('✅ Response data:', result);
       
       if (!result.ok || !result.data) {
-        throw new Error('Failed to fetch leave history');
+        throw new Error('Invalid response format');
       }
       
       // Filter only approved and denied requests
       const filtered = result.data.filter((req: any) => 
         req.status === 'approved' || req.status === 'denied'
       );
+      
+      console.log(`📊 Filtered ${filtered.length} history records from ${result.data.length} total`);
       
       const formatted: LeaveRecord[] = filtered.map((req: any) => ({
         id: String(req.id),
@@ -87,12 +78,13 @@ export function LeaveHistory() {
         attachment: req.file_url
       }));
       
+      console.log(`✅ Formatted ${formatted.length} history records`);
       setHistory(formatted);
-    } catch (error) {
-      console.error('Fetch error:', error);
+    } catch (error: any) {
+      console.error('❌ Fetch error:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch leave history",
+        description: error.message || "Failed to fetch leave history",
         variant: "destructive"
       });
     } finally {

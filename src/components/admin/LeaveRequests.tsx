@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Search, CheckCircle, XCircle, FileText, Pin, Download, Eye } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { leaveApi } from "@/services/api/leaveApi";
 
 interface LeaveRequest {
   id: string;
@@ -25,12 +24,6 @@ interface LeaveRequest {
   endDate?: string;
   numDays?: number;
 }
-
-const mockRequests: LeaveRequest[] = [
-  { id: "1", staffId: "15-2025-0026", name: "Aira Magno", date: "2024-11-15", reason: "Family emergency", type: "Emergency Leave", status: "pending" },
-  { id: "2", staffId: "22-2003-0111", name: "Adrienne Colline M. Mauleon", date: "2024-11-20", reason: "Medical appointment", type: "Sick Leave", status: "pinned" },
-  { id: "3", staffId: "12-2025-0021", name: "Allan Valdez", date: "2024-11-25", reason: "Vacation", type: "Vacation Leave", status: "pending" },
-];
 
 export function LeaveRequests() {
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -55,9 +48,35 @@ export function LeaveRequests() {
   const fetchLeaveRequests = async () => {
     setLoading(true);
     try {
-      const data = await leaveApi.getAll({ status: 'pending' });
+      console.log('📋 Fetching leave requests...');
       
-      const formatted = data.data.map((req: any) => ({
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch('/api/leaves?status=pending', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
+      
+      console.log('📡 Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Response error:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ Response data:', result);
+      
+      if (!result.ok || !result.data) {
+        throw new Error('Invalid response format');
+      }
+      
+      const formatted = result.data.map((req: any) => ({
         id: String(req.id),
         staffId: req.staff_id || '',
         name: req.staff_name,
@@ -72,12 +91,14 @@ export function LeaveRequests() {
         endDate: req.fields?.end_date,
         numDays: req.fields?.num_days
       }));
+      
+      console.log(`✅ Formatted ${formatted.length} requests`);
       setRequests(formatted);
-    } catch (error) {
-      console.error('Fetch error:', error);
+    } catch (error: any) {
+      console.error('❌ Fetch error:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch leave requests",
+        description: error.message || "Failed to fetch leave requests",
         variant: "destructive"
       });
     } finally {
@@ -87,14 +108,32 @@ export function LeaveRequests() {
 
   const handleApprove = async (id: string) => {
     try {
-      await leaveApi.updateStatus(id, { status: 'approved' });
+      console.log('✅ Approving request:', id);
+      
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`/api/leaves/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ status: 'approved' })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
       
       toast({
         title: "Leave Request Approved",
         description: "The leave request has been approved and moved to history",
       });
+      
       fetchLeaveRequests();
     } catch (error: any) {
+      console.error('❌ Approve error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to approve leave request",
@@ -116,17 +155,35 @@ export function LeaveRequests() {
     if (!disapproveDialog.requestId) return;
     
     try {
-      await leaveApi.updateStatus(disapproveDialog.requestId, { 
-        status: 'denied', 
-        remarks: disapproveRemark 
+      console.log('❌ Disapproving request:', disapproveDialog.requestId);
+      
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`/api/leaves/${disapproveDialog.requestId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ 
+          status: 'denied', 
+          remarks: disapproveRemark 
+        })
       });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
       
       toast({
         title: "Leave Request Disapproved",
         description: "The leave request has been disapproved and moved to history",
       });
+      
       fetchLeaveRequests();
     } catch (error: any) {
+      console.error('❌ Disapprove error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to disapprove leave request",
