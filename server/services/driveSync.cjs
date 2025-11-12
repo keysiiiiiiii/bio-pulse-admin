@@ -229,7 +229,7 @@ async function upsertToSupabase(files, dry) {
           .update({
             staff_user_id,
             staff_name: payload.staff_name,
-            date: payload.date,
+            date: finalDate,
             file_url: payload.file_url,
             
             status: payload.status,
