@@ -278,14 +278,21 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
         ws.getCell('N10').value = middleInitial;
         ws.getCell('F12').value = date;
 
-        // Mark leave type
+        // Mark leave type - preserve cell formatting by only setting value
         const leaveTypeMap = {
           vacation: 18, forced: 19, sick: 20, maternity: 21, paternity: 22,
           privilege: 23, soloparent: 24, study: 25, vawc: 26, rehab: 27,
           special: 28, emergency: 29, adoption: 30
         };
         const markRow = leaveTypeMap[leave_type?.toLowerCase()];
-        if (markRow) ws.getCell(`C${markRow}`).value = '✔';
+        if (markRow) {
+          const cell = ws.getCell(`C${markRow}`);
+          // Store original border style
+          const originalBorder = cell.border;
+          cell.value = '✔';
+          // Restore border after setting value
+          if (originalBorder) cell.border = originalBorder;
+        }
 
         if (num_days) ws.getCell('E34').value = Number(num_days);
         if (start_date) ws.getCell('E36').value = `${start_date} - ${end_date}`;
@@ -356,8 +363,8 @@ router.get('/api/leaves', verifyToken, async (req, res) => {
     // Better status filtering - handle enum properly
     if (status && status !== 'all') {
       if (status === 'pending') {
-        // Match any status that starts with 'pending'
-        query = query.or('status.eq.pending-admin,status.eq.pending-hr,status.eq.pending');
+        // Match pending-admin only (the valid enum value)
+        query = query.eq('status', 'pending-admin');
       } else {
         query = query.eq('status', status);
       }
