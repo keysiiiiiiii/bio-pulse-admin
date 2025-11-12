@@ -79,7 +79,7 @@ export function LeaveRequests() {
       const formatted = result.data.map((req: any) => ({
         id: String(req.id),
         staffId: req.staff_id || '',
-        name: req.staff_name,
+        name: req.staff_name || 'Unknown',
         date: req.date,
         reason: req.reason || '',
         type: req.fields?.leave_type || 'Leave Request',
@@ -223,9 +223,9 @@ export function LeaveRequests() {
 
   const filteredRequests = requests
     .filter(r => {
-      const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.staffId.includes(searchTerm) ||
-        r.reason.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (r.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r.staffId || '').includes(searchTerm) ||
+        (r.reason || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = filterStatus === "all" || r.status === filterStatus;
       return matchesSearch && matchesStatus;
     })
