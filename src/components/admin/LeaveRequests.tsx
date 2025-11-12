@@ -166,7 +166,7 @@ export function LeaveRequests() {
           ...(token && { 'Authorization': `Bearer ${token}` })
         },
         body: JSON.stringify({ 
-          status: 'denied', 
+          status: 'disapproved', 
           remarks: disapproveRemark 
         })
       });
