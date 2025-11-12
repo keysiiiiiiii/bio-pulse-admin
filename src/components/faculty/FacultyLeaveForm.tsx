@@ -22,7 +22,6 @@ import { format } from "date-fns";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
-import { leaveApi } from "@/services/api/leaveApi";
 
 export const FacultyLeaveForm = () => {
   const [startDate, setStartDate] = useState<Date>();

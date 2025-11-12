@@ -353,10 +353,11 @@ router.get('/api/leaves', verifyToken, async (req, res) => {
     if (staffUserId) query = query.eq('staff_user_id', Number(staffUserId));
     if (!archived) query = query.or('archived.is.null,archived.eq.false');
 
-    // Better status filtering
+    // Better status filtering - handle enum properly
     if (status && status !== 'all') {
       if (status === 'pending') {
-        query = query.or('status.ilike.pending%,status.ilike.Pending%');
+        // Match any status that starts with 'pending'
+        query = query.or('status.eq.pending-admin,status.eq.pending-hr,status.eq.pending');
       } else {
         query = query.eq('status', status);
       }

@@ -48,7 +48,7 @@ export function LeaveRequests() {
   const fetchLeaveRequests = async () => {
     setLoading(true);
     try {
-      console.log('📋 Fetching leave requests...');
+      console.log('📋 Fetching pending leave requests...');
       
       // Get token from localStorage
       const token = localStorage.getItem('token');
