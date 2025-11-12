@@ -61,7 +61,7 @@ export function LeaveHistory() {
       
       // Filter only approved and denied requests
       const filtered = result.data.filter((req: any) => 
-        req.status === 'approved' || req.status === 'denied'
+        req.status === 'approved' || req.status === 'disapproved'
       );
       
       console.log(`📊 Filtered ${filtered.length} history records from ${result.data.length} total`);
