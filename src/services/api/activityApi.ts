@@ -11,6 +11,7 @@ export interface Activity {
 
 export const activityApi = {
   // GET /api/notifications/recent - Get recent activities for current user
+  // FIXED: Remove /api prefix since config.ts already includes it
   getRecent: (limit = 50) =>
-    apiRequest<Activity[]>(`/api/notifications/recent?limit=${limit}`),
+    apiRequest<Activity[]>(`/notifications/recent?limit=${limit}`),
 };
