@@ -4,10 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { activityApi, type Activity } from "@/services/api/activityApi";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
+
+interface Activity {
+  id: number;
+  action: string;
+  details: any;
+  actor_staff_id: string;
+  actor_role: string;
+  staff_id: string;
+  created_at: string;
+}
 
 export function AdminNotifications() {
+  const { token } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
@@ -19,9 +30,22 @@ export function AdminNotifications() {
   }, [isOpen]);
 
   const fetchActivities = async () => {
+    if (!token) return;
+    
     setLoading(true);
     try {
-      const data = await activityApi.getRecent(20);
+      const response = await fetch('http://localhost:3001/api/notifications/recent?limit=20', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch activities');
+      }
+
+      const data = await response.json();
       setActivities(data);
     } catch (error) {
       console.error("Failed to fetch activities:", error);
@@ -43,6 +67,34 @@ export function AdminNotifications() {
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
+
+  const formatActivityText = (activity: Activity): string => {
+    const { action, details } = activity;
+    
+    if (action === 'leave_status_update') {
+      const status = details?.status || '';
+      const leaveType = details?.leave_type || 'leave';
+      return `Leave request (${leaveType}) updated to ${status}`;
+    }
+    
+    if (action === 'attendance_time_in') {
+      return `Attendance time-in recorded for ${activity.staff_id}`;
+    }
+    
+    if (action === 'attendance_time_out') {
+      return `Attendance time-out recorded for ${activity.staff_id}`;
+    }
+    
+    if (action === 'create') {
+      return `Account created: ${details?.role || 'N/A'}`;
+    }
+    
+    if (action === 'password_reset') {
+      return `Password reset performed`;
+    }
+    
+    return action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   return (
@@ -91,19 +143,21 @@ export function AdminNotifications() {
                   </div>
                 ) : (
                   <div className="divide-y">
-                    {activities.map((activity, index) => (
+                    {activities.map((activity) => (
                       <div
-                        key={`${activity.created_at}-${index}`}
+                        key={activity.id}
                         className="p-4 hover:bg-muted/50 transition-colors"
                       >
                         <div className="flex items-start gap-3">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-foreground">
-                              {activity.action}
+                              {formatActivityText(activity)}
                             </p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {activity.details}
-                            </p>
+                            {activity.details && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {activity.staff_id && `Staff: ${activity.staff_id}`}
+                              </p>
+                            )}
                             <p className="text-xs text-muted-foreground mt-1">
                               {formatDate(activity.created_at)}
                             </p>

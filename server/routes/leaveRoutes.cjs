@@ -442,6 +442,44 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
 
     console.log('✅ Updated:', data);
 
+    // Get staff details for activity log
+    const actorStaffId = req.user?.sid || '';
+    const actorRole = req.user?.role || '';
+
+    // Fetch staff_id from staff_users table
+    let targetStaffId = null;
+    if (data.staff_user_id) {
+      const { data: staffData } = await db
+        .from('staff_users')
+        .select('staff_id')
+        .eq('id', data.staff_user_id)
+        .single();
+      if (staffData) targetStaffId = staffData.staff_id;
+    }
+
+    // Log activity to account_activity table
+    try {
+      await db.from('account_activity').insert([{
+        action: 'leave_status_update',
+        details: {
+          leave_id: id,
+          status: status,
+          remarks: remarks || null,
+          leave_type: data.fields?.leave_type || 'N/A',
+          start_date: data.fields?.start_date || null,
+          end_date: data.fields?.end_date || null
+        },
+        actor_staff_id: actorStaffId,
+        actor_role: actorRole,
+        staff_id: targetStaffId,
+        created_at: new Date().toISOString()
+      }]);
+      console.log('✅ Activity logged for leave status update');
+    } catch (actErr) {
+      console.error('⚠️ Failed to log activity:', actErr);
+    }
+
+    // Send notification
     const title = status === 'approved' ? 'Leave Approved' : status === 'disapproved' ? 'Leave Denied' : 'Leave Updated';
     const message = status === 'disapproved' && remarks ? `Denied: ${remarks}` : `Status: ${status}`;
 

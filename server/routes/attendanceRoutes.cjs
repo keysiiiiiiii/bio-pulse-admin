@@ -179,6 +179,25 @@ router.post('/biometric', async (req, res) => {
 
     const tsISO = toISO(timestamp);
     const result = await upsertBiometric({ staff_user_id, tsISO, out: false });
+
+    // Log activity to account_activity table
+    try {
+      await db.from('account_activity').insert([{
+        action: 'attendance_time_in',
+        details: {
+          time_in: tsISO,
+          method: 'biometric',
+          result: result
+        },
+        actor_staff_id: employeeId,
+        actor_role: 'Staff',
+        staff_id: employeeId,
+        created_at: new Date().toISOString()
+      }]);
+    } catch (actErr) {
+      console.error('⚠️ Failed to log attendance activity:', actErr);
+    }
+
     return res.json({ ok: true, result });
   } catch (e) {
     console.error('[biometric IN] error:', e.message || e);
@@ -198,6 +217,25 @@ router.post('/biometric/out', async (req, res) => {
 
     const tsISO = toISO(timestamp);
     const result = await upsertBiometric({ staff_user_id, tsISO, out: true });
+
+    // Log activity to account_activity table
+    try {
+      await db.from('account_activity').insert([{
+        action: 'attendance_time_out',
+        details: {
+          time_out: tsISO,
+          method: 'biometric',
+          result: result
+        },
+        actor_staff_id: employeeId,
+        actor_role: 'Staff',
+        staff_id: employeeId,
+        created_at: new Date().toISOString()
+      }]);
+    } catch (actErr) {
+      console.error('⚠️ Failed to log attendance activity:', actErr);
+    }
+
     return res.json({ ok: true, result });
   } catch (e) {
     console.error('[biometric OUT] error:', e.message || e);

@@ -34,8 +34,7 @@ function requireRole(...roles) {
   };
 }
 
-// GET /api/notifications/recent - Get recent activity logs
-// FIXED: Properly filter activities based on user's role
+// GET /api/notifications/recent - Get recent activity logs with intelligent filtering
 router.get(
   '/notifications/recent',
   verifyToken,
@@ -45,25 +44,27 @@ router.get(
       const userRole = req.user?.role || '';
       const userStaffId = req.user?.sid || '';
 
-      console.log('🔔 Fetching activities for:', { role: userRole, staff_id: userStaffId });
+      console.log('🔔 Fetching notifications for:', { role: userRole, staff_id: userStaffId });
 
       let query = db
         .from('account_activity')
-        .select('action, details, actor_staff_id, actor_role, staff_id, created_at')
+        .select('id, action, details, actor_staff_id, actor_role, staff_id, created_at')
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      // FIXED: Filter activities based on user role
+      // Smart filtering based on user role and activity type
       if (userRole === 'ICTO' || userRole === 'Admin' || userRole === 'Vice President') {
-        // For ICTO/Admin/VP: Show activities where THEY were the actor
-        // This shows what actions THEY performed (create account, password reset, etc.)
-        query = query.eq('actor_staff_id', userStaffId);
-        console.log('📊 Filtering for ICTO/Admin activities by actor:', userStaffId);
+        // Admins see:
+        // 1. Activities where THEY were the actor (their actions)
+        // 2. System-wide activities they should be aware of
+        query = query.or(`actor_staff_id.eq.${userStaffId},action.eq.leave_status_update`);
+        console.log('📊 Admin view: showing actions performed by user and leave updates');
       } else {
-        // For regular users: Show activities related to THEIR account
-        // This shows actions performed ON their account
+        // Regular users (Staff/Faculty) see:
+        // 1. Activities related to THEIR account (staff_id matches)
+        // This includes: leave status updates, attendance logs, profile updates affecting them
         query = query.eq('staff_id', userStaffId);
-        console.log('📊 Filtering for user activities on:', userStaffId);
+        console.log('📊 User view: showing activities for staff_id:', userStaffId);
       }
 
       const { data, error } = await query;
@@ -73,7 +74,7 @@ router.get(
         return res.status(500).json({ message: 'Database error', details: error.message });
       }
 
-      console.log(`✅ Found ${data?.length || 0} activities`);
+      console.log(`✅ Found ${data?.length || 0} notifications`);
       
       return res.json(data || []);
     } catch (e) {
