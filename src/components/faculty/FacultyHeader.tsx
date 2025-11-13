@@ -1,5 +1,4 @@
 import { GraduationCap } from "lucide-react";
-import { FacultyHeaderNotifications } from "./FacultyHeaderNotifications";
 
 interface FacultyHeaderProps {
   currentView?: string;
@@ -32,7 +31,6 @@ export const FacultyHeader = ({ currentView, sidebarCollapsed }: FacultyHeaderPr
           <h1 className="text-xl font-bold text-foreground">Universidad de Manila</h1>
           <p className="text-sm text-muted-foreground">Faculty - {getViewTitle()}</p>
         </div>
-        <FacultyHeaderNotifications />
       </div>
     </header>
   );

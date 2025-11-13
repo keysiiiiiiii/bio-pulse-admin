@@ -1,5 +1,4 @@
 import { GraduationCap } from "lucide-react";
-import { ICTOHeaderNotifications } from "./ICTOHeaderNotifications";
 
 export function ICTOHeader() {
   return (
@@ -10,7 +9,6 @@ export function ICTOHeader() {
           <h1 className="text-xl font-bold text-foreground">ICTO Dashboard</h1>
           <p className="text-sm text-muted-foreground">Universidad de Manila - Account Management</p>
         </div>
-        <ICTOHeaderNotifications />
       </div>
     </header>
   );
