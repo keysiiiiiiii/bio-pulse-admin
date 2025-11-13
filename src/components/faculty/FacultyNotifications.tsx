@@ -4,6 +4,7 @@ import { Bell, CheckCircle2, Clock, XCircle, AlertCircle, LogIn, LogOut } from "
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 interface Activity {
   id: number;
@@ -105,25 +106,21 @@ export const FacultyNotifications = () => {
   }, [user, token]);
 
   const fetchActivities = async () => {
-    if (!token || !user) {
+    if (!user?.id) {
       setLoading(false);
       return;
     }
 
     try {
-      const response = await fetch('/api/notifications/recent?limit=50', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const { data, error } = await supabase
+        .from('account_activity')
+        .select('*')
+        .eq('staff_user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch notifications');
-      }
-
-      const data = await response.json();
-      setActivities(data);
+      if (error) throw error;
+      setActivities(data || []);
     } catch (error) {
       console.error("Error fetching notifications:", error);
       toast({

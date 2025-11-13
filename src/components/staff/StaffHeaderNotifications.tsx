@@ -15,10 +15,12 @@ interface Activity {
   actor_staff_id: string;
   actor_role: string;
   staff_id: string;
+  staff_user_id: string;
   created_at: string;
+  is_read: boolean;
 }
 
-export function AdminNotifications() {
+export function StaffHeaderNotifications() {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -38,17 +40,18 @@ export function AdminNotifications() {
       const { data, error } = await supabase
         .from('account_activity')
         .select('*')
-        .or(`staff_user_id.eq.${user.id},action.in.("create","password_reset","leave_status_update")`)
+        .eq('staff_user_id', user.id)
+        .in('action', ['leave_status_update'])
         .order('created_at', { ascending: false })
         .limit(20);
 
       if (error) throw error;
       setActivities(data || []);
     } catch (error) {
-      console.error("Failed to fetch activities:", error);
+      console.error("Failed to fetch notifications:", error);
       toast({
         title: "Error",
-        description: "Failed to load activities",
+        description: "Failed to load notifications",
         variant: "destructive",
       });
     } finally {
@@ -85,27 +88,13 @@ export function AdminNotifications() {
     if (action === 'leave_status_update') {
       const status = details?.status || '';
       const leaveType = details?.leave_type || 'leave';
-      return `Leave request (${leaveType}) updated to ${status}`;
-    }
-    
-    if (action === 'attendance_time_in') {
-      return `Attendance time-in recorded for ${activity.staff_id}`;
-    }
-    
-    if (action === 'attendance_time_out') {
-      return `Attendance time-out recorded for ${activity.staff_id}`;
-    }
-    
-    if (action === 'create') {
-      return `Account created: ${details?.role || 'N/A'}`;
-    }
-    
-    if (action === 'password_reset') {
-      return `Password reset performed`;
+      return `Leave request (${leaveType}) ${status}`;
     }
     
     return action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
+
+  const unreadCount = activities.filter(a => !a.is_read).length;
 
   return (
     <div className="relative">
@@ -116,9 +105,9 @@ export function AdminNotifications() {
         onClick={() => setIsOpen(!isOpen)}
       >
         <Bell className="h-5 w-5" />
-        {activities.length > 0 && (
+        {unreadCount > 0 && (
           <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-accent text-accent-foreground">
-            {activities.length > 9 ? "9+" : activities.length}
+            {unreadCount > 9 ? "9+" : unreadCount}
           </Badge>
         )}
       </Button>
@@ -131,7 +120,7 @@ export function AdminNotifications() {
           />
           <Card className="absolute right-0 top-12 w-96 z-50 shadow-xl">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-lg">Recent Activity</CardTitle>
+              <CardTitle className="text-lg">Notifications</CardTitle>
               <Button
                 variant="ghost"
                 size="icon"
@@ -149,14 +138,16 @@ export function AdminNotifications() {
                   </div>
                 ) : activities.length === 0 ? (
                   <div className="p-4 text-center text-muted-foreground">
-                    No recent activity
+                    No notifications
                   </div>
                 ) : (
                   <div className="divide-y">
                     {activities.map((activity) => (
                       <div
                         key={activity.id}
-                        className="p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                        className={`p-4 hover:bg-muted/50 transition-colors cursor-pointer ${
+                          !activity.is_read ? 'bg-accent/10' : ''
+                        }`}
                         onClick={() => markAsRead(activity.id)}
                       >
                         <div className="flex items-start gap-3">
@@ -164,11 +155,6 @@ export function AdminNotifications() {
                             <p className="text-sm font-medium text-foreground">
                               {formatActivityText(activity)}
                             </p>
-                            {activity.details && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {activity.staff_id && `Staff: ${activity.staff_id}`}
-                              </p>
-                            )}
                             <p className="text-xs text-muted-foreground mt-1">
                               {formatDate(activity.created_at)}
                             </p>
