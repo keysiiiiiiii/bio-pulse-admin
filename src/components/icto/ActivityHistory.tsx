@@ -3,8 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
-import { activityApi, type Activity } from "@/services/api/activityApi";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
+
+interface Activity {
+  id: number;
+  action: string;
+  details: any;
+  actor_staff_id: string;
+  actor_role: string;
+  staff_id: string;
+  created_at: string;
+}
 
 const getActivityBadge = (type: string) => {
   switch (type) {
@@ -39,16 +49,33 @@ const formatActivityDetails = (activity: Activity) => {
 };
 
 export function ActivityHistory() {
+  const { token } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchActivities();
-  }, []);
+  }, [token]);
 
   const fetchActivities = async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      const data = await activityApi.getRecent(50);
+      const response = await fetch('/api/notifications/recent?limit=50', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch activity history');
+      }
+
+      const data = await response.json();
       setActivities(data);
     } catch (error) {
       console.error("Error fetching activities:", error);

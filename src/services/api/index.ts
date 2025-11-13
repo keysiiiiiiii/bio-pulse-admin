@@ -4,5 +4,3 @@ export * from './analyticsApi';
 export * from './attendanceApi';
 export * from './staffApi';
 export * from './dtrApi';
-export * from './notificationApi';
-export * from './activityApi';

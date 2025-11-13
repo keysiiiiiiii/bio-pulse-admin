@@ -111,7 +111,7 @@ export const FacultyNotifications = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/notifications/recent?limit=50', {
+      const response = await fetch('/api/notifications/recent?limit=50', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
