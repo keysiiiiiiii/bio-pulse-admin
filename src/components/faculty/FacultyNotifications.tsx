@@ -25,6 +25,9 @@ const getActivityIcon = (action: string) => {
       return LogIn;
     case 'attendance_time_out':
       return LogOut;
+    case 'password_change':
+    case 'password_reset':
+      return AlertCircle;
     default:
       return Bell;
   }
@@ -52,6 +55,8 @@ const formatActivityTitle = (action: string, details: any) => {
   }
   if (action === 'attendance_time_in') return 'Time In Recorded';
   if (action === 'attendance_time_out') return 'Time Out Recorded';
+  if (action === 'password_change') return 'Password Changed';
+  if (action === 'password_reset') return 'Password Reset';
   return action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
 
@@ -78,6 +83,14 @@ const formatActivityMessage = (action: string, details: any) => {
   if (action === 'attendance_time_out') {
     const time = details?.time_out ? new Date(details.time_out).toLocaleTimeString() : '';
     return `You clocked out at ${time}`;
+  }
+  
+  if (action === 'password_change') {
+    return 'Your password was successfully changed';
+  }
+  
+  if (action === 'password_reset') {
+    return 'Your password was reset';
   }
   
   return JSON.stringify(details || {});
@@ -116,7 +129,7 @@ export const FacultyNotifications = () => {
       const { data, error } = await supabase
         .from('account_activity')
         .select('*')
-        .eq('staff_id', user.staff_id)
+        .or(`actor_staff_id.eq.${user.staff_id},staff_id.eq.${user.staff_id}`)
         .order('created_at', { ascending: false })
         .limit(50);
 
