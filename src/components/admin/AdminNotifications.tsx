@@ -36,7 +36,7 @@ export function AdminNotifications() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('activity_history')
+        .from('account_activity')
         .select('*')
         .in('action', ['Leave Approved', 'Leave Disapproved', 'System Alert', 'create', 'password_reset'])
         .order('created_at', { ascending: false })
@@ -59,7 +59,7 @@ export function AdminNotifications() {
   const markAsRead = async (activityId: number) => {
     try {
       await supabase
-        .from('activity_history')
+        .from('account_activity')
         .update({ is_read: true })
         .eq('id', activityId);
       

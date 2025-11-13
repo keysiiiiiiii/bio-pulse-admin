@@ -113,7 +113,7 @@ export const FacultyNotifications = () => {
 
     try {
       const { data, error } = await supabase
-        .from('activity_history')
+        .from('account_activity')
         .select('*')
         .eq('staff_user_id', user.id)
         .order('created_at', { ascending: false })

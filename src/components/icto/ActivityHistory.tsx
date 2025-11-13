@@ -67,7 +67,7 @@ export function ActivityHistory() {
 
     try {
       const { data, error } = await supabase
-        .from('activity_history')
+        .from('account_activity')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50);
