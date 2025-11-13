@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 interface Activity {
   id: number;
@@ -13,6 +14,7 @@ interface Activity {
   actor_staff_id: string;
   actor_role: string;
   staff_id: string;
+  staff_user_id: string;
   created_at: string;
 }
 
@@ -49,34 +51,30 @@ const formatActivityDetails = (activity: Activity) => {
 };
 
 export function ActivityHistory() {
-  const { token } = useAuth();
+  const { user } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchActivities();
-  }, [token]);
+  }, [user]);
 
   const fetchActivities = async () => {
-    if (!token) {
+    if (!user?.id) {
       setLoading(false);
       return;
     }
 
     try {
-      const response = await fetch('/api/notifications/recent?limit=50', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const { data, error } = await supabase
+        .from('account_activity')
+        .select('*')
+        .eq('staff_user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch activity history');
-      }
-
-      const data = await response.json();
-      setActivities(data);
+      if (error) throw error;
+      setActivities(data || []);
     } catch (error) {
       console.error("Error fetching activities:", error);
       toast({
