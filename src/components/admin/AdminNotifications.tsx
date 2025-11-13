@@ -34,7 +34,7 @@ export function AdminNotifications() {
     
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/notifications/recent?limit=20', {
+      const response = await fetch('/api/notifications/recent?limit=20', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
