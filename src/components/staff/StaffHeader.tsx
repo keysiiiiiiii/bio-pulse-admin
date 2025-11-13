@@ -1,5 +1,4 @@
 import { Building2 } from "lucide-react";
-import { StaffHeaderNotifications } from "./StaffHeaderNotifications";
 
 interface StaffHeaderProps {
   currentView?: string;
@@ -32,7 +31,6 @@ export const StaffHeader = ({ currentView, sidebarCollapsed }: StaffHeaderProps)
           <h1 className="text-xl font-bold text-foreground">Universidad de Manila</h1>
           <p className="text-sm text-muted-foreground">Staff - {getViewTitle()}</p>
         </div>
-        <StaffHeaderNotifications />
       </div>
     </header>
   );
