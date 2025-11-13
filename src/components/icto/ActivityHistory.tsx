@@ -60,20 +60,24 @@ export function ActivityHistory() {
   }, [user]);
 
   const fetchActivities = async () => {
-    if (!user?.id) {
+    if (!user?.staff_id) {
       setLoading(false);
       return;
     }
 
     try {
+      console.log('Fetching ICTO activities for:', user.staff_id);
+      
       const { data, error } = await supabase
         .from('account_activity')
         .select('*')
-        .eq('actor_role', 'ICTO')
+        .or(`actor_staff_id.eq.${user.staff_id},staff_id.eq.${user.staff_id}`)
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
+      
+      console.log('Fetched activities:', data);
       setActivities(data || []);
     } catch (error) {
       console.error("Error fetching activities:", error);

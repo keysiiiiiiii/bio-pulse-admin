@@ -31,18 +31,22 @@ export function AdminNotifications() {
   }, [isOpen, user]);
 
   const fetchActivities = async () => {
-    if (!user?.id) return;
+    if (!user?.staff_id) return;
     
     setLoading(true);
     try {
+      console.log('Fetching Admin notifications for:', user.staff_id);
+      
       const { data, error } = await supabase
         .from('account_activity')
         .select('*')
-        .eq('actor_role', 'Admin')
+        .or(`actor_staff_id.eq.${user.staff_id},staff_id.eq.${user.staff_id}`)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(50);
 
       if (error) throw error;
+      
+      console.log('Fetched activities:', data);
       setActivities(data || []);
     } catch (error) {
       console.error("Failed to fetch activities:", error);
