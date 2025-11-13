@@ -69,6 +69,7 @@ export function ActivityHistory() {
       const { data, error } = await supabase
         .from('account_activity')
         .select('*')
+        .eq('actor_role', 'ICTO')
         .order('created_at', { ascending: false })
         .limit(50);
 

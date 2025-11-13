@@ -38,7 +38,7 @@ export function AdminNotifications() {
       const { data, error } = await supabase
         .from('account_activity')
         .select('*')
-        .in('action', ['Leave Approved', 'Leave Disapproved', 'System Alert', 'create', 'password_reset'])
+        .eq('actor_role', 'Admin')
         .order('created_at', { ascending: false })
         .limit(20);
 
