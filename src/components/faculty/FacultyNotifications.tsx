@@ -19,8 +19,7 @@ interface Activity {
 const getActivityIcon = (action: string) => {
   switch (action) {
     case 'leave_status_update':
-      const status = action.includes('approved') ? 'approved' : 'disapproved';
-      return status === 'approved' ? CheckCircle2 : XCircle;
+      return CheckCircle2;
     case 'attendance_time_in':
       return LogIn;
     case 'attendance_time_out':
@@ -90,7 +89,7 @@ const formatActivityMessage = (action: string, details: any) => {
   }
   
   if (action === 'password_reset') {
-    return 'Your password was reset';
+    return 'Your password was reset by an administrator';
   }
   
   return JSON.stringify(details || {});
@@ -104,6 +103,7 @@ const formatTime = (dateString: string) => {
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
+  if (diffMins < 1) return 'Just now';
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   return `${diffDays}d ago`;
@@ -115,29 +115,79 @@ export const FacultyNotifications = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchActivities();
-  }, [user, token]);
+    if (user?.staff_id) {
+      fetchActivities();
+    }
+  }, [user?.staff_id, token]);
 
   const fetchActivities = async () => {
-    if (!user?.id) {
+    if (!user?.staff_id) {
+      console.log('No staff_id found for user');
       setLoading(false);
       return;
     }
 
     try {
-      console.log('Fetching notifications for Faculty:', user.staff_id);
+      console.log('=== NOTIFICATION FETCH DEBUG ===');
+      console.log('User object:', user);
+      console.log('User staff_id:', user.staff_id);
+      console.log('User staff_id type:', typeof user.staff_id);
+      console.log('User staff_id length:', user.staff_id?.length);
+      console.log('Staff ID trimmed:', `"${user.staff_id?.trim()}"`);
+      
+      // Try fetching with explicit string conversion and trimming
+      const staffId = String(user.staff_id).trim();
+      
+      // First, let's try to fetch ALL records to see if RLS is the issue
+      console.log('Attempting to fetch ALL records first...');
+      const { data: allData, error: allError } = await supabase
+        .from('account_activity')
+        .select('*')
+        .limit(5);
+      
+      console.log('All records sample:', allData);
+      console.log('All records error:', allError);
+      
+      // Now fetch with filter
+      console.log('Fetching with staff_id filter:', staffId);
       const { data, error } = await supabase
         .from('account_activity')
         .select('*')
-        .or(`actor_staff_id.eq.${user.staff_id},staff_id.eq.${user.staff_id}`)
+        .eq('staff_id', staffId)
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) {
         console.error('Supabase error:', error);
+        console.error('Error details:', JSON.stringify(error));
         throw error;
       }
+      
+      console.log('Query executed for staff_id:', staffId);
+      console.log('Fetched activities count:', data?.length || 0);
       console.log('Fetched activities:', data);
+      
+      // If no data, let's try alternative queries
+      if (!data || data.length === 0) {
+        console.log('No data found, trying actor_staff_id...');
+        const { data: actorData, error: actorError } = await supabase
+          .from('account_activity')
+          .select('*')
+          .eq('actor_staff_id', staffId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        
+        console.log('Actor query result:', actorData);
+        console.log('Actor query error:', actorError);
+        
+        if (actorData && actorData.length > 0) {
+          console.log('Found data using actor_staff_id instead!');
+          setActivities(actorData);
+          setLoading(false);
+          return;
+        }
+      }
+      
       setActivities(data || []);
     } catch (error) {
       console.error("Error fetching notifications:", error);
@@ -179,6 +229,9 @@ export const FacultyNotifications = () => {
               <div className="text-center">
                 <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">No notifications yet</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Logged in as: {user?.staff_id}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -202,6 +255,11 @@ export const FacultyNotifications = () => {
                       <span className="text-xs text-muted-foreground">{time}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">{message}</p>
+                    {activity.actor_staff_id && activity.actor_staff_id !== user?.staff_id && (
+                      <p className="text-xs text-muted-foreground">
+                        By: {activity.actor_role} ({activity.actor_staff_id})
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
