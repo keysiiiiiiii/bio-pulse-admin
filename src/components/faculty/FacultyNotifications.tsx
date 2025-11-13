@@ -112,14 +112,19 @@ export const FacultyNotifications = () => {
     }
 
     try {
+      console.log('Fetching notifications for Faculty:', user.staff_id);
       const { data, error } = await supabase
         .from('account_activity')
         .select('*')
-        .eq('actor_staff_id', user.staff_id)
+        .eq('staff_id', user.staff_id)
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      console.log('Fetched activities:', data);
       setActivities(data || []);
     } catch (error) {
       console.error("Error fetching notifications:", error);
