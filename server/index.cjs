@@ -11,20 +11,16 @@ if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
 
 const express = require('express');
 const cors = require('cors');
+const os = require('os');
 const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ======================================================
-// ✅ ADVANCED CORS CONFIGURATION (for LAN & localhost)
+// ✅ ADVANCED CORS CONFIGURATION
 // ======================================================
-const allowedOrigins = [
-  'http://localhost:8080',
-  'http://127.0.0.1:8080',
-];
-
-const os = require('os');
+const allowedOrigins = ['http://localhost:8080', 'http://127.0.0.1:8080'];
 const networkInterfaces = os.networkInterfaces();
 Object.values(networkInterfaces).flat().forEach(iface => {
   if (iface && iface.family === 'IPv4' && !iface.internal) {
@@ -34,50 +30,51 @@ Object.values(networkInterfaces).flat().forEach(iface => {
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // allow curl / mobile
+    if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    // Allow in development even if not in list
     console.warn('⚠️  Origin not in whitelist (allowing anyway):', origin);
-    return callback(null, true); // Allow for development
+    return callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Request logger middleware
+// ======================================================
+// ✅ Request Logger
+// ======================================================
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
-    const duration = Date.now() - start;
+    const ms = Date.now() - start;
     const status = res.statusCode;
     const emoji = status >= 500 ? '❌' : status >= 400 ? '⚠️' : '✅';
-    console.log(`${emoji} ${req.method} ${req.url} → ${status} (${duration}ms)`);
+    console.log(`${emoji} ${req.method} ${req.originalUrl} → ${status} (${ms}ms)`);
   });
   next();
 });
 
-// ================= HEALTH CHECK =================
-app.get('/api/ping', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+// ======================================================
+// ✅ Health Check
+// ======================================================
+app.get('/api/ping', (_req, res) =>
+  res.json({ ok: true, time: new Date().toISOString() })
+);
 
-// ============================================
-// ROBUST ROUTE LOADING AND MOUNTING
-// ============================================
-
-function loadRoute(routePath, routeName) {
+// ======================================================
+// ✅ Route Loader
+// ======================================================
+function loadRoute(routePath, name) {
   try {
     const route = require(routePath);
-    if (!route || typeof route !== 'function') {
-      console.error(`❌ Invalid router export: ${routeName}`);
+    if (!route || typeof route !== 'function' && !route.use) {
+      console.error(`❌ Invalid router export: ${name}`);
       return null;
     }
-    console.log(`✅ Loaded ${routeName} from ${routePath}`);
+    console.log(`✅ Loaded ${name} from ${routePath}`);
     return route;
-  } catch (error) {
-    console.error(`❌ Failed to load ${routeName}:`, error.message);
+  } catch (err) {
+    console.error(`❌ Failed to load ${name}: ${err.message}`);
     return null;
   }
 }
@@ -94,7 +91,10 @@ const analyticsRoutes = loadRoute('./routes/analyticsRoutes.cjs', 'Analytics Rou
 if (analyticsRoutes) app.use('/api/analytics', analyticsRoutes);
 
 const notificationRoutes = loadRoute('./routes/notificationRoutes.cjs', 'Notification Routes');
-if (notificationRoutes) app.use('/api', notificationRoutes);
+if (notificationRoutes) app.use('/api/notifications', notificationRoutes);
+
+const activityRoutes = loadRoute('./routes/activityRoutes.cjs', 'Activity Routes');
+if (activityRoutes) app.use('/api/activity', activityRoutes);
 
 const driveSyncRoutes = loadRoute('./routes/driveSyncRoutes.cjs', 'Drive Sync Routes');
 if (driveSyncRoutes) app.use('/api/leaves', driveSyncRoutes);
@@ -108,30 +108,28 @@ if (gsheetsRoutes) app.use('/', gsheetsRoutes);
 const dtrRoutes = loadRoute('./routes/dtrRoutes.cjs', 'DTR Routes');
 if (dtrRoutes) app.use('/api/dtr', dtrRoutes);
 
-const activityRoutes = loadRoute('./routes/activityRoutes.cjs', 'Activity Routes');
-if (activityRoutes) app.use('/api/activity', activityRoutes);
-
 console.log('\n✅ Route loading complete!\n');
 
-// ===================== DIAGNOSTICS =====================
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Backend is running',
-    timestamp: new Date().toISOString(),
-  });
+// ======================================================
+// ✅ Diagnostics
+// ======================================================
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', message: 'Backend is running', timestamp: new Date().toISOString() });
 });
 
-// ===================== STATIC FILES =====================
+// ======================================================
+// ✅ Static Files
+// ======================================================
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/leave-files', express.static(path.join(__dirname, 'leave_files')));
 
-
-// ===================== ROUTE INSPECTOR =====================
+// ======================================================
+// ✅ Route Inspector
+// ======================================================
 app.get('/__routes', (_req, res) => {
   const list = [];
   const parse = (stack, prefix = '') => {
-    stack.forEach((layer) => {
+    stack.forEach(layer => {
       if (layer.route && layer.route.path) {
         const methods = Object.keys(layer.route.methods).map(m => m.toUpperCase());
         list.push({ methods, path: prefix + layer.route.path });
@@ -144,57 +142,11 @@ app.get('/__routes', (_req, res) => {
   res.json({ ok: true, routes: list });
 });
 
-// ================= DRIVE SYNC TRIGGER =================
-app.post('/api/leaves/trigger-sync', async (req, res) => {
-  try {
-    const { syncDriveToSupabase } = require('./services/driveSync.cjs');
-    const out = await syncDriveToSupabase({ dry: false });
-    res.json({ ok: true, ...out });
-  } catch (e) {
-    console.error('[drive-sync] Error:', e);
-    res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-// ================= AUTO SYNC (Poller) =================
-try {
-  const { startAutoSync, stopAutoSync, statusAutoSync } = require('./auto_sync.cjs');
-
-  app.get('/__autosync/status', (_req, res) => res.json({ ok: true, ...statusAutoSync() }));
-  app.post('/__autosync/start', (_req, res) => {
-    startAutoSync();
-    res.json({ ok: true, started: true, ...statusAutoSync() });
-  });
-  app.post('/__autosync/stop', (_req, res) => {
-    stopAutoSync();
-    res.json({ ok: true, stopped: true, ...statusAutoSync() });
-  });
-
-  const flag = String(process.env.AUTO_SYNC ?? '1').trim().toLowerCase();
-  const enabled = ['1', 'true', 'yes', 'on'].includes(flag);
-
-  if (enabled) startAutoSync({ intervalSec: Number(process.env.SYNC_INTERVAL_SEC || 60) });
-  else console.log('[auto-sync] disabled');
-} catch (e) {
-  console.warn('[auto-sync] not started:', e.message);
-}
-
-// ================= ZKTECO PULLER =================
-try {
-  const zk = require('./services/zktecoPuller.supabase.cjs');
-  if (zk?.start) zk.start();
-  else console.log('[mount] zktecoPuller exported nothing');
-} catch (e) {
-  console.warn('[mount] zktecoPuller error:', e.message);
-}
-
-// ================= ERROR HANDLERS =================
+// ======================================================
+// ✅ Error Handlers
+// ======================================================
 app.use((req, res) => {
-  res.status(404).json({
-    error: 'Route not found',
-    path: req.url,
-    method: req.method,
-  });
+  res.status(404).json({ error: 'Route not found', path: req.url, method: req.method });
 });
 
 app.use((err, req, res, next) => {
@@ -202,7 +154,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
-// ================= START SERVER =================
+// ======================================================
+// ✅ Start Server
+// ======================================================
 const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, '0.0.0.0', () => {
   const ip = Object.values(os.networkInterfaces()).flat()

@@ -1,4 +1,4 @@
-// routes/staffRoutes.js (Supabase version)
+// routes/staffRoutes.js (Supabase version with Activity Logging)
 console.log('staffRoutes loaded');
 const express = require('express');
 const router = express.Router();
@@ -12,10 +12,9 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { ensurePinForStaffId } = require('../services/pinConverter.cjs'); // Idagdag ang .cjs
+const { ensurePinForStaffId } = require('../services/pinConverter.cjs');
 
 // Additional upload configuration for in-memory files
-// We use this for routes that need to process files immediately (e.g., sending to an LLM)
 const memoryStorage = multer.memoryStorage();
 const memUpload = multer({ storage: memoryStorage });
 
@@ -42,6 +41,30 @@ const upload = multer({ storage });
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '2h';
 
+// ========== ACTIVITY LOGGING HELPER ==========
+async function logActivity({ staff_id, action, details = {}, actor = {} }) {
+  try {
+    const payload = {
+      staff_id: staff_id,
+      action: action,
+      details: details,
+      actor_staff_id: actor.sid || null,
+      actor_role: actor.role || null,
+      created_at: new Date().toISOString()
+    };
+
+    const { error } = await db.from('account_activity').insert([payload]);
+    if (error) {
+      console.error('⚠️ Activity log error:', error);
+    } else {
+      console.log(`✅ Activity logged: ${action} for ${staff_id}`);
+    }
+  } catch (e) {
+    console.error('⚠️ Activity log failed:', e);
+    // Non-fatal: don't throw
+  }
+}
+
 // -- helpers for Activity History --
 async function getStaffRowByStaffId(staff_id) {
   const { data, error } = await db
@@ -53,30 +76,10 @@ async function getStaffRowByStaffId(staff_id) {
   return data || null;
 }
 
-async function logActivity({ staff_id, action, details = {}, actor = {} }) {
-  const row = await getStaffRowByStaffId(staff_id);
-  if (!row) return; // silently ignore if not found
-
-  const payload = {
-    staff_user_id: row.id,
-    staff_id,
-    action,
-    details,
-    actor_staff_id: actor.sid || null,
-    actor_role: actor.role || null
-  };
-
-  const { error } = await db.from('account_activity').insert(payload);
-  if (error) console.error('logActivity error:', error);
-}
-
 // Build the next staff_id like "69-2025-0035" using the largest suffix
-// for the CURRENT YEAR across ALL prefixes (global counter per year).
 async function generateNextStaffId(prefix2) {
   const year = String(new Date().getFullYear());
 
-  // Pull a reasonable slice of the year's IDs; we’ll compute the max suffix in code.
-  // Pattern "%-YYYY-%" = any prefix length (2–6 per our rule) for the current year.
   const { data, error } = await db
     .from('staff_users')
     .select('staff_id')
@@ -88,7 +91,7 @@ async function generateNextStaffId(prefix2) {
 
   let maxSuffix = 0;
   for (const r of (data || [])) {
-    const parts = String(r.staff_id || '').split('-'); // ["69","2025","0034"]
+    const parts = String(r.staff_id || '').split('-');
     if (parts[1] === year && /^\d{4}$/.test(parts[2] || '')) {
       const n = parseInt(parts[2], 10);
       if (n > maxSuffix) maxSuffix = n;
@@ -99,8 +102,6 @@ async function generateNextStaffId(prefix2) {
   const suffix = String(next).padStart(4, '0');
   return `${prefix2}-${year}-${suffix}`;
 }
-
-
 
 /* =================
    JWT helpers (same)
@@ -157,7 +158,7 @@ function getBucket(req, staff_id) {
 
 // POST /auth/login
 router.post('/auth/login', async (req, res) => {
-  const { staff_id, password } = req.body; // must match your JSON keys
+  const { staff_id, password } = req.body;
   if (!staff_id || !password) {
     return res.status(400).json({ message: 'staff_id and password required' });
   }
@@ -189,10 +190,28 @@ router.post('/auth/login', async (req, res) => {
     res.set('X-RateLimit-Remaining-Logins', String(left));
     const msg = left > 0 ? `Invalid credentials. ${left} attempt(s) left.` :
       `Too many attempts. Locked for ${Math.ceil(LOCK_MS / 60000)} minutes.`;
+    
+    // 🆕 Log failed login attempt
+    await logActivity({
+      staff_id: staff_id,
+      action: 'login_failed',
+      details: { attempts_remaining: left, ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress },
+      actor: { sid: staff_id, role: 'System' }
+    });
+    
     return res.status(left > 0 ? 401 : 429).json({ message: msg, attempts_left: left, lock_until: bucket.lockUntil || null });
   }
 
   attempts.delete(key);
+  
+  // 🆕 Log successful login
+  await logActivity({
+    staff_id: u.staff_id,
+    action: 'login_success',
+    details: { ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress },
+    actor: { sid: u.staff_id, role: u.role }
+  });
+
   const user = {
     staff_id: u.staff_id,
     name: u.name,
@@ -241,7 +260,6 @@ router.post('/auth/admin/login', async (req, res) => {
     return res.status(400).json({ message: 'Email and password required' });
   }
 
-  // Look up by email (admin accounts)
   const { data: u, error } = await db
     .from('staff_users')
     .select('*')
@@ -253,7 +271,24 @@ router.post('/auth/admin/login', async (req, res) => {
     return res.status(403).json({ message: 'Forbidden (not an admin account)' });
 
   const ok = await bcrypt.compare(password, u.password || '');
-  if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+  if (!ok) {
+    // 🆕 Log failed admin login
+    await logActivity({
+      staff_id: u.staff_id,
+      action: 'admin_login_failed',
+      details: { email, ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress },
+      actor: { sid: u.staff_id, role: 'System' }
+    });
+    return res.status(401).json({ message: 'Invalid credentials' });
+  }
+
+  // 🆕 Log successful admin login
+  await logActivity({
+    staff_id: u.staff_id,
+    action: 'admin_login_success',
+    details: { email, ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress },
+    actor: { sid: u.staff_id, role: u.role }
+  });
 
   const token = signUser(u);
   return res.json({
@@ -281,7 +316,6 @@ router.get('/auth/admin/me', verifyToken, requireRole('Admin', 'Vice President',
   if (!data) return res.status(404).json({ message: 'Admin not found' });
   return res.json(data);
 });
-
 
 /* =========================
    ADMIN / VP / ICTO
@@ -333,23 +367,19 @@ router.post('/users',
   async (req, res) => {
     try {
       let {
-        staff_id,               // optional full id: 00-YYYY-####
-        staff_id_prefix,        // optional 2-digit prefix: 00
+        staff_id,
+        staff_id_prefix,
         name, email, password,
         role, employee_type, department, contact_number, status
       } = req.body || {};
 
-      // Must have name/email/password and either role or employee_type.
-      // For the ID, you can provide either a full staff_id OR a 2-digit staff_id_prefix.
       if (!name || !email || !password || !(role || employee_type) || !(staff_id || staff_id_prefix)) {
         return res.status(400).json({ message: 'staff_id or staff_id_prefix, name, email, password, and role/employee_type are required' });
       }
 
       const prefixRe = /^[A-Za-z0-9]{2,6}$/;
-      // Use staff_id AS IS (no trimming, no auto-generation)
       let finalStaffId = staff_id;
 
-      // Fallback: if staff_id_prefix is provided, auto-generate (backward compatibility)
       if (!finalStaffId && prefixRe.test(staff_id_prefix || '')) {
         finalStaffId = await generateNextStaffId(staff_id_prefix);
       }
@@ -358,8 +388,7 @@ router.post('/users',
         return res.status(400).json({ message: 'Staff ID is required' });
       }
 
-
-      // ---- Canonicalize role + department (same logic as before) ----
+      // Canonicalize role + department
       const r0 = String(role || employee_type || '').trim();
       const r = r0.toLowerCase();
       let dbRole = r0;
@@ -420,7 +449,6 @@ router.post('/users',
         photo_url: null
       };
 
-      // Insert with a simple “retry once” in case two admins create at the same time
       let { data: created, error: insErr, status: insCode } = await db
         .from('staff_users')
         .insert(insertPayload)
@@ -428,7 +456,6 @@ router.post('/users',
         .single();
 
       if (insErr && insErr.code === '23505' && prefixRe.test(staff_id_prefix || '')) {
-        // regenerate and retry once
         insertPayload.staff_id = await generateNextStaffId(staff_id_prefix);
         ({ data: created, error: insErr, status: insCode } = await db
           .from('staff_users')
@@ -440,7 +467,6 @@ router.post('/users',
       if (insErr) {
         console.error('Create user failed:', insErr);
         
-        // Better error messages
         if (insErr.code === '23505') {
           if (insErr.message.includes('email')) {
             return res.status(409).json({ message: 'Email already exists in the system' });
@@ -451,17 +477,21 @@ router.post('/users',
         return res.status(insCode || 500).json({ message: insErr.message || 'Failed to create account' });
       }
 
-      // Log: account created
-      try {
-        await logActivity({
-          staff_id: created.staff_id,
-          action: 'create',
-          details: { name, email, role: dbRole, dept },
-          actor: req.user || {}
-        });
-      } catch (e) { /* non-fatal */ }
+      // 🆕 Log account creation
+      await logActivity({
+        staff_id: created.staff_id,
+        action: 'account_created',
+        details: { 
+          name, 
+          email, 
+          role: dbRole, 
+          department: dept,
+          created_by: req.user?.sid || 'Admin'
+        },
+        actor: req.user || {}
+      });
 
-      // === NEW: Generate/confirm biometric PIN for this new account ===
+      // Generate/confirm biometric PIN
       let device_pin = null;
       try {
         const sid = (created && created.staff_id) ? created.staff_id : insertPayload.staff_id;
@@ -479,7 +509,7 @@ router.post('/users',
   }
 );
 
-// POST /users/:staff_id/device-pin  → ensure & return a PIN for biometric enrollment
+// POST /users/:staff_id/device-pin
 router.post(
   '/users/:staff_id/device-pin',
   verifyToken, requireRole('Admin', 'Vice President', 'ICTO'),
@@ -496,7 +526,6 @@ router.post(
     }
   }
 );
-
 
 // GET /users/:staff_id
 router.get('/users/:staff_id',
@@ -530,13 +559,10 @@ router.get('/users/:staff_id/activity',
     const staffId = String(req.params.staff_id);
     const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10), 1), 500);
 
-    const row = await getStaffRowByStaffId(staffId);
-    if (!row) return res.status(404).json({ message: 'User not found' });
-
     const { data, error } = await db
       .from('account_activity')
       .select('action, details, actor_staff_id, actor_role, created_at')
-      .eq('staff_user_id', row.id)
+      .eq('staff_id', staffId)
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -546,8 +572,7 @@ router.get('/users/:staff_id/activity',
   }
 );
 
-
-// PATCH /users/:staff_id  (self or elevated)
+// PATCH /users/:staff_id (self or elevated)
 router.patch(
   '/users/:staff_id',
   verifyToken,
@@ -561,11 +586,24 @@ router.patch(
       if (!isSelf && !isElevated) return res.status(403).json({ message: 'Forbidden' });
 
       const update = {};
+      const changedFields = [];
 
-      if (req.body?.email !== undefined) update.email = String(req.body.email || '').trim();
-      if (req.body?.contact_number !== undefined) update.contact_number = String(req.body.contact_number || '').trim();
-      if (req.body?.password) update.password = await bcrypt.hash(String(req.body.password), 10);
-      if (req.file) update.photo_url = `/uploads/avatars/${req.file.filename}`;
+      if (req.body?.email !== undefined) {
+        update.email = String(req.body.email || '').trim();
+        changedFields.push('email');
+      }
+      if (req.body?.contact_number !== undefined) {
+        update.contact_number = String(req.body.contact_number || '').trim();
+        changedFields.push('contact_number');
+      }
+      if (req.body?.password) {
+        update.password = await bcrypt.hash(String(req.body.password), 10);
+        changedFields.push('password');
+      }
+      if (req.file) {
+        update.photo_url = `/uploads/avatars/${req.file.filename}`;
+        changedFields.push('photo_url');
+      }
 
       if (!Object.keys(update).length) return res.status(400).json({ message: 'Nothing to update' });
 
@@ -577,19 +615,20 @@ router.patch(
 
       if (error) return res.status(500).json({ message: 'Database error' });
 
-      // If password was part of the update, log it.
-      // Distinguish reset vs general change (simple heuristic).
-      try {
-        if (req.body?.password) {
-          const isResetToDefault = String(req.body.password) === 'default123' && ['Admin', 'ICTO'].includes(req.user?.role);
-          await logActivity({
-            staff_id: targetId,
-            action: isResetToDefault ? 'password_reset' : 'password_change',
-            details: { reason: isResetToDefault ? 'reset_to_default' : 'manual_change' },
-            actor: req.user || {}
-          });
-        }
-      } catch (e) { /* non-fatal */ }
+      // 🆕 Log profile update
+      const isPasswordChange = changedFields.includes('password');
+      const isResetToDefault = String(req.body.password) === 'default123' && isElevated;
+      
+      await logActivity({
+        staff_id: targetId,
+        action: isPasswordChange ? (isResetToDefault ? 'password_reset' : 'password_change') : 'profile_updated',
+        details: { 
+          changed_fields: changedFields.filter(f => f !== 'password'),
+          updated_by: isSelf ? 'self' : req.user?.sid,
+          is_password_reset: isResetToDefault
+        },
+        actor: req.user || {}
+      });
 
       return res.json({ message: 'Updated', changed: (data || []).length });
 
@@ -600,7 +639,7 @@ router.patch(
   }
 );
 
-// POST /users/:staff_id/reset-password - Reset password to default (ICTO/Admin only)
+// POST /users/:staff_id/reset-password
 router.post(
   '/users/:staff_id/reset-password',
   verifyToken,
@@ -620,17 +659,16 @@ router.post(
       if (error) return res.status(500).json({ message: 'Database error' });
       if (!data || data.length === 0) return res.status(404).json({ message: 'User not found' });
 
-      // Log the password reset activity
-      try {
-        await logActivity({
-          staff_id: targetId,
-          action: 'password_reset',
-          details: { reason: 'reset_to_default' },
-          actor: req.user || {}
-        });
-      } catch (e) {
-        console.warn('Failed to log activity:', e);
-      }
+      // 🆕 Log password reset (CRITICAL: This creates a notification)
+      await logActivity({
+        staff_id: targetId,
+        action: 'password_reset',
+        details: { 
+          reason: 'reset_to_default',
+          reset_by: req.user?.sid || 'Admin'
+        },
+        actor: req.user || {}
+      });
 
       return res.json({ message: 'Password reset successfully', user: data[0] });
     } catch (e) {
@@ -641,13 +679,8 @@ router.post(
 );
 
 /* =========================
-   MOBILE (aligned to your schema)
-   =========================
-   NOTE: your DB has table "staff_device_map" with columns:
-         - staff_id (PK, FK -> staff_users.staff_id)
-         - device_pin (string)
-   We will treat "deviceId" coming from the app as the "device_pin".
-*/
+   MOBILE
+   ========================= */
 
 // POST /mobile/register
 router.post('/mobile/register', async (req, res) => {
@@ -656,28 +689,29 @@ router.post('/mobile/register', async (req, res) => {
     return res.status(400).json({ message: 'name, employeeId, deviceId required' });
   }
 
-  // upsert mapping to staff_device_map (device_pin)
   const { error } = await db
     .from('staff_device_map')
     .upsert({ staff_id: employeeId, device_pin: deviceId }, { onConflict: 'staff_id' });
 
   if (error) {
-    // If FK fails, staff_id doesn't exist
     if (error.code === '23503') return res.status(400).json({ message: 'Unknown staff_id' });
     return res.status(500).json({ message: 'Failed to register device' });
   }
+  
+  // 🆕 Log device registration
+  await logActivity({
+    staff_id: employeeId,
+    action: 'device_registered',
+    details: { device_id: deviceId, name },
+    actor: { sid: employeeId, role: 'Staff' }
+  });
+  
   return res.status(201).json({ message: 'Device registered' });
 });
 
 /* =================
    LLM Integration
    ================= */
-// POST /llm/parse-form
-// This endpoint accepts an image and uses Groq's multimodal model to extract
-// structured information required for the “Create Account” form. It requires
-// authentication and is restricted to roles that can create accounts. It
-// expects a single file field named `image`. The response will be a JSON
-// object with keys: name, email, faculty_number, department, phone, status.
 router.post(
   '/llm/parse-form',
   verifyToken,
@@ -685,21 +719,15 @@ router.post(
   memUpload.single('image'),
   async (req, res) => {
     try {
-      // Validate input
       const file = req.file;
       if (!file) {
         return res.status(400).json({ message: 'image file required' });
       }
-      // Convert the image buffer to a base64 data URI
+      
       const mime = file.mimetype || 'image/png';
       const base64 = file.buffer.toString('base64');
       const dataUri = `data:${mime};base64,${base64}`;
 
-      // Prepare the messages for the Groq API. We instruct the model to
-      // extract the required fields. If any field is missing in the image,
-      // the model should provide an empty string for that field. The
-      // response_format is set to json_object so that the model returns
-      // a strict JSON object instead of free-form text.
       const messages = [
         {
           role: 'user',
@@ -709,7 +737,7 @@ router.post(
               text:
                 'The following image contains text describing a university staff or faculty member. ' +
                 'Extract the following fields and output them as a JSON object with these exact keys: ' +
-                'name, email, faculty_number, department, phone, status, role. ' +   // <— added role
+                'name, email, faculty_number, department, phone, status, role. ' +
                 'If a field is not present, set its value to an empty string. Do not include any additional keys.',
             },
             { type: 'image_url', image_url: { url: dataUri } }
@@ -717,15 +745,13 @@ router.post(
         }
       ];
 
-      // Call the Groq chat completion endpoint. We use a multimodal model that
-      // supports both images and JSON responses. The API key is read from
-      // environment variables. Adjust the max_completion_tokens if needed.
       const groqReqBody = {
         model: 'meta-llama/llama-4-scout-17b-16e-instruct',
         messages: messages,
         max_completion_tokens: 512,
         response_format: { type: 'json_object' },
       };
+      
       const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -739,15 +765,17 @@ router.post(
         const text = await groqRes.text().catch(() => '');
         return res.status(500).json({ message: 'LLM request failed', status: groqRes.status, body: text });
       }
+      
       const groqJson = await groqRes.json();
-      // The Groq API returns choices array with messages. Extract the content.
       const content = groqJson?.choices?.[0]?.message?.content;
       if (!content) {
         return res.status(500).json({ message: 'Invalid LLM response', response: groqJson });
       }
+      
       let parsed;
       try { parsed = JSON.parse(content); }
       catch { return res.status(500).json({ message: 'Failed to parse JSON from LLM', raw: content }); }
+      
       const out = {
         name: parsed.name ?? '',
         email: parsed.email ?? '',
@@ -757,13 +785,15 @@ router.post(
         status: parsed.status ?? '',
         role: parsed.role ?? ''
       };
+      
       return res.json(out);
     } catch (e) {
       console.error('LLM parse error:', e);
       return res.status(500).json({ message: 'Unexpected server error', error: e.message || e.toString() });
     }
-  },
+  }
 );
+
 // POST /attendance
 router.post('/attendance', async (req, res) => {
   const { employeeId, deviceId, beaconId, timestamp } = req.body || {};
@@ -771,7 +801,6 @@ router.post('/attendance', async (req, res) => {
     return res.status(400).json({ message: 'employeeId, deviceId, beaconId, timestamp required' });
   }
 
-  // validate device assignment
   const { data: mapRow, error: mapErr } = await db
     .from('staff_device_map')
     .select('staff_id, device_pin')
@@ -782,12 +811,11 @@ router.post('/attendance', async (req, res) => {
   if (mapErr) return res.status(500).json({ message: 'Database error (validate)' });
   if (!mapRow) return res.status(403).json({ message: 'Device does not belong to employee' });
 
-  // insert attendance log; your table has both deviceId & beacon_id columns
   const payload = {
     staff_id: employeeId,
-    deviceId,                 // keep camelCase column since it exists in your schema
-    beacon_id: beaconId,      // snake
-    beaconId,                 // camel (exists)
+    deviceId,
+    beacon_id: beaconId,
+    beaconId,
     timestamp: new Date(timestamp).toISOString(),
     attendance_status: 'incomplete_mobile',
     status: 'mobile',
@@ -801,10 +829,9 @@ router.post('/attendance', async (req, res) => {
 });
 
 /* =========================
-   LEAVE CREDITS (fixed for Supabase schema)
+   LEAVE CREDITS
    ========================= */
 
-// helper: get staff_users.id from a staff_id string
 async function getStaffUserRow(staff_id) {
   const { data, error } = await db
     .from('staff_users')
@@ -815,29 +842,24 @@ async function getStaffUserRow(staff_id) {
   return data || null;
 }
 
-// helper: get an Admin/HR password hash to verify the HR Head password
 async function findHrHeadHash() {
-  const specificId = process.env.HR_HEAD_STAFF_ID;   // e.g. 23-2025-0001
+  const specificId = process.env.HR_HEAD_STAFF_ID;
   if (specificId) {
-    // try staff_users first
     let { data: su, error } = await db
       .from('staff_users').select('password').eq('staff_id', specificId).maybeSingle();
     if (!error && su?.password) return su.password;
 
-    // fall back to user_accounts (if passwords are there)
     let r2 = await db.from('user_accounts').select('password').eq('staff_id', specificId).maybeSingle();
     if (!r2.error && r2.data?.password) return r2.data.password;
 
     throw new Error('HR_HEAD_STAFF_ID not found');
   }
 
-  // no explicit HR head: pick first Admin
   let r = await db.from('staff_users')
     .select('password, role, employee_type').or('role.eq.Admin,employee_type.eq.Admin')
     .limit(1).maybeSingle();
   if (!r.error && r.data?.password) return r.data.password;
 
-  // fall back user_accounts Admin
   let r3 = await db.from('user_accounts').select('password, role').eq('role', 'Admin')
     .limit(1).maybeSingle();
   if (!r3.error && r3.data?.password) return r3.data.password;
@@ -845,30 +867,7 @@ async function findHrHeadHash() {
   throw new Error('No HR Head/Admin account with password found');
 }
 
-// helper: compute accrued credits since accrual_start_date at a fixed monthly rate
-function computeAccruedCredits(accrual_start_date, per_month_rate, used_credits) {
-  if (!accrual_start_date || !per_month_rate) return 0;
-  const start = new Date(accrual_start_date + 'T00:00:00');
-  const now = new Date();
-
-  // months between start and now (approx by year/month diff; daily proration isn’t needed per spec)
-  let months =
-    (now.getFullYear() - start.getFullYear()) * 12 +
-    (now.getMonth() - start.getMonth());
-
-  // if we've reached (or passed) the start-day in the current month, count this month too
-  if (now.getDate() >= start.getDate()) months += 1;
-  if (months < 0) months = 0;
-
-  const accrued = months * Number(per_month_rate || 0);
-  const used = Number(used_credits || 0);
-  return Math.max(0, accrued - used);
-}
-
-/** GET /api/leave/:staff_id
- *  Returns computed balance + raw fields.
- *  Fallback: if table user_accounts is missing, try reading from staff_users instead.
- */
+// GET /leave/:staff_id
 router.get('/leave/:staff_id',
   verifyToken,
   requireRole('Admin', 'Vice President', 'ICTO'),
@@ -884,7 +883,7 @@ router.get('/leave/:staff_id',
       let per_month_rate = 2.5;
       let used_credits = 0;
 
-      // --- primary: user_accounts
+      // Try user_accounts first
       try {
         const r = await db
           .from('user_accounts')
@@ -900,7 +899,7 @@ router.get('/leave/:staff_id',
         }
       } catch { /* ignore */ }
 
-      // --- fallback: staff_users columns (if they exist)
+      // Fallback: staff_users columns
       if (!eligible && !accrual_start_date) {
         try {
           const r2 = await db
@@ -918,13 +917,13 @@ router.get('/leave/:staff_id',
         } catch { /* ignore */ }
       }
 
-      // --- FINAL fallback: infer from account_activity (works even with RLS on user_accounts)
+      // FINAL fallback: infer from account_activity
       if (!eligible) {
         try {
           const { data: acts } = await db
             .from('account_activity')
             .select('action, details, created_at')
-            .eq('staff_user_id', su.id)
+            .eq('staff_id', staffId)
             .order('created_at', { ascending: false })
             .limit(5);
           const act = (acts || []).find(a => a.action === 'leave_activate');
@@ -939,9 +938,8 @@ router.get('/leave/:staff_id',
         } catch { /* ignore */ }
       }
 
-      // compute running balance
+      // Compute running balance
       const computeAccrued = (startDate, rate, used) => {
-
         if (!startDate) return Number(leave_credits || 0);
         const sd = new Date(startDate + 'T00:00:00Z');
         if (isNaN(sd)) return Number(leave_credits || 0);
@@ -955,7 +953,6 @@ router.get('/leave/:staff_id',
       };
 
       const computed = computeAccrued(accrual_start_date, per_month_rate, used_credits);
-
 
       return res.json({
         leave_eligible: eligible ? 1 : 0,
@@ -972,10 +969,7 @@ router.get('/leave/:staff_id',
   }
 );
 
-
-// POST /api/leave/activate
-
-
+// POST /leave/activate
 router.post('/leave/activate',
   verifyToken,
   requireRole('Admin', 'Vice President', 'ICTO'),
@@ -1006,7 +1000,6 @@ router.post('/leave/activate',
           staff_user_id: su.id,
           staff_id,
           leave_eligible: true,
-          // keep a historical "stored" bucket; computed one comes from rate/dates
           leave_credits: 0,
           per_month_rate: 2.5,
           accrual_start_date: today,
@@ -1020,16 +1013,14 @@ router.post('/leave/activate',
       }
 
       if (!okUA) {
-        try { await db.from('staff_users').update({ leave_eligible: true }).eq('id', su.id); } catch { }
-
-
-        try {
-          await db.from('staff_users').update({
+        try { 
+          await db.from('staff_users').update({ 
+            leave_eligible: true,
             leave_credits: 0,
             per_month_rate: 2.5,
             accrual_start_date: today,
             used_credits: 0
-          }).eq('id', su.id);
+          }).eq('id', su.id); 
         } catch { }
       }
 
@@ -1038,15 +1029,17 @@ router.post('/leave/activate',
         await db.from('staff_users').update({ employee_type: 'Regular / Full-Time' }).eq('id', su.id);
       } catch { }
 
-      // Activity log (best-effort)
-      try {
-        await logActivity({
-          staff_id,
-          action: 'leave_activate',
-          details: { per_month_rate: 2.5, accrual_start_date: today },
-          actor: req.user || {}
-        });
-      } catch { }
+      // 🆕 Activity log (CRITICAL: This creates a notification for the user)
+      await logActivity({
+        staff_id,
+        action: 'leave_activate',
+        details: { 
+          per_month_rate: 2.5, 
+          accrual_start_date: today,
+          activated_by: req.user?.sid || 'Admin'
+        },
+        actor: req.user || {}
+      });
 
       return res.json({ message: 'activated' });
     } catch (e) {
@@ -1055,6 +1048,5 @@ router.post('/leave/activate',
     }
   }
 );
-
 
 module.exports = router;

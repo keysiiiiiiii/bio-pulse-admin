@@ -68,7 +68,7 @@ export function LeaveHistory() {
       
       const formatted: LeaveRecord[] = filtered.map((req: any) => ({
         id: String(req.id),
-        staffId: req.staff_id || '',
+        staffId: req.staff_user_id || '',
         name: req.staff_name,
         date: req.date,
         reason: req.reason || '',

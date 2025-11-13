@@ -1,4 +1,4 @@
-// backend/routes/attendanceRoutes.js
+// backend/routes/attendanceRoutes.cjs - WITH ACTIVITY LOGGING
 // Supabase-based attendance routes aligned to your schema.
 // IMPORTANT: Every read/write uses the numeric FK: staff_user_id.
 // If a caller only has string staff_id, we resolve it to staff_user_id first.
@@ -92,6 +92,26 @@ async function getSuidFromQuery(req) {
   return await getStaffUserIdByStaffId(sid);
 }
 
+// 🆕 NEW: Activity logging helper for attendance
+async function logAttendanceActivity({ staff_id, action, details = {} }) {
+  try {
+    const payload = {
+      staff_id: staff_id,
+      action: action,
+      details: details,
+      actor_staff_id: staff_id, // Staff member is logging their own attendance
+      actor_role: 'Staff',
+      created_at: new Date().toISOString()
+    };
+
+    await db.from('account_activity').insert([payload]);
+    console.log(`✅ Attendance activity logged: ${action} for ${staff_id}`);
+  } catch (error) {
+    console.error('⚠️ Failed to log attendance activity:', error);
+    // Non-fatal: don't throw
+  }
+}
+
 // Upsert a biometric IN/OUT for a specific staff_user_id + date
 async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
   const att_date = todayPH();
@@ -180,23 +200,17 @@ router.post('/biometric', async (req, res) => {
     const tsISO = toISO(timestamp);
     const result = await upsertBiometric({ staff_user_id, tsISO, out: false });
 
-    // Log activity to account_activity table
-    try {
-      await db.from('account_activity').insert([{
-        action: 'attendance_time_in',
-        details: {
-          time_in: tsISO,
-          method: 'biometric',
-          result: result
-        },
-        actor_staff_id: employeeId,
-        actor_role: 'Staff',
-        staff_id: employeeId,
-        created_at: new Date().toISOString()
-      }]);
-    } catch (actErr) {
-      console.error('⚠️ Failed to log attendance activity:', actErr);
-    }
+    // 🆕 Log activity: Time In
+    await logAttendanceActivity({
+      staff_id: employeeId,
+      action: 'attendance_time_in',
+      details: {
+        time_in: tsISO,
+        method: 'biometric',
+        result: result,
+        status: isLate(tsISO) ? 'Late' : 'Present'
+      }
+    });
 
     return res.json({ ok: true, result });
   } catch (e) {
@@ -218,23 +232,16 @@ router.post('/biometric/out', async (req, res) => {
     const tsISO = toISO(timestamp);
     const result = await upsertBiometric({ staff_user_id, tsISO, out: true });
 
-    // Log activity to account_activity table
-    try {
-      await db.from('account_activity').insert([{
-        action: 'attendance_time_out',
-        details: {
-          time_out: tsISO,
-          method: 'biometric',
-          result: result
-        },
-        actor_staff_id: employeeId,
-        actor_role: 'Staff',
-        staff_id: employeeId,
-        created_at: new Date().toISOString()
-      }]);
-    } catch (actErr) {
-      console.error('⚠️ Failed to log attendance activity:', actErr);
-    }
+    // 🆕 Log activity: Time Out
+    await logAttendanceActivity({
+      staff_id: employeeId,
+      action: 'attendance_time_out',
+      details: {
+        time_out: tsISO,
+        method: 'biometric',
+        result: result
+      }
+    });
 
     return res.json({ ok: true, result });
   } catch (e) {
@@ -243,7 +250,7 @@ router.post('/biometric/out', async (req, res) => {
   }
 });
 
-// (4) TODAY  — supports ?staff_user_id= or ?staff_id=
+// (4) TODAY  – supports ?staff_user_id= or ?staff_id=
 router.get('/today', async (req, res) => {
   try {
     const date = todayPH();
@@ -282,7 +289,7 @@ router.get('/today', async (req, res) => {
   }
 });
 
-// (5) BY DATE — supports ?staff_user_id= or ?staff_id=
+// (5) BY DATE – supports ?staff_user_id= or ?staff_id=
 router.get('/date/:selectedDate', async (req, res) => {
   try {
     const date = normalizeYMD(req.params.selectedDate);
@@ -324,7 +331,7 @@ router.get('/date/:selectedDate', async (req, res) => {
   }
 });
 
-// (6) STATS — Daily attendance statistics
+// (6) STATS – Daily attendance statistics
 router.get('/stats', async (req, res) => {
   try {
     const date = normalizeYMD(req.query.date || todayPH());
@@ -359,7 +366,7 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// (7) INCOMPLETE — unchanged (optionally filter by suid if sent)
+// (7) INCOMPLETE – unchanged (optionally filter by suid if sent)
 router.get('/incomplete', async (req, res) => {
   try {
     const date = todayPH();
@@ -398,7 +405,7 @@ router.get('/incomplete', async (req, res) => {
   }
 });
 
-// (7) RANGE — optional helper used by DTR builders
+// (8) RANGE – optional helper used by DTR builders
 // GET /api/attendance/range?start=YYYY-MM-DD&end=YYYY-MM-DD&staff_user_id=123
 router.get('/range', async (req, res) => {
   try {
@@ -424,7 +431,7 @@ router.get('/range', async (req, res) => {
   }
 });
 
-// (8) BY MONTH — convenience for a month; returns same rows as /range
+// (9) BY MONTH – convenience for a month; returns same rows as /range
 // GET /api/attendance/by-month?year=2025&month=10&staff_user_id=123
 router.get('/by-month', async (req, res) => {
   try {

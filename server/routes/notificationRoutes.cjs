@@ -1,76 +1,93 @@
-// backend/routes/notificationRoutes.js
+// backend/routes/notificationRoutes.cjs
 const express = require("express");
 const path = require("path");
 const router = express.Router();
+const jwt = require("jsonwebtoken");
 
-// ✅ Load backend/db.js via absolute path (no more ../db guessing)
 const supabase = require(path.join(__dirname, "..", "db.cjs"));
+const JWT_SECRET = process.env.JWT_SECRET || "devsecret";
 
-function getStaffId(req) {
-  return req.query.staff_id || (req.user && req.user.staff_id) || null;
+function getBearer(req) {
+  const h = req.headers.authorization || "";
+  const m = h.match(/^Bearer\s+(.+)$/i);
+  return m ? m[1] : null;
 }
 
-// GET /api/notifications/unread-count?staff_id=...
-router.get("/notifications/unread-count", async (req, res) => {
-  const staff_id = getStaffId(req);
-  if (!staff_id) return res.status(400).json({ error: "missing staff_id" });
+function verifyToken(req, res, next) {
+  const token = getBearer(req);
+  if (!token) return res.status(401).json({ message: "Missing token" });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ message: "Invalid/expired token" });
+  }
+}
 
-  const { data, error, count } = await supabase
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("staff_id", staff_id)
-    .eq("read", false);
+function getStaffId(req) {
+  return req.query.staff_id || (req.user && req.user.sid) || null;
+}
 
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ count: count ?? (Array.isArray(data) ? data.length : 0) });
-});
-
-// GET /api/notifications?staff_id=...&limit=50
-router.get("/notifications", async (req, res) => {
-  const staff_id = getStaffId(req);
-  if (!staff_id) return res.status(400).json({ error: "missing staff_id" });
-
-  const limit = Math.min(Number(req.query.limit || 50), 100);
+async function getStaffUserId(staff_id) {
+  if (!staff_id) return null;
   const { data, error } = await supabase
-    .from("notifications")
-    .select("id, title, message, link, read, created_at")
+    .from("staff_users")
+    .select("id")
     .eq("staff_id", staff_id)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .maybeSingle();
+  if (error) {
+    console.error("Error resolving staff_user_id:", error);
+    return null;
+  }
+  return data ? data.id : null;
+}
 
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ items: data || [] });
-});
+const NOTIFICATION_ACTIONS = [
+  "leave_status_update",
+  "leave_approved",
+  "leave_disapproved",
+  "password_reset",
+  "account_created",
+  "profile_updated_by_admin",
+  "system_alert",
+];
 
-router.post("/notifications/mark-all-read", async (req, res) => {
-  const staff_id = getStaffId(req);
-  if (!staff_id) return res.status(400).json({ error: "missing staff_id" });
+router.get("/", verifyToken, async (req, res) => {
+  try {
+    const staff_id = getStaffId(req);
+    if (!staff_id) return res.status(400).json({ error: "missing staff_id" });
 
-  const { error } = await supabase
-    .from("notifications")
-    .update({ read: true })
-    .eq("staff_id", staff_id)
-    .eq("read", false);
+    const staff_user_id = await getStaffUserId(staff_id);
+    if (!staff_user_id) return res.status(404).json({ error: "user not found" });
 
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ ok: true });
-});
+    const limit = Math.min(Number(req.query.limit || 50), 100);
+    const { data, error } = await supabase
+      .from("account_activity")
+      .select("id, action, details, actor_staff_id, actor_role, staff_id, created_at, read")
+      .eq("staff_id", staff_id)
+      .in("action", NOTIFICATION_ACTIONS)
+      .order("created_at", { ascending: false })
+      .limit(limit);
 
-// GET /api/notifications/recent - Get recent activity for current user
-router.get("/notifications/recent", async (req, res) => {
-  const staff_id = getStaffId(req);
-  if (!staff_id) return res.status(400).json({ error: "missing staff_id" });
+    if (error) {
+      console.error("Error fetching notifications:", error);
+      return res.status(500).json({ error: error.message });
+    }
 
-  const limit = Math.min(Number(req.query.limit || 50), 100);
-  const { data, error } = await supabase
-    .from("account_activity")
-    .select("action, details, actor_staff_id, actor_role, staff_id, created_at")
-    .eq("actor_staff_id", staff_id)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    const notifications = (data || []).map((activity) => ({
+      id: activity.id,
+      title: activity.action.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+      message: JSON.stringify(activity.details || {}),
+      link: "",
+      read: activity.read || false,
+      created_at: activity.created_at,
+    }));
 
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data || []);
+    res.json({ items: notifications });
+  } catch (e) {
+    console.error("Notifications fetch error:", e);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 module.exports = router;

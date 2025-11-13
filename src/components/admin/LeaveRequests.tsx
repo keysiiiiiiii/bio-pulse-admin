@@ -78,7 +78,7 @@ export function LeaveRequests() {
       
       const formatted = result.data.map((req: any) => ({
         id: String(req.id),
-        staffId: req.staff_id || '',
+        staffId: req.staff_user_id || '',
         name: req.staff_name || 'Unknown',
         date: req.date,
         reason: req.reason || '',

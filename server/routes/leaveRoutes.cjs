@@ -1,4 +1,4 @@
-// backend/routes/leaveRoutes.cjs - FINAL VERSION
+// backend/routes/leaveRoutes.cjs - COMPLETE VERSION WITH ACTIVITY LOGGING
 const express = require('express');
 const router = express.Router();
 const path = require('path');
@@ -186,7 +186,7 @@ router.post('/api/leaves', optionalAuth, async (req, res) => {
 /* ============ CREATE WITH FILE ============ */
 router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async (req, res) => {
   const file = req.file;
-  console.log('📎 POST /api/leaves/with-file');
+  console.log('🔎 POST /api/leaves/with-file');
   console.log('   File:', file ? file.originalname : 'none');
   console.log('   Body:', req.body);
   console.log('   User:', req.user);
@@ -212,23 +212,28 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
     let staff_user_id = (staffUserIdRaw && !isNaN(Number(staffUserIdRaw))) ? Number(staffUserIdRaw) : null;
 
     if (!staff_user_id && staffIdRaw) {
-      const { data: found } = await db.from('staff_users').select('id, name').eq('staff_id', staffIdRaw).single();
+      const { data: found } = await db.from('staff_users').select('id, name, staff_id').eq('staff_id', staffIdRaw).single();
       if (found) {
         staff_user_id = found.id;
         if (!staff_name) staff_name = found.name;
+        staffIdRaw = found.staff_id;
       }
     }
 
     if (!staff_user_id && staff_name) {
-      const { data: found } = await db.from('staff_users').select('id').ilike('name', staff_name).single();
-      if (found) staff_user_id = found.id;
+      const { data: found } = await db.from('staff_users').select('id, staff_id').ilike('name', staff_name).single();
+      if (found) {
+        staff_user_id = found.id;
+        staffIdRaw = found.staff_id;
+      }
     }
 
     if (!staff_user_id && req.user) {
-      const { data: found } = await db.from('staff_users').select('id, name').eq('staff_id', req.user.sid).single();
+      const { data: found } = await db.from('staff_users').select('id, name, staff_id').eq('staff_id', req.user.sid).single();
       if (found) {
         staff_user_id = found.id;
         if (!staff_name) staff_name = found.name;
+        staffIdRaw = found.staff_id;
       }
     }
 
@@ -287,10 +292,8 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
         const markRow = leaveTypeMap[leave_type?.toLowerCase()];
         if (markRow) {
           const cell = ws.getCell(`C${markRow}`);
-          // Store original border style
           const originalBorder = cell.border;
-          cell.value = '✔';
-          // Restore border after setting value
+          cell.value = '✓';
           if (originalBorder) cell.border = originalBorder;
         }
 
@@ -334,6 +337,29 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
       return res.status(500).json({ ok: false, error: error.message });
     }
 
+    // 🆕 Log leave submission activity
+    if (staffIdRaw) {
+      try {
+        await db.from('account_activity').insert([{
+          staff_id: staffIdRaw,
+          action: 'leave_submitted',
+          details: {
+            leave_id: data.id,
+            leave_type: leave_type || 'N/A',
+            start_date,
+            end_date,
+            num_days
+          },
+          actor_staff_id: staffIdRaw,
+          actor_role: req.user?.role || 'Staff',
+          created_at: new Date().toISOString()
+        }]);
+        console.log('✅ Leave submission activity logged');
+      } catch (actErr) {
+        console.error('⚠️ Failed to log activity:', actErr);
+      }
+    }
+
     console.log('✅ Created with file:', data.id);
     return res.status(201).json({ ok: true, record: data });
   } catch (err) {
@@ -363,7 +389,6 @@ router.get('/api/leaves', verifyToken, async (req, res) => {
     // Better status filtering - handle both old "Pending" and new "pending-admin" records
     if (status && status !== 'all') {
       if (status === 'pending') {
-        // Match both old "Pending" records and new "pending-admin" records
         query = query.or('status.eq.Pending,status.eq.pending,status.eq.pending-admin');
       } else {
         query = query.eq('status', status);
@@ -457,7 +482,7 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
       if (staffData) targetStaffId = staffData.staff_id;
     }
 
-    // Log activity to account_activity table
+    // 🆕 Log activity to account_activity table
     try {
       await db.from('account_activity').insert([{
         action: 'leave_status_update',
@@ -479,7 +504,7 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
       console.error('⚠️ Failed to log activity:', actErr);
     }
 
-    // Send notification
+    // Send notification (legacy support - can be removed if not needed)
     const title = status === 'approved' ? 'Leave Approved' : status === 'disapproved' ? 'Leave Denied' : 'Leave Updated';
     const message = status === 'disapproved' && remarks ? `Denied: ${remarks}` : `Status: ${status}`;
 
