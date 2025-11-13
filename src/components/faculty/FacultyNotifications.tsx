@@ -115,7 +115,7 @@ export const FacultyNotifications = () => {
       const { data, error } = await supabase
         .from('account_activity')
         .select('*')
-        .eq('staff_user_id', user.id)
+        .eq('actor_staff_id', user.staff_id)
         .order('created_at', { ascending: false })
         .limit(50);
 
