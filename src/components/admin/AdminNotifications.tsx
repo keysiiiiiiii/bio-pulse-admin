@@ -84,28 +84,55 @@ export function AdminNotifications() {
   };
 
   const formatActivityText = (activity: Activity): string => {
-    const { action, details } = activity;
+    const { action, details, actor_staff_id, staff_id } = activity;
+    const isOwnAction = actor_staff_id === user?.staff_id;
     
     if (action === 'leave_status_update') {
       const status = details?.status || '';
       const leaveType = details?.leave_type || 'leave';
+      if (isOwnAction) {
+        return `You ${status} ${staff_id}'s ${leaveType} leave request`;
+      }
       return `Leave request (${leaveType}) updated to ${status}`;
     }
     
+    if (action === 'leave_credits_updated') {
+      const amount = details?.amount || '';
+      if (isOwnAction) {
+        return `You updated leave credits for ${staff_id}: ${amount} days`;
+      }
+      return `Leave credits updated for ${staff_id}`;
+    }
+    
     if (action === 'attendance_time_in') {
-      return `Attendance time-in recorded for ${activity.staff_id}`;
+      return `Attendance time-in recorded for ${staff_id}`;
     }
     
     if (action === 'attendance_time_out') {
-      return `Attendance time-out recorded for ${activity.staff_id}`;
+      return `Attendance time-out recorded for ${staff_id}`;
     }
     
     if (action === 'create') {
+      if (isOwnAction) {
+        return `You created account: ${details?.role || 'N/A'}`;
+      }
       return `Account created: ${details?.role || 'N/A'}`;
     }
     
     if (action === 'password_reset') {
+      if (isOwnAction) {
+        return `You reset password for ${staff_id}`;
+      }
       return `Password reset performed`;
+    }
+    
+    if (action === 'password_change') {
+      return `Your password was changed`;
+    }
+    
+    if (action === 'account_info_updated') {
+      const field = details?.field || 'information';
+      return `Your ${field} was updated`;
     }
     
     return action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());

@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { parseFullName } from "@/lib/nameParser";
 
 export const FacultyLeaveForm = () => {
   const [startDate, setStartDate] = useState<Date>();
@@ -37,7 +38,8 @@ export const FacultyLeaveForm = () => {
   const [vacationSpecify, setVacationSpecify] = useState("");
   const [sickLeaveType, setSickLeaveType] = useState<"hospital" | "outpatient" | "">("");
   const [sickLeaveSpecify, setSickLeaveSpecify] = useState("");
-  const [studyLeaveType, setStudyLeaveType] = useState<"masters" | "bar_board" | "">("");
+  const [studyLeaveType, setStudyLeaveType] = useState<"masters" | "bar_board" | "other" | "">("");
+  const [studyLeaveSpecify, setStudyLeaveSpecify] = useState("");
   const [womenLeaveIllness, setWomenLeaveIllness] = useState("");
   
   const { user } = useAuth();
@@ -68,6 +70,9 @@ export const FacultyLeaveForm = () => {
     setLoading(true);
 
     try {
+      // Parse full name into components
+      const parsedName = parseFullName(user.name);
+      
       // Build leave details based on type
       const leaveDetails: any = {};
       if (leaveType === "vacation" || leaveType === "privilege") {
@@ -80,6 +85,9 @@ export const FacultyLeaveForm = () => {
       }
       if (leaveType === "study") {
         leaveDetails.study_leave_type = studyLeaveType;
+        if (studyLeaveType === "other") {
+          leaveDetails.study_leave_specify = studyLeaveSpecify;
+        }
       }
       if (leaveType === "special_women") {
         leaveDetails.women_leave_illness = womenLeaveIllness;
@@ -89,6 +97,9 @@ export const FacultyLeaveForm = () => {
         staff_user_id: user.id,
         staff_id: user.staff_id || user.id,
         staff_name: user.name,
+        first_name: parsedName.first,
+        middle_name: parsedName.middle,
+        last_name: parsedName.last,
         date: format(startDate, "yyyy-MM-dd"),
         reason,
         leave_type: leaveType,
@@ -309,17 +320,27 @@ export const FacultyLeaveForm = () => {
               <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
                 <Label className="text-base font-semibold">6.B Details of Leave - Vacation/Special Privilege</Label>
                 <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      id="philippines"
-                      name="vacation-location"
-                      checked={vacationLocation === "philippines"}
-                      onChange={() => setVacationLocation("philippines")}
-                      className="h-4 w-4"
-                      aria-label="Within the Philippines"
-                    />
-                    <Label htmlFor="philippines" className="font-normal cursor-pointer">Within the Philippines</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        id="philippines"
+                        name="vacation-location"
+                        checked={vacationLocation === "philippines"}
+                        onChange={() => setVacationLocation("philippines")}
+                        className="h-4 w-4"
+                        aria-label="Within the Philippines"
+                      />
+                      <Label htmlFor="philippines" className="font-normal cursor-pointer">Within the Philippines (Specify location)</Label>
+                    </div>
+                    {vacationLocation === "philippines" && (
+                      <Input
+                        placeholder="Specify province/city in Philippines"
+                        value={vacationSpecify}
+                        onChange={(e) => setVacationSpecify(e.target.value)}
+                        className="ml-6"
+                      />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
@@ -332,7 +353,7 @@ export const FacultyLeaveForm = () => {
                         className="h-4 w-4"
                         aria-label="Abroad"
                       />
-                      <Label htmlFor="abroad" className="font-normal cursor-pointer">Abroad (Specify)</Label>
+                      <Label htmlFor="abroad" className="font-normal cursor-pointer">Abroad (Specify country)</Label>
                     </div>
                     {vacationLocation === "abroad" && (
                       <Input
@@ -403,7 +424,7 @@ export const FacultyLeaveForm = () => {
             {/* Conditional Fields for Study Leave */}
             {leaveType === "study" && (
               <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
-                <Label className="text-base font-semibold">In case of Study Leave</Label>
+                <Label className="text-base font-semibold">6.B In case of Study Leave</Label>
                 <Select value={studyLeaveType} onValueChange={(value: any) => setStudyLeaveType(value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select study leave purpose" />
@@ -411,15 +432,23 @@ export const FacultyLeaveForm = () => {
                   <SelectContent>
                     <SelectItem value="masters">Completion of Master's Degree</SelectItem>
                     <SelectItem value="bar_board">BAR/Board Examination Review</SelectItem>
+                    <SelectItem value="other">Other (Specify)</SelectItem>
                   </SelectContent>
                 </Select>
+                {studyLeaveType === "other" && (
+                  <Input
+                    placeholder="Specify other purpose"
+                    value={studyLeaveSpecify}
+                    onChange={(e) => setStudyLeaveSpecify(e.target.value)}
+                  />
+                )}
               </div>
             )}
 
             {/* Conditional Fields for Special Leave Benefits for Women */}
-            {leaveType === "special_women" && (
+            {leaveType === "special" && (
               <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
-                <Label className="text-base font-semibold">In case of Special Leave Benefits for Women</Label>
+                <Label className="text-base font-semibold">6.B In case of Special Leave Benefits for Women</Label>
                 <div className="space-y-2">
                   <Label>Specify Illness</Label>
                   <Input

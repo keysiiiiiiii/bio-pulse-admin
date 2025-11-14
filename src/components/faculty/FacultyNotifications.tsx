@@ -24,10 +24,18 @@ interface Activity {
   created_at: string;
 }
 
-const getActivityIcon = (action: string) => {
+const getActivityIcon = (action: string, details?: any) => {
   switch (action) {
+    case 'leave_request_created':
+      return Clock;
     case 'leave_status_update':
+      const status = details?.status || '';
+      return status === 'approved' ? CheckCircle2 : XCircle;
+    case 'leave_credits_updated':
+    case 'leave_credits_eligible':
       return CheckCircle2;
+    case 'account_info_updated':
+      return AlertCircle;
     case 'attendance_time_in':
       return LogIn;
     case 'attendance_time_out':
@@ -54,20 +62,41 @@ const getActivityColor = (action: string, details: any) => {
 };
 
 const formatActivityTitle = (action: string, details: any) => {
-  if (action === 'leave_status_update') {
-    const status = details?.status || '';
-    if (status === 'approved') return 'Leave Request Approved';
-    if (status === 'disapproved') return 'Leave Request Disapproved';
-    return 'Leave Request Updated';
+  switch(action) {
+    case 'leave_request_created':
+      return 'Leave Request Submitted';
+    case 'leave_status_update':
+      const status = details?.status || '';
+      if (status === 'approved') return 'Leave Request Approved';
+      if (status === 'disapproved') return 'Leave Request Disapproved';
+      return 'Leave Request Updated';
+    case 'leave_credits_updated':
+      return 'Leave Credits Updated';
+    case 'leave_credits_eligible':
+      return 'Leave Credits Eligibility';
+    case 'account_info_updated':
+      return 'Account Information Updated';
+    case 'attendance_time_in':
+      return 'Time In Recorded';
+    case 'attendance_time_out':
+      return 'Time Out Recorded';
+    case 'password_change':
+      return 'Password Changed';
+    case 'password_reset':
+      return 'Password Reset';
+    default:
+      return action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }
-  if (action === 'attendance_time_in') return 'Time In Recorded';
-  if (action === 'attendance_time_out') return 'Time Out Recorded';
-  if (action === 'password_change') return 'Password Changed';
-  if (action === 'password_reset') return 'Password Reset';
-  return action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
 
 const formatActivityMessage = (action: string, details: any) => {
+  if (action === 'leave_request_created') {
+    const leaveType = details?.leave_type || 'leave';
+    const startDate = details?.start_date || '';
+    const endDate = details?.end_date || '';
+    return `You submitted a ${leaveType} leave request from ${startDate} to ${endDate}`;
+  }
+  
   if (action === 'leave_status_update') {
     const leaveType = details?.leave_type || 'leave';
     const status = details?.status || '';
@@ -80,6 +109,21 @@ const formatActivityMessage = (action: string, details: any) => {
       return remarks ? `Disapproved: ${remarks}` : `Your ${leaveType} leave request was not approved`;
     }
     return `Your ${leaveType} leave status was updated to ${status}`;
+  }
+  
+  if (action === 'leave_credits_updated') {
+    const creditType = details?.credit_type || 'leave credits';
+    const amount = details?.amount || '';
+    return `Your ${creditType} balance was updated: ${amount} days`;
+  }
+  
+  if (action === 'leave_credits_eligible') {
+    return 'You are now eligible for leave credits';
+  }
+  
+  if (action === 'account_info_updated') {
+    const field = details?.field || 'information';
+    return `Your ${field} was successfully updated`;
   }
   
   if (action === 'attendance_time_in') {
@@ -231,7 +275,7 @@ export const FacultyNotifications = () => {
           </Card>
         ) : (
           filteredActivities.map((activity) => {
-            const Icon = getActivityIcon(activity.action);
+            const Icon = getActivityIcon(activity.action, activity.details);
             const iconColor = getActivityColor(activity.action, activity.details);
             const title = formatActivityTitle(activity.action, activity.details);
             const message = formatActivityMessage(activity.action, activity.details);
