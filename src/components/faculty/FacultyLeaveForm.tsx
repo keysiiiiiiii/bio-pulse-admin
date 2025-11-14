@@ -37,6 +37,8 @@ export const FacultyLeaveForm = () => {
   const [vacationSpecify, setVacationSpecify] = useState("");
   const [sickLeaveType, setSickLeaveType] = useState<"hospital" | "outpatient" | "">("");
   const [sickLeaveSpecify, setSickLeaveSpecify] = useState("");
+  const [studyLeaveType, setStudyLeaveType] = useState<"masters" | "bar_board" | "">("");
+  const [womenLeaveIllness, setWomenLeaveIllness] = useState("");
   
   const { user } = useAuth();
 
@@ -75,6 +77,12 @@ export const FacultyLeaveForm = () => {
       if (leaveType === "sick") {
         leaveDetails.sick_leave_type = sickLeaveType;
         leaveDetails.sick_leave_specify = sickLeaveSpecify;
+      }
+      if (leaveType === "study") {
+        leaveDetails.study_leave_type = studyLeaveType;
+      }
+      if (leaveType === "special_women") {
+        leaveDetails.women_leave_illness = womenLeaveIllness;
       }
 
       const payload = {
@@ -388,6 +396,37 @@ export const FacultyLeaveForm = () => {
                       />
                     )}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Conditional Fields for Study Leave */}
+            {leaveType === "study" && (
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                <Label className="text-base font-semibold">In case of Study Leave</Label>
+                <Select value={studyLeaveType} onValueChange={(value: any) => setStudyLeaveType(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select study leave purpose" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="masters">Completion of Master's Degree</SelectItem>
+                    <SelectItem value="bar_board">BAR/Board Examination Review</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Conditional Fields for Special Leave Benefits for Women */}
+            {leaveType === "special_women" && (
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                <Label className="text-base font-semibold">In case of Special Leave Benefits for Women</Label>
+                <div className="space-y-2">
+                  <Label>Specify Illness</Label>
+                  <Input
+                    placeholder="Enter illness details"
+                    value={womenLeaveIllness}
+                    onChange={(e) => setWomenLeaveIllness(e.target.value)}
+                  />
                 </div>
               </div>
             )}
