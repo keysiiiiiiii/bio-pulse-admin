@@ -1,10 +1,18 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Bell, CheckCircle2, Clock, XCircle, AlertCircle, LogIn, LogOut } from "lucide-react";
+import { Bell, CheckCircle2, Clock, XCircle, AlertCircle, LogIn, LogOut, Filter } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Activity {
   id: number;
@@ -113,6 +121,7 @@ export const FacultyNotifications = () => {
   const { user, token } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("all");
 
   useEffect(() => {
     if (user?.staff_id) {
@@ -122,72 +131,27 @@ export const FacultyNotifications = () => {
 
   const fetchActivities = async () => {
     if (!user?.staff_id) {
-      console.log('No staff_id found for user');
       setLoading(false);
       return;
     }
 
     try {
-      console.log('=== NOTIFICATION FETCH DEBUG ===');
-      console.log('User object:', user);
-      console.log('User staff_id:', user.staff_id);
-      console.log('User staff_id type:', typeof user.staff_id);
-      console.log('User staff_id length:', user.staff_id?.length);
-      console.log('Staff ID trimmed:', `"${user.staff_id?.trim()}"`);
+      const staffId = user.staff_id;
+      console.log('Fetching Faculty notifications for:', staffId);
       
-      // Try fetching with explicit string conversion and trimming
-      const staffId = String(user.staff_id).trim();
-      
-      // First, let's try to fetch ALL records to see if RLS is the issue
-      console.log('Attempting to fetch ALL records first...');
-      const { data: allData, error: allError } = await supabase
-        .from('account_activity')
-        .select('*')
-        .limit(5);
-      
-      console.log('All records sample:', allData);
-      console.log('All records error:', allError);
-      
-      // Now fetch with filter
-      console.log('Fetching with staff_id filter:', staffId);
       const { data, error } = await supabase
         .from('account_activity')
         .select('*')
-        .eq('staff_id', staffId)
+        .or(`actor_staff_id.eq.${staffId},staff_id.eq.${staffId}`)
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) {
         console.error('Supabase error:', error);
-        console.error('Error details:', JSON.stringify(error));
         throw error;
       }
       
-      console.log('Query executed for staff_id:', staffId);
-      console.log('Fetched activities count:', data?.length || 0);
       console.log('Fetched activities:', data);
-      
-      // If no data, let's try alternative queries
-      if (!data || data.length === 0) {
-        console.log('No data found, trying actor_staff_id...');
-        const { data: actorData, error: actorError } = await supabase
-          .from('account_activity')
-          .select('*')
-          .eq('actor_staff_id', staffId)
-          .order('created_at', { ascending: false })
-          .limit(50);
-        
-        console.log('Actor query result:', actorData);
-        console.log('Actor query error:', actorError);
-        
-        if (actorData && actorData.length > 0) {
-          console.log('Found data using actor_staff_id instead!');
-          setActivities(actorData);
-          setLoading(false);
-          return;
-        }
-      }
-      
       setActivities(data || []);
     } catch (error) {
       console.error("Error fetching notifications:", error);
@@ -200,6 +164,16 @@ export const FacultyNotifications = () => {
       setLoading(false);
     }
   };
+
+  // Filter activities based on selected filter
+  const filteredActivities = activities.filter((activity) => {
+    if (filter === "all") return true;
+    if (filter === "leave") return activity.action === "leave_status_update";
+    if (filter === "attendance") return activity.action === "attendance_time_in" || activity.action === "attendance_time_out";
+    if (filter === "account") return activity.action === "password_change" || activity.action === "password_reset";
+    if (filter === "credits") return activity.action?.includes("leave_credit") || activity.action?.includes("eligible");
+    return true;
+  });
 
   if (loading) {
     return (
@@ -222,8 +196,28 @@ export const FacultyNotifications = () => {
         <p className="text-muted-foreground">Stay updated with your leave requests and attendance</p>
       </div>
 
+      {/* Filter Section */}
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Filter:</span>
+        </div>
+        <Select value={filter} onValueChange={setFilter}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Notifications</SelectItem>
+            <SelectItem value="leave">Leave Updates</SelectItem>
+            <SelectItem value="attendance">Attendance</SelectItem>
+            <SelectItem value="account">Account Settings</SelectItem>
+            <SelectItem value="credits">Leave Credits</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="space-y-4">
-        {activities.length === 0 ? (
+        {filteredActivities.length === 0 ? (
           <Card>
             <CardContent className="flex items-center justify-center py-12">
               <div className="text-center">
@@ -236,7 +230,7 @@ export const FacultyNotifications = () => {
             </CardContent>
           </Card>
         ) : (
-          activities.map((activity) => {
+          filteredActivities.map((activity) => {
             const Icon = getActivityIcon(activity.action);
             const iconColor = getActivityColor(activity.action, activity.details);
             const title = formatActivityTitle(activity.action, activity.details);

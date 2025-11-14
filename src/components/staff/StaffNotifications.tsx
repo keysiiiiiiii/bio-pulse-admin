@@ -1,10 +1,18 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Bell, CheckCircle2, Clock, XCircle, AlertCircle, LogIn, LogOut } from "lucide-react";
+import { Bell, CheckCircle2, Clock, XCircle, AlertCircle, LogIn, LogOut, Filter } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Activity {
   id: number;
@@ -113,6 +121,7 @@ export const StaffNotifications = () => {
   const { user, token } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("all");
 
   useEffect(() => {
     fetchActivities();
@@ -151,6 +160,16 @@ export const StaffNotifications = () => {
     }
   };
 
+  // Filter activities based on selected filter
+  const filteredActivities = activities.filter((activity) => {
+    if (filter === "all") return true;
+    if (filter === "leave") return activity.action === "leave_status_update";
+    if (filter === "attendance") return activity.action === "attendance_time_in" || activity.action === "attendance_time_out";
+    if (filter === "account") return activity.action === "password_change" || activity.action === "password_reset";
+    if (filter === "credits") return activity.action?.includes("leave_credit") || activity.action?.includes("eligible");
+    return true;
+  });
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -172,8 +191,28 @@ export const StaffNotifications = () => {
         <p className="text-muted-foreground">Stay updated with your leave requests and attendance</p>
       </div>
 
+      {/* Filter Section */}
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Filter:</span>
+        </div>
+        <Select value={filter} onValueChange={setFilter}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Notifications</SelectItem>
+            <SelectItem value="leave">Leave Updates</SelectItem>
+            <SelectItem value="attendance">Attendance</SelectItem>
+            <SelectItem value="account">Account Settings</SelectItem>
+            <SelectItem value="credits">Leave Credits</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="space-y-4">
-        {activities.length === 0 ? (
+        {filteredActivities.length === 0 ? (
           <Card>
             <CardContent className="flex items-center justify-center py-12">
               <div className="text-center">
@@ -183,7 +222,7 @@ export const StaffNotifications = () => {
             </CardContent>
           </Card>
         ) : (
-          activities.map((activity) => {
+          filteredActivities.map((activity) => {
             const Icon = getActivityIcon(activity.action);
             const iconColor = getActivityColor(activity.action, activity.details);
             const title = formatActivityTitle(activity.action, activity.details);
