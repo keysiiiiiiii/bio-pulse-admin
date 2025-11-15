@@ -20,22 +20,21 @@ export interface AttendanceStats {
 }
 
 export const attendanceApi = {
-  // GET /api/attendance/logs?date=YYYY-MM-DD
+  // ❌ OLD: /api/attendance/logs
+  // ✅ NEW: /attendance/logs
   getLogs: (date: string) =>
-    apiRequest<AttendanceLog[]>(`/api/attendance/logs?date=${date}`),
+    apiRequest<AttendanceLog[]>(`/attendance/logs?date=${date}`),
 
-  // GET /api/attendance/stats?date=YYYY-MM-DD
   getStats: (date: string) =>
-    apiRequest<AttendanceStats>(`/api/attendance/stats?date=${date}`),
+    apiRequest<AttendanceStats>(`/attendance/stats?date=${date}`),
 
-  // POST /api/attendance/manual
   manualCheckIn: (data: {
     staff_id: string;
     date: string;
     time_in?: string;
     time_out?: string;
   }) =>
-    apiRequest<{ ok: boolean; message: string }>('/api/attendance/manual', {
+    apiRequest<{ ok: boolean; message: string }>('/attendance/manual', {
       method: 'POST',
       body: JSON.stringify(data),
     }),

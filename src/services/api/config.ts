@@ -7,7 +7,8 @@ const LAN_IP =
     ? "http://localhost:3001"
     : `http://${window.location.hostname}:3001`;
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || LAN_IP;
+const BASE = import.meta.env.VITE_API_URL || LAN_IP;
+export const API_BASE_URL = BASE.endsWith('/api') ? BASE : BASE + '/api';
 
 // Attach JWT token automatically if present
 function getAuthHeaders() {

@@ -359,7 +359,42 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// (7) INCOMPLETE — unchanged (optionally filter by suid if sent)
+// (7) LOGS - Get attendance logs for a specific date
+router.get('/logs', async (req, res) => {
+  try {
+    const date = normalizeYMD(req.query.date || todayPH());
+
+    const { data, error } = await db
+      .from('attendance_logs')
+      .select(`
+        id,
+        time_in,
+        time_out,
+        att_date,
+        method,
+        attendance_status,
+        staff_users!inner(
+          id,
+          staff_id,
+          name,
+          employee_type,
+          department
+        )
+      `)
+      .eq('att_date', date)
+      .order('time_in', { ascending: true });
+
+    if (error) throw error;
+
+    const shaped = (data || []).map(shapeRow);
+    return res.json(shaped);
+  } catch (e) {
+    console.error('[logs] error:', e.message || e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// (8) INCOMPLETE — unchanged (optionally filter by suid if sent)
 router.get('/incomplete', async (req, res) => {
   try {
     const date = todayPH();
@@ -398,7 +433,7 @@ router.get('/incomplete', async (req, res) => {
   }
 });
 
-// (7) RANGE — optional helper used by DTR builders
+// (9) RANGE — optional helper used by DTR builders
 // GET /api/attendance/range?start=YYYY-MM-DD&end=YYYY-MM-DD&staff_user_id=123
 router.get('/range', async (req, res) => {
   try {
@@ -424,7 +459,7 @@ router.get('/range', async (req, res) => {
   }
 });
 
-// (8) BY MONTH — convenience for a month; returns same rows as /range
+// (10) BY MONTH — convenience for a month; returns same rows as /range
 // GET /api/attendance/by-month?year=2025&month=10&staff_user_id=123
 router.get('/by-month', async (req, res) => {
   try {
