@@ -1,4 +1,4 @@
-// backend/routes/leaveRoutes.cjs - FINAL VERSION
+// backend/routes/leaveRoutes.cjs - COMPLETE UPDATED VERSION
 const express = require('express');
 const router = express.Router();
 const path = require('path');
@@ -33,11 +33,11 @@ function getBearer(req) {
 function verifyToken(req, res, next) {
   const token = getBearer(req);
   if (!token) return res.status(401).json({ message: 'Missing token' });
-  try { 
-    req.user = jwt.verify(token, JWT_SECRET); 
-    next(); 
-  } catch { 
-    return res.status(401).json({ message: 'Invalid/expired token' }); 
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ message: 'Invalid/expired token' });
   }
 }
 
@@ -45,9 +45,9 @@ function verifyToken(req, res, next) {
 function optionalAuth(req, res, next) {
   const token = getBearer(req);
   if (token) {
-    try { 
-      req.user = jwt.verify(token, JWT_SECRET); 
-    } catch { 
+    try {
+      req.user = jwt.verify(token, JWT_SECRET);
+    } catch {
       req.user = null;
     }
   }
@@ -71,7 +71,7 @@ function sanitizeFilename(name) {
 
 async function uploadToBucket(bucket, localFilePath, destPath, contentType) {
   const fileBuffer = fs.readFileSync(localFilePath);
-  const { data, error} = await supa.storage.from(bucket).upload(destPath, fileBuffer, {
+  const { data, error } = await supa.storage.from(bucket).upload(destPath, fileBuffer, {
     contentType,
     upsert: false
   });
@@ -97,6 +97,27 @@ async function safeNotify({ staff_user_id = null, title = '', message = '', link
   } catch { /* ignore if table not present */ }
 }
 
+/* ============ ACTIVITY LOGGING HELPER ============ */
+async function logLeaveActivity({ leave_id, action, actor_staff_id, actor_role, staff_id, staff_user_id, details }) {
+  try {
+    await db.from('account_activity').insert({
+      action,
+      actor_staff_id,
+      actor_role,
+      staff_id,
+      staff_user_id,
+      details: {
+        leave_id,
+        ...details
+      },
+      created_at: new Date().toISOString()
+    });
+    console.log('✅ Activity logged:', action);
+  } catch (err) {
+    console.error('⚠️ Failed to log activity:', err);
+  }
+}
+
 /* ============ CREATE WITHOUT FILE ============ */
 router.post('/api/leaves', optionalAuth, async (req, res) => {
   try {
@@ -108,46 +129,59 @@ router.post('/api/leaves', optionalAuth, async (req, res) => {
       staff_user_id: staffUserIdRaw = null,
       staff_id: staffIdRaw = null,
       staff_name = null,
+      first_name = null,
+      middle_name = null,
+      last_name = null,
       date = null,
       reason = null,
       leave_type = null,
       start_date = null,
       end_date = null,
       num_days = null,
-      status = 'Pending'
+      status = 'Pending',
+      details = null
     } = req.body || {};
 
     // Resolve staff_user_id
     let staff_user_id = (staffUserIdRaw && !isNaN(Number(staffUserIdRaw))) ? Number(staffUserIdRaw) : null;
 
     if (!staff_user_id && staffIdRaw) {
-      const { data: found } = await db.from('staff_users').select('id, name').eq('staff_id', staffIdRaw).single();
+      const { data: found } = await db.from('staff_users').select('id, name, first_name, middle_name, last_name').eq('staff_id', staffIdRaw).single();
       if (found) {
         staff_user_id = found.id;
         if (!staff_name) staff_name = found.name;
+        if (!first_name) first_name = found.first_name;
+        if (!middle_name) middle_name = found.middle_name;
+        if (!last_name) last_name = found.last_name;
         console.log(`✅ Mapped staff_id '${staffIdRaw}' → staff_user_id=${staff_user_id}`);
       }
     }
 
     if (!staff_user_id && staff_name) {
-      const { data: found } = await db.from('staff_users').select('id').ilike('name', staff_name).single();
+      const { data: found } = await db.from('staff_users').select('id, first_name, middle_name, last_name').ilike('name', staff_name).single();
       if (found) {
         staff_user_id = found.id;
+        if (!first_name) first_name = found.first_name;
+        if (!middle_name) middle_name = found.middle_name;
+        if (!last_name) last_name = found.last_name;
         console.log(`✅ Mapped name '${staff_name}' → staff_user_id=${staff_user_id}`);
       }
     }
 
     if (!staff_user_id && req.user && req.user.sid) {
-      const { data: found } = await db.from('staff_users').select('id, name').eq('staff_id', req.user.sid).single();
+      const { data: found } = await db.from('staff_users').select('id, name, first_name, middle_name, last_name').eq('staff_id', req.user.sid).single();
       if (found) {
         staff_user_id = found.id;
         if (!staff_name) staff_name = found.name;
+        if (!first_name) first_name = found.first_name;
+        if (!middle_name) middle_name = found.middle_name;
+        if (!last_name) last_name = found.last_name;
         console.log(`✅ Using authenticated user: staff_user_id=${staff_user_id}`);
       }
     }
 
     console.log('Resolved staff_user_id →', staff_user_id);
-    console.log('Resolved staff_name →', staff_name);
+    console.log('Resolved names → First:', first_name, 'Middle:', middle_name, 'Last:', last_name);
 
     if (!date || !staff_name) {
       return res.status(400).json({ ok: false, error: 'Missing required fields: date or staff_name' });
@@ -155,12 +189,24 @@ router.post('/api/leaves', optionalAuth, async (req, res) => {
 
     const payload = {
       staff_user_id: staff_user_id ? Number(staff_user_id) : null,
+      staff_id: staffIdRaw || null,
       staff_name,
+      first_name: first_name || null,
+      middle_name: middle_name || null,
+      last_name: last_name || null,
       date,
       reason,
       file_url: null,
       leave_form_url: null,
+
+      // ✅ Add these columns directly (not in fields)
+      leave_type: leave_type || null,
+      start_date: start_date || null,
+      end_date: end_date || null,
+      duration: num_days ? Number(num_days) : null,
+
       fields: { leave_type, start_date, end_date, num_days },
+      details: details || {},
       status: normStatus(status),
       created_at: new Date().toISOString(),
       archived: false
@@ -173,6 +219,28 @@ router.post('/api/leaves', optionalAuth, async (req, res) => {
     if (error) {
       console.error('❌ Database error:', error);
       return res.status(500).json({ ok: false, error: error.message });
+    }
+
+    // ✅ Log activity for user's own notification
+    if (staff_user_id) {
+      let actorStaffId = staffIdRaw;
+      if (!actorStaffId && req.user?.sid) actorStaffId = req.user.sid;
+
+      await logLeaveActivity({
+        leave_id: data.id,
+        action: 'leave_request_created',
+        actor_staff_id: actorStaffId || '',
+        actor_role: req.user?.role || 'staff',
+        staff_id: actorStaffId || '',
+        staff_user_id: staff_user_id,
+        details: {
+          leave_type,
+          start_date,
+          end_date,
+          num_days,
+          reason
+        }
+      });
     }
 
     console.log('✅ Created:', data.id);
@@ -200,35 +268,50 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
       staff_user_id: staffUserIdRaw = null,
       staff_id: staffIdRaw = null,
       staff_name,
+      first_name = null,
+      middle_name = null,
+      last_name = null,
       date,
       reason = null,
       leave_type = null,
       start_date = null,
       end_date = null,
-      num_days = null
+      num_days = null,
+      details = null
     } = req.body;
 
     // Resolve staff_user_id (same logic)
     let staff_user_id = (staffUserIdRaw && !isNaN(Number(staffUserIdRaw))) ? Number(staffUserIdRaw) : null;
 
     if (!staff_user_id && staffIdRaw) {
-      const { data: found } = await db.from('staff_users').select('id, name').eq('staff_id', staffIdRaw).single();
+      const { data: found } = await db.from('staff_users').select('id, name, first_name, middle_name, last_name').eq('staff_id', staffIdRaw).single();
       if (found) {
         staff_user_id = found.id;
         if (!staff_name) staff_name = found.name;
+        if (!first_name) first_name = found.first_name;
+        if (!middle_name) middle_name = found.middle_name;
+        if (!last_name) last_name = found.last_name;
       }
     }
 
     if (!staff_user_id && staff_name) {
-      const { data: found } = await db.from('staff_users').select('id').ilike('name', staff_name).single();
-      if (found) staff_user_id = found.id;
+      const { data: found } = await db.from('staff_users').select('id, first_name, middle_name, last_name').ilike('name', staff_name).single();
+      if (found) {
+        staff_user_id = found.id;
+        if (!first_name) first_name = found.first_name;
+        if (!middle_name) middle_name = found.middle_name;
+        if (!last_name) last_name = found.last_name;
+      }
     }
 
     if (!staff_user_id && req.user) {
-      const { data: found } = await db.from('staff_users').select('id, name').eq('staff_id', req.user.sid).single();
+      const { data: found } = await db.from('staff_users').select('id, name, first_name, middle_name, last_name').eq('staff_id', req.user.sid).single();
       if (found) {
         staff_user_id = found.id;
         if (!staff_name) staff_name = found.name;
+        if (!first_name) first_name = found.first_name;
+        if (!middle_name) middle_name = found.middle_name;
+        if (!last_name) last_name = found.last_name;
       }
     }
 
@@ -265,20 +348,19 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
           if (staffData) department = staffData.department;
         }
 
-        // Parse name
-        const parts = staff_name.split(' ');
-        const firstName = parts[0] || '';
-        const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
-        const middleInitial = parts.length > 2 ? parts.slice(1, -1).map(p => p[0].toUpperCase()).join('') : '';
+        // Use parsed names from database
+        const firstName = first_name || '';
+        const lastName = last_name || '';
+        const middleInitial = middle_name || '';
 
-        // Fill cells
+        // Fill basic cells
         if (department) ws.getCell('C10').value = department;
         ws.getCell('G10').value = lastName;
         ws.getCell('I10').value = firstName;
         ws.getCell('N10').value = middleInitial;
         ws.getCell('F12').value = date;
 
-        // Mark leave type - preserve cell formatting by only setting value
+        // Mark leave type checkbox (Column C)
         const leaveTypeMap = {
           vacation: 18, forced: 19, sick: 20, maternity: 21, paternity: 22,
           privilege: 23, soloparent: 24, study: 25, vawc: 26, rehab: 27,
@@ -287,13 +369,64 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
         const markRow = leaveTypeMap[leave_type?.toLowerCase()];
         if (markRow) {
           const cell = ws.getCell(`C${markRow}`);
-          // Store original border style
-          const originalBorder = cell.border;
           cell.value = '✔';
-          // Restore border after setting value
-          if (originalBorder) cell.border = originalBorder;
+          if (cell.border) cell.border = cell.border; // Preserve borders
         }
 
+        // ✅ Fill details of leave (vacation/privilege - abroad/philippines)
+        let parsedDetails = {};
+        try {
+          parsedDetails = typeof details === 'string' ? JSON.parse(details) : details || {};
+        } catch (e) {
+          console.warn('Failed to parse details:', e);
+        }
+
+        if ((leave_type === 'vacation' || leave_type === 'privilege') && parsedDetails.vacation_location) {
+          if (parsedDetails.vacation_location === 'philippines') {
+            ws.getCell('J19').value = '✔'; // Check "Within the Philippines"
+            if (parsedDetails.vacation_specify) {
+              ws.getCell('N19').value = parsedDetails.vacation_specify; // Input province/city
+            }
+          } else if (parsedDetails.vacation_location === 'abroad') {
+            ws.getCell('J20').value = '✔'; // Check "Abroad"
+            if (parsedDetails.vacation_specify) {
+              ws.getCell('N20').value = parsedDetails.vacation_specify; // Input country
+            }
+          }
+        }
+
+        // ✅ Fill sick leave details (in hospital / out patient)
+        if (leave_type === 'sick' && parsedDetails.sick_leave_type) {
+          if (parsedDetails.sick_leave_type === 'hospital') {
+            ws.getCell('J22').value = '✔'; // Check "In Hospital"
+            if (parsedDetails.sick_leave_specify) {
+              ws.getCell('N22').value = parsedDetails.sick_leave_specify; // Input illness
+            }
+          } else if (parsedDetails.sick_leave_type === 'outpatient') {
+            ws.getCell('J23').value = '✔'; // Check "Out Patient"
+            if (parsedDetails.sick_leave_specify) {
+              ws.getCell('N23').value = parsedDetails.sick_leave_specify; // Input illness
+            }
+          }
+        }
+
+        // ✅ Fill special leave benefits for women
+        if (leave_type === 'special' && parsedDetails.women_leave_illness) {
+          ws.getCell('M25').value = parsedDetails.women_leave_illness; // Input illness
+        }
+
+        // ✅ Fill study leave details
+        if (leave_type === 'study' && parsedDetails.study_leave_type) {
+          if (parsedDetails.study_leave_type === 'masters') {
+            ws.getCell('J27').value = '✔'; // Check "Completion of Master's Degree"
+          } else if (parsedDetails.study_leave_type === 'bar_board') {
+            ws.getCell('J28').value = '✔'; // Check "BAR/Board Examination Review"
+          } else if (parsedDetails.study_leave_type === 'other' && parsedDetails.study_leave_specify) {
+            ws.getCell('M29').value = parsedDetails.study_leave_specify; // Input other purpose
+          }
+        }
+
+        // Fill number of days and date range
         if (num_days) ws.getCell('E34').value = Number(num_days);
         if (start_date) ws.getCell('E36').value = `${start_date} - ${end_date}`;
 
@@ -301,7 +434,7 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
         await workbook.xlsx.writeFile(tempPath);
 
         const destFormPath = `forms/leave_form_${sanitizeFilename(staff_name)}_${Date.now()}.xlsx`;
-        const uploadFormRes = await uploadToBucket('leave_forms', tempPath, destFormPath, 
+        const uploadFormRes = await uploadToBucket('leave_forms', tempPath, destFormPath,
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
         leave_form_url = uploadFormRes.publicUrl;
@@ -314,12 +447,24 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
 
     const payload = {
       staff_user_id: staff_user_id ? Number(staff_user_id) : null,
+      staff_id: staffIdRaw || null,
       staff_name,
+      first_name: first_name || null,
+      middle_name: middle_name || null,
+      last_name: last_name || null,
       date,
       reason,
       file_url,
       leave_form_url,
+
+      // ✅ Add these columns directly (not in fields)
+      leave_type: leave_type || null,
+      start_date: start_date || null,
+      end_date: end_date || null,
+      duration: num_days ? Number(num_days) : null,
+
       fields: { leave_type, start_date, end_date, num_days },
+      details: details || {},
       status: 'pending-admin',
       created_at: new Date().toISOString(),
       archived: false
@@ -332,6 +477,28 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
     if (error) {
       console.error('❌ Database error:', error);
       return res.status(500).json({ ok: false, error: error.message });
+    }
+
+    // ✅ Log activity
+    if (staff_user_id) {
+      let actorStaffId = staffIdRaw;
+      if (!actorStaffId && req.user?.sid) actorStaffId = req.user.sid;
+
+      await logLeaveActivity({
+        leave_id: data.id,
+        action: 'leave_request_created',
+        actor_staff_id: actorStaffId || '',
+        actor_role: req.user?.role || 'staff',
+        staff_id: actorStaffId || '',
+        staff_user_id: staff_user_id,
+        details: {
+          leave_type,
+          start_date,
+          end_date,
+          num_days,
+          reason
+        }
+      });
     }
 
     console.log('✅ Created with file:', data.id);
@@ -349,7 +516,7 @@ router.get('/api/leaves', verifyToken, async (req, res) => {
     console.log('📋 GET /api/leaves');
     console.log('   Query:', req.query);
     console.log('   User:', req.user);
-    
+
     const status = String(req.query.status || 'all').toLowerCase();
     const staffUserId = req.query.staff_user_id;
     const q = req.query.q;
@@ -360,27 +527,25 @@ router.get('/api/leaves', verifyToken, async (req, res) => {
     if (staffUserId) query = query.eq('staff_user_id', Number(staffUserId));
     if (!archived) query = query.or('archived.is.null,archived.eq.false');
 
-    // Better status filtering - handle both old "Pending" and new "pending-admin" records
     if (status && status !== 'all') {
       if (status === 'pending') {
-        // Match both old "Pending" records and new "pending-admin" records
         query = query.or('status.eq.Pending,status.eq.pending,status.eq.pending-admin');
       } else {
         query = query.eq('status', status);
       }
     }
-    
+
     if (q) query = query.or(`reason.ilike.%${q}%,staff_name.ilike.%${q}%`);
 
     const { data, error } = await query.order('created_at', { ascending: false }).limit(500);
-    
+
     if (error) {
       console.error('❌ Error:', error);
       return res.status(500).json({ ok: false, error: error.message });
     }
 
     console.log(`✅ Found ${data?.length || 0} records (filter: '${status}')`);
-    
+
     return res.json({ ok: true, data: data || [] });
   } catch (e) {
     console.error('❌ Error:', e);
@@ -392,7 +557,7 @@ router.get('/api/leaves', verifyToken, async (req, res) => {
 router.get('/api/leaves/history', verifyToken, async (req, res) => {
   try {
     console.log('📚 GET /api/leaves/history');
-    
+
     const { start, end, staff_user_id } = req.query;
     let q = db.from('leave_requests').select('*');
 
@@ -401,7 +566,7 @@ router.get('/api/leaves/history', verifyToken, async (req, res) => {
     if (end) q = q.lte('date', end);
 
     const { data, error } = await q.order('date', { ascending: false }).limit(500);
-    
+
     if (error) return res.status(500).json({ error: error.message });
 
     console.log(`✅ Found ${data?.length || 0} history records`);
@@ -414,10 +579,10 @@ router.get('/api/leaves/history', verifyToken, async (req, res) => {
 /* ============ STATUS UPDATE ============ */
 router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice President', 'ICTO'), async (req, res) => {
   try {
-    console.log('🔄 PATCH /api/leaves/:id/status');
+    console.log('📝 PATCH /api/leaves/:id/status');
     console.log('   ID:', req.params.id);
     console.log('   Body:', req.body);
-    
+
     const id = Number(req.params.id);
     const status = normStatus(req.body?.status);
     const remarks = req.body?.remarks?.trim();
@@ -457,34 +622,29 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
       if (staffData) targetStaffId = staffData.staff_id;
     }
 
-    // Log activity to account_activity table
-    try {
-      await db.from('account_activity').insert([{
-        action: 'leave_status_update',
-        details: {
-          leave_id: id,
-          status: status,
-          remarks: remarks || null,
-          leave_type: data.fields?.leave_type || 'N/A',
-          start_date: data.fields?.start_date || null,
-          end_date: data.fields?.end_date || null
-        },
-        actor_staff_id: actorStaffId,
-        actor_role: actorRole,
-        staff_id: targetStaffId,
-        created_at: new Date().toISOString()
-      }]);
-      console.log('✅ Activity logged for leave status update');
-    } catch (actErr) {
-      console.error('⚠️ Failed to log activity:', actErr);
-    }
+    // ✅ Log activity to account_activity table
+    await logLeaveActivity({
+      leave_id: id,
+      action: 'leave_status_update',
+      actor_staff_id: actorStaffId,
+      actor_role: actorRole,
+      staff_id: targetStaffId,
+      staff_user_id: data.staff_user_id,
+      details: {
+        leave_type: data.fields?.leave_type || 'N/A',
+        status: status,
+        remarks: remarks || null,
+        start_date: data.fields?.start_date || null,
+        end_date: data.fields?.end_date || null
+      }
+    });
 
     // Send notification
     const title = status === 'approved' ? 'Leave Approved' : status === 'disapproved' ? 'Leave Denied' : 'Leave Updated';
     const message = status === 'disapproved' && remarks ? `Denied: ${remarks}` : `Status: ${status}`;
 
     await safeNotify({ staff_user_id: data.staff_user_id, title, message, link: '' });
-    
+
     res.json({ ok: true, record: data });
   } catch (e) {
     console.error('❌ Error:', e);
@@ -499,7 +659,7 @@ const writeDrafts = (arr) => fs.writeFileSync(DRAFTS_PATH, JSON.stringify(arr, n
 
 router.get('/api/leaves/drafts', optionalAuth, (req, res) => {
   const all = readDrafts().filter(d => Date.now() - new Date(d.saved_at || 0).getTime() < 30 * 24 * 60 * 60 * 1000);
-  const filtered = req.query.staff_user_id 
+  const filtered = req.query.staff_user_id
     ? all.filter(d => String(d.staff_user_id) === req.query.staff_user_id)
     : req.query.staff_id
       ? all.filter(d => d.staff_id === req.query.staff_id)

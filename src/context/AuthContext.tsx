@@ -12,6 +12,9 @@ interface User {
   contact_number?: string;
   photo_url?: string;
   avatarUrl?: string | null;
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
 }
 
 interface AuthContextProps {
