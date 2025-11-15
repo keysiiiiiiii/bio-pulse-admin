@@ -100,8 +100,8 @@ export function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="shadow-md">
           <CardHeader>
-            <CardTitle>Select Date Range</CardTitle>
-            <CardDescription>Choose dates to filter analytics</CardDescription>
+            <CardTitle>Select Date</CardTitle>
+            <CardDescription>Choose a date to view attendance analytics</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
             <div className="flex gap-2 w-full justify-center">
@@ -195,45 +195,69 @@ export function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Staff ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Time In</TableHead>
-                  <TableHead>Time Out</TableHead>
-                  <TableHead>Status (Time In)</TableHead>
-                  <TableHead>Status (Time Out)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dailyAttendance
-                  .filter(record => {
-                    if (attendanceFilter === "all") return true;
-                    if (attendanceFilter === "faculty") return record.role === "Faculty";
-                    if (attendanceFilter === "staff") return record.role === "Staff";
-                    return true;
-                  })
-                  .map((record) => (
-                  <TableRow key={record.staff_id}>
-                    <TableCell className="font-medium">{record.staff_id}</TableCell>
-                    <TableCell>{record.name}</TableCell>
-                    <TableCell>{record.time_in || "-"}</TableCell>
-                    <TableCell>{record.time_out || "-"}</TableCell>
-                    <TableCell>
-                      <span className={record.status === "Late" ? "text-warning" : "text-success"}>
-                        {record.status}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className={record.type === "Overtime" ? "text-primary" : record.type === "Undertime" ? "text-destructive" : "text-success"}>
-                        {record.type}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="rounded-md border">
+              <div className="max-h-[500px] overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead>Staff ID</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Department</TableHead>
+                      <TableHead>Time In</TableHead>
+                      <TableHead>Time Out</TableHead>
+                      <TableHead>Status (In)</TableHead>
+                      <TableHead>Status (Out)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dailyAttendance.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                          No attendance records for this date
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      dailyAttendance
+                        .filter(record => {
+                          if (attendanceFilter === "all") return true;
+                          if (attendanceFilter === "faculty") return record.role?.toLowerCase() === "faculty";
+                          if (attendanceFilter === "staff") return record.role?.toLowerCase() === "staff";
+                          return true;
+                        })
+                        .map((record, index) => (
+                        <TableRow key={index} className="hover:bg-muted/50">
+                          <TableCell className="font-medium">{record.staff_id}</TableCell>
+                          <TableCell>{record.name}</TableCell>
+                          <TableCell className="capitalize">{record.role || 'N/A'}</TableCell>
+                          <TableCell>{record.department || 'N/A'}</TableCell>
+                          <TableCell>{record.time_in ? new Date(record.time_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</TableCell>
+                          <TableCell>{record.time_out ? new Date(record.time_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</TableCell>
+                          <TableCell>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              record.status === 'Present' ? 'bg-success/10 text-success' :
+                              record.status === 'Late' ? 'bg-warning/10 text-warning' :
+                              'bg-destructive/10 text-destructive'
+                            }`}>
+                              {record.status === 'Late' ? 'Late' : record.status === 'Present' ? 'On Time' : 'Absent'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {record.time_out ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/10 text-success">
+                                On Time
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

@@ -55,10 +55,27 @@ const getActivityColor = (action: string, details: any) => {
     if (status === 'disapproved') return 'text-destructive';
     return 'text-warning';
   }
-  if (action === 'attendance_time_in' || action === 'attendance_time_out') {
-    return 'text-primary';
-  }
+  if (action === 'leave_request_created') return 'text-info';
+  if (action === 'attendance_time_in' || action === 'attendance_time_out') return 'text-primary';
+  if (action === 'leave_credits_updated' || action === 'leave_credits_eligible') return 'text-success';
+  if (action === 'account_info_updated') return 'text-info';
+  if (action === 'password_change' || action === 'password_reset') return 'text-warning';
   return 'text-muted-foreground';
+};
+
+const getActivityBgColor = (action: string, details: any) => {
+  if (action === 'leave_status_update') {
+    const status = details?.status || '';
+    if (status === 'approved') return 'bg-success/10';
+    if (status === 'disapproved') return 'bg-destructive/10';
+    return 'bg-warning/10';
+  }
+  if (action === 'leave_request_created') return 'bg-info/10';
+  if (action === 'attendance_time_in' || action === 'attendance_time_out') return 'bg-primary/10';
+  if (action === 'leave_credits_updated' || action === 'leave_credits_eligible') return 'bg-success/10';
+  if (action === 'account_info_updated') return 'bg-info/10';
+  if (action === 'password_change' || action === 'password_reset') return 'bg-warning/10';
+  return 'bg-muted/10';
 };
 
 const formatActivityTitle = (action: string, details: any) => {
@@ -272,11 +289,13 @@ export const StaffNotifications = () => {
             const message = formatActivityMessage(activity.action, activity.details);
             const time = formatTime(activity.created_at);
 
+            const bgColor = getActivityBgColor(activity.action, activity.details);
+            
             return (
-              <Card key={activity.id}>
+              <Card key={activity.id} className="overflow-hidden">
                 <CardContent className="flex items-start gap-4 p-6">
-                  <div className={`mt-1 ${iconColor}`}>
-                    <Icon className="h-5 w-5" />
+                  <div className={`rounded-full p-3 ${bgColor}`}>
+                    <Icon className={`h-5 w-5 ${iconColor}`} />
                   </div>
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center justify-between">
