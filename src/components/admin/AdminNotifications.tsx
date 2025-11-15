@@ -83,6 +83,20 @@ export function AdminNotifications() {
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
   };
 
+  const getActivityColor = (action: string, details: any) => {
+    if (action === 'leave_status_update') {
+      const status = details?.status || '';
+      if (status === 'approved') return 'bg-success/10 text-success';
+      if (status === 'disapproved') return 'bg-destructive/10 text-destructive';
+      return 'bg-warning/10 text-warning';
+    }
+    if (action === 'create') return 'bg-success/10 text-success';
+    if (action === 'password_reset') return 'bg-warning/10 text-warning';
+    if (action === 'leave_credits_updated') return 'bg-primary/10 text-primary';
+    if (action === 'attendance_time_in' || action === 'attendance_time_out') return 'bg-info/10 text-info';
+    return 'bg-muted/10 text-muted-foreground';
+  };
+
   const formatActivityText = (activity: Activity): string => {
     const { action, details, actor_staff_id, staff_id } = activity;
     const isOwnAction = actor_staff_id === user?.staff_id;
@@ -184,29 +198,33 @@ export function AdminNotifications() {
                   </div>
                 ) : (
                   <div className="divide-y">
-                    {activities.map((activity) => (
-                      <div
-                        key={activity.id}
-                        className="p-4 hover:bg-muted/50 transition-colors cursor-pointer"
-                        onClick={() => markAsRead(activity.id)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground">
-                              {formatActivityText(activity)}
-                            </p>
-                            {activity.details && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {activity.staff_id && `Staff: ${activity.staff_id}`}
+                    {activities.map((activity) => {
+                      const colorClass = getActivityColor(activity.action, activity.details);
+                      return (
+                        <div
+                          key={activity.id}
+                          className="p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                          onClick={() => markAsRead(activity.id)}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`w-2 h-2 rounded-full mt-2 ${colorClass}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-foreground">
+                                {formatActivityText(activity)}
                               </p>
-                            )}
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {formatDate(activity.created_at)}
-                            </p>
+                              {activity.details && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {activity.staff_id && `Staff: ${activity.staff_id}`}
+                                </p>
+                              )}
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {formatDate(activity.created_at)}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </ScrollArea>
