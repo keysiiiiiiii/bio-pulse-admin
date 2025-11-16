@@ -1,10 +1,10 @@
-import { LayoutDashboard, FileText, FilePlus, Bell, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, FileText, FilePlus, Bell, Settings, LogOut, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/context/AuthContext";
 
-type FacultyView = "dashboard" | "dtr" | "leave" | "notifications" | "settings";
+type FacultyView = "dashboard" | "dtr" | "leave" | "schedule" | "notifications" | "settings";
 
 interface FacultySidebarProps {
   currentView: FacultyView;
@@ -21,6 +21,7 @@ export const FacultySidebar = ({ currentView, onViewChange, collapsed, onToggleC
     { title: "Dashboard", view: "dashboard", icon: LayoutDashboard },
     { title: "Daily Time Record", view: "dtr", icon: FileText },
     { title: "Leave Form", view: "leave", icon: FilePlus },
+    { title: "Schedule", view: "schedule", icon: Calendar },
     { title: "Notifications", view: "notifications", icon: Bell },
     { title: "Account Settings", view: "settings", icon: Settings },
   ];

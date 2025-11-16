@@ -106,6 +106,9 @@ const gsheetsRoutes = loadRoute('./routes/gsheetsRoutes.cjs', 'Google Sheets Rou
 if (gsheetsRoutes) app.use('/', gsheetsRoutes);
 
 const dtrRoutes = loadRoute('./routes/dtrRoutes.cjs', 'DTR Routes');
+
+const scheduleRoutes = loadRoute('./routes/scheduleRoutes.cjs', 'Schedule Routes');
+if (scheduleRoutes) app.use('/api/schedules', scheduleRoutes);
 if (dtrRoutes) app.use('/api/dtr', dtrRoutes);
 
 const activityRoutes = loadRoute('./routes/activityRoutes.cjs', 'Activity Routes');

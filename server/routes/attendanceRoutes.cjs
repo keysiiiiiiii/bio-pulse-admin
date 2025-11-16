@@ -96,6 +96,24 @@ async function getSuidFromQuery(req) {
 async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
   const att_date = todayPH();
 
+  // ✅ SCHEDULE VALIDATION: Check if user has a work schedule for today
+  const now = new Date(tsISO);
+  const dayOfWeek = now.getDay(); // 0=Sunday, 6=Saturday
+
+  const { data: schedule, error: schedErr } = await db
+    .from('work_schedules')
+    .select('*')
+    .eq('staff_user_id', staff_user_id)
+    .eq('day_of_week', dayOfWeek)
+    .eq('is_active', true)
+    .limit(1);
+
+  if (schedErr) throw schedErr;
+
+  if (!schedule || schedule.length === 0) {
+    throw new Error('NO_SCHEDULE_TODAY: You are not scheduled to work today. Contact admin.');
+  }
+
   // check if a row exists for today
   const { data: found, error: selErr } = await db
     .from('attendance_logs')

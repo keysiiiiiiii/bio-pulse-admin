@@ -4,11 +4,12 @@ import { StaffHeader } from "@/components/staff/StaffHeader";
 import { StaffDashboard } from "@/components/staff/StaffDashboard";
 import { StaffDTR } from "@/components/staff/StaffDTR";
 import { StaffLeaveForm } from "@/components/staff/StaffLeaveForm";
+import { StaffSchedule } from "@/components/staff/StaffSchedule";
 import { StaffNotifications } from "@/components/staff/StaffNotifications";
 import { StaffAccountSettings } from "@/components/staff/StaffAccountSettings";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
-type StaffView = "dashboard" | "dtr" | "leave" | "notifications" | "settings";
+type StaffView = "dashboard" | "dtr" | "leave" | "schedule" | "notifications" | "settings";
 
 const Staff = () => {
   const [currentView, setCurrentView] = useState<StaffView>("dashboard");
@@ -29,6 +30,7 @@ const Staff = () => {
             {currentView === "dashboard" && <StaffDashboard />}
             {currentView === "dtr" && <StaffDTR />}
             {currentView === "leave" && <StaffLeaveForm />}
+            {currentView === "schedule" && <StaffSchedule />}
             {currentView === "notifications" && <StaffNotifications />}
             {currentView === "settings" && <StaffAccountSettings />}
           </main>
