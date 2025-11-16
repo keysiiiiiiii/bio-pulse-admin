@@ -157,7 +157,7 @@ function getBucket(req, staff_id) {
 
 // POST /auth/login
 router.post('/auth/login', async (req, res) => {
-  const { staff_id, password } = req.body; // must match your JSON keys
+  const { staff_id, password } = req.body;
   if (!staff_id || !password) {
     return res.status(400).json({ message: 'staff_id and password required' });
   }
@@ -172,7 +172,7 @@ router.post('/auth/login', async (req, res) => {
 
   const { data: u, error } = await db
     .from('staff_users')
-    .select('*')
+    .select('*')  // This already selects all columns including 'id'
     .eq('staff_id', staff_id)
     .maybeSingle();
 
@@ -193,7 +193,10 @@ router.post('/auth/login', async (req, res) => {
   }
 
   attempts.delete(key);
+  
+  // ✅ FIX: Include the database ID in the user object
   const user = {
+    id: u.id,  // 👈 ADD THIS LINE
     staff_id: u.staff_id,
     name: u.name,
     email: u.email,
@@ -201,6 +204,7 @@ router.post('/auth/login', async (req, res) => {
     department: u.department || null,
     photo_url: u.photo_url || null
   };
+  
   const token = signUser(user);
   res.json({ token, user });
 });
@@ -209,7 +213,8 @@ router.post('/auth/login', async (req, res) => {
 router.get('/auth/me', verifyToken, async (req, res) => {
   const { data: u, error } = await db
     .from('staff_users')
-    .select('staff_id, name, role, email, employee_type, department, contact_number, photo_url')
+    // ✅ ADD 'id' to the SELECT list
+    .select('id, staff_id, name, role, email, employee_type, department, contact_number, photo_url')
     .eq('staff_id', req.user.sid)
     .maybeSingle();
 
@@ -217,6 +222,7 @@ router.get('/auth/me', verifyToken, async (req, res) => {
   if (!u) return res.status(404).json({ message: 'User not found' });
 
   res.json({
+    id: u.id,  // ✅ ADD THIS LINE
     sid: u.staff_id,
     staff_id: u.staff_id,
     name: u.name,
@@ -317,12 +323,16 @@ router.get('/users',
   async (req, res) => {
     const { data, error } = await db
       .from('staff_users')
-      .select('staff_id, name, employee_type, department, role, email, contact_number, photo_url, created_at')
+      // ✅ ADD 'id' to the SELECT list
+      .select('id, staff_id, name, employee_type, department, role, email, contact_number, photo_url, created_at')
       .order('staff_id', { ascending: true });
 
     if (error) return res.status(500).json({ error: 'Database error' });
 
-    const shaped = (data || []).map(r => ({ ...r, phone: r.contact_number ?? null }));
+    const shaped = (data || []).map(r => ({ 
+      ...r, 
+      phone: r.contact_number ?? null 
+    }));
     return res.json(shaped);
   }
 );

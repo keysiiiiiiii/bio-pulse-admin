@@ -1,4 +1,4 @@
-// server/routes/scheduleRoutes.cjs
+// backend/routes/scheduleRoutes.cjs
 // Work Schedule Management Routes
 
 const express = require('express');
@@ -38,10 +38,10 @@ router.get('/:staff_user_id', async (req, res) => {
 // GET /api/schedules/unscheduled/list
 router.get('/unscheduled/list', async (req, res) => {
   try {
-    // Get all staff users
+    // Get all staff users (REMOVED 'college' column - it doesn't exist)
     const { data: allUsers, error: userError } = await db
       .from('staff_users')
-      .select('id, staff_id, name, employee_type, department, college');
+      .select('id, staff_id, name, employee_type, department');
 
     if (userError) throw userError;
 
@@ -77,10 +77,26 @@ router.post('/', async (req, res) => {
   try {
     const { staff_user_id, schedules, created_by_staff_id } = req.body;
 
+    console.log('📥 Received schedule save request:', { 
+      staff_user_id, 
+      schedules_count: schedules?.length, 
+      created_by_staff_id 
+    });
+
     if (!staff_user_id || !schedules || !Array.isArray(schedules)) {
+      console.error('❌ Missing required fields:', { staff_user_id, schedules });
       return res.status(400).json({ 
         ok: false, 
         error: 'Missing required fields: staff_user_id, schedules' 
+      });
+    }
+
+    // Validate staff_user_id is a valid number
+    const staffUserId = parseInt(staff_user_id);
+    if (isNaN(staffUserId)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid staff_user_id: must be a number'
       });
     }
 
@@ -104,13 +120,13 @@ router.post('/', async (req, res) => {
     const { error: deactivateError } = await db
       .from('work_schedules')
       .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('staff_user_id', staff_user_id);
+      .eq('staff_user_id', staffUserId);
 
     if (deactivateError) throw deactivateError;
 
     // Step 2: Insert new schedules
     const newSchedules = schedules.map(s => ({
-      staff_user_id,
+      staff_user_id: staffUserId,
       day_of_week: s.day_of_week,
       time_in: s.time_in,
       time_out: s.time_out,
@@ -127,26 +143,34 @@ router.post('/', async (req, res) => {
 
     if (insertError) throw insertError;
 
+    console.log('✅ Schedule saved successfully for staff_user_id:', staffUserId);
+
     // Step 3: Get user info for activity log
     const { data: userData } = await db
       .from('staff_users')
       .select('staff_id, name')
-      .eq('id', staff_user_id)
+      .eq('id', staffUserId)
       .single();
 
     // Step 4: Log activity to account_activity
-    const action = schedules.length > 0 ? 'schedule_set' : 'schedule_updated';
-    await db.from('account_activity').insert({
-      action,
-      actor_staff_id: created_by_staff_id,
-      actor_role: 'admin',
-      staff_id: userData?.staff_id || staff_user_id.toString(),
-      details: {
-        user_name: userData?.name,
-        schedule_count: schedules.length,
-        days: schedules.map(s => s.day_of_week).join(',')
-      }
-    });
+    try {
+      const action = 'schedule_set';
+      await db.from('account_activity').insert({
+        action,
+        actor_staff_id: created_by_staff_id,
+        actor_role: 'Admin',
+        staff_id: userData?.staff_id || staffUserId.toString(),
+        staff_user_id: staffUserId,
+        details: {
+          user_name: userData?.name,
+          schedule_count: schedules.length,
+          days: schedules.map(s => s.day_of_week).join(',')
+        },
+        created_at: new Date().toISOString()
+      });
+    } catch (actErr) {
+      console.error('⚠️ Failed to log activity:', actErr);
+    }
 
     res.json({ 
       ok: true, 
@@ -178,13 +202,19 @@ router.delete('/:staff_user_id', async (req, res) => {
     if (error) throw error;
 
     // Log activity
-    await db.from('account_activity').insert({
-      action: 'schedule_deleted',
-      actor_staff_id: deleted_by_staff_id,
-      actor_role: 'admin',
-      staff_id: staff_user_id.toString(),
-      details: { message: 'Work schedule removed' }
-    });
+    try {
+      await db.from('account_activity').insert({
+        action: 'schedule_deleted',
+        actor_staff_id: deleted_by_staff_id,
+        actor_role: 'Admin',
+        staff_id: staff_user_id.toString(),
+        staff_user_id: parseInt(staff_user_id),
+        details: { message: 'Work schedule removed' },
+        created_at: new Date().toISOString()
+      });
+    } catch (actErr) {
+      console.error('⚠️ Failed to log activity:', actErr);
+    }
 
     res.json({ 
       ok: true, 

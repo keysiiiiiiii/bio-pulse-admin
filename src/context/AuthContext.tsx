@@ -2,7 +2,7 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 
 interface User {
-  id: string;
+  id: string | number;  // ✅ FIX: Allow both string and number
   staff_id: string;
   name: string;
   email: string;
@@ -53,10 +53,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const login = (jwt: string, userData: User) => {
+    // ✅ Ensure id is preserved as-is (number or string)
+    const userToStore = {
+      ...userData,
+      id: userData.id  // Don't convert, keep as-is
+    };
+    
     localStorage.setItem("token", jwt);
-    localStorage.setItem("user", JSON.stringify(userData));
+    localStorage.setItem("user", JSON.stringify(userToStore));
     setToken(jwt);
-    setUser(userData);
+    setUser(userToStore);
   };
 
   const logout = () => {

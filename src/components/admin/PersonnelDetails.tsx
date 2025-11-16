@@ -57,7 +57,12 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
   const fetchSchedule = async () => {
     setLoadingSchedule(true);
     try {
-      const response = await scheduleApi.getSchedule(Number(personnel.id));
+      const staffUserId = Number(personnel.id);
+      if (isNaN(staffUserId)) {
+        console.error('Invalid personnel.id:', personnel.id);
+        return;
+      }
+      const response = await scheduleApi.getSchedule(staffUserId);
       setSchedule(response.schedules || []);
     } catch (error: any) {
       console.error('Error fetching schedule:', error);
@@ -114,7 +119,7 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
     setEditingCredits(false);
     setPasswordDialog(false);
     setAdminPassword("");
-    
+
     toast({
       title: "Leave Credits Updated",
       description: "Personnel leave credits have been updated successfully",
@@ -139,7 +144,7 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
     setLeaveStatus(leaveStatus === 'active' ? 'inactive' : 'active');
     setStatusDialog(false);
     setAdminPassword("");
-    
+
     toast({
       title: "Leave Status Updated",
       description: `Leave credits are now ${leaveStatus === 'active' ? 'inactive' : 'active'}`,
@@ -163,7 +168,7 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
     // TODO: Verify password and set as dean via API (remove previous dean of this college)
     setDeanDialog(false);
     setAdminPassword("");
-    
+
     toast({
       title: "Dean Status Updated",
       description: `${personnel.name} has been designated as Dean of ${personnel.department}`,
@@ -312,8 +317,8 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
               <Calendar className="h-5 w-5 text-primary" />
               Work Schedule
             </CardTitle>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               onClick={() => setScheduleEditorOpen(true)}
               variant={schedule.length === 0 ? "default" : "outline"}
             >
@@ -339,8 +344,8 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
                 const isScheduled = !!daySchedule;
 
                 return (
-                  <div 
-                    key={index} 
+                  <div
+                    key={index}
                     className="flex items-center justify-between p-3 rounded-lg border bg-card"
                   >
                     <div className="flex items-center gap-4">

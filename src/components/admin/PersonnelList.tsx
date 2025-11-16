@@ -37,7 +37,7 @@ const COLLEGES = [
   "CBPM - College of Business and Public Management",
   "CL - College of Law",
   "CAS - College of Arts and Sciences",
-]; 
+];
 
 const DEPARTMENTS = [
   "Clinic",
@@ -69,7 +69,7 @@ export function PersonnelList() {
   const fetchPersonnel = async () => {
     try {
       setLoading(true);
-      
+
       // Try the /users endpoint first (for Admin/ICTO)
       let staffData;
       try {
@@ -79,25 +79,28 @@ export function PersonnelList() {
         console.log('Falling back to /staff endpoint');
         staffData = await staffApi.getAllStaff();
       }
-      
+
       if (!Array.isArray(staffData)) {
         throw new Error('Invalid data format received from API');
       }
 
       // Transform the data to match our Personnel interface
       const transformedData = staffData
-        .map((staff) => ({
-          id: staff.id?.toString() || staff.staff_id,
-          staff_id: staff.staff_id,
-          name: staff.name,
-          role: staff.role || staff.employee_type,
-          department: staff.department || "",
-          email: staff.email || "",
-          avatar_url: staff.avatar_url || staff.photo_url || "",
-          photo_url: staff.photo_url || staff.avatar_url || "",
-          employee_type: staff.employee_type || staff.role,
-          contact_number: staff.contact_no || staff.contact_number || "",
-        }))
+        .map((staff) => {
+          console.log('Raw staff data:', staff); // 👈 ADD THIS LINE
+          return {
+            id: staff.id?.toString() || '', // This should be "221", "204", etc.
+            staff_id: staff.staff_id,         // This is "28-2025-0002", etc.
+            name: staff.name,
+            role: staff.role || staff.employee_type,
+            department: staff.department || "",
+            email: staff.email || "",
+            avatar_url: staff.avatar_url || staff.photo_url || "",
+            photo_url: staff.photo_url || staff.avatar_url || "",
+            employee_type: staff.employee_type || staff.role,
+            contact_number: staff.contact_no || staff.contact_number || "",
+          };
+          })
         .sort((a, b) => {
           // Sort by the last 4 digits of staff_id
           const getLastFour = (id: string) => {
@@ -106,9 +109,9 @@ export function PersonnelList() {
           };
           return getLastFour(a.staff_id) - getLastFour(b.staff_id);
         });
-      
+
       setPersonnel(transformedData);
-      
+
       // Fetch unscheduled users
       try {
         const { scheduleApi } = await import('@/services/api');
@@ -118,7 +121,7 @@ export function PersonnelList() {
       } catch (error) {
         console.error('Failed to fetch unscheduled users:', error);
       }
-      
+
       if (transformedData.length === 0) {
         toast({
           title: "No personnel found",
@@ -164,10 +167,10 @@ export function PersonnelList() {
     const matchesDepartment = filterDepartment === "all" || (person.role === "Staff" && person.department === filterDepartment);
     const matchesYear = filterYearHired === "all" || getYearFromStaffId(person.staff_id) === filterYearHired;
     const matchesAgency = filterAgencyNumber === "all" || getAgencyFromStaffId(person.staff_id) === filterAgencyNumber;
-    const matchesSchedule = filterScheduleStatus === "all" || 
+    const matchesSchedule = filterScheduleStatus === "all" ||
       (filterScheduleStatus === "unscheduled" && unscheduledUsers.has(person.id)) ||
       (filterScheduleStatus === "scheduled" && !unscheduledUsers.has(person.id));
-    
+
     return matchesSearch && matchesRole && matchesCollege && matchesDepartment && matchesYear && matchesAgency && matchesSchedule;
   });
 
@@ -214,7 +217,7 @@ export function PersonnelList() {
     try {
       // Activate leave for each selected employee
       const selectedPersonnel = personnel.filter(p => selectedIds.has(p.id));
-      
+
       for (const person of selectedPersonnel) {
         try {
           await staffApi.activateLeave(person.staff_id, adminPassword);
@@ -286,7 +289,7 @@ export function PersonnelList() {
                   <SelectItem value="Staff">Staff</SelectItem>
                 </SelectContent>
               </Select>
-              
+
               {filterRole === "Faculty" && (
                 <Select value={filterCollege} onValueChange={setFilterCollege}>
                   <SelectTrigger>
@@ -300,7 +303,7 @@ export function PersonnelList() {
                   </SelectContent>
                 </Select>
               )}
-              
+
               {filterRole === "Staff" && (
                 <Select value={filterDepartment} onValueChange={setFilterDepartment}>
                   <SelectTrigger>
@@ -340,7 +343,7 @@ export function PersonnelList() {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={filterScheduleStatus} onValueChange={setFilterScheduleStatus}>
                 <SelectTrigger>
                   <SelectValue placeholder="Schedule Status" />
@@ -414,7 +417,7 @@ export function PersonnelList() {
                 ) : filteredPersonnel.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                      {personnel.length === 0 
+                      {personnel.length === 0
                         ? "No personnel records found in the database. Please add users first."
                         : "No personnel found matching your search criteria"
                       }
@@ -422,8 +425,8 @@ export function PersonnelList() {
                   </tr>
                 ) : (
                   filteredPersonnel.map((person) => (
-                    <tr 
-                      key={person.id} 
+                    <tr
+                      key={person.id}
                       className="border-b hover:bg-muted/50 transition-colors"
                     >
                       <td className="p-3 text-center">
@@ -487,8 +490,8 @@ export function PersonnelList() {
             </DialogDescription>
           </DialogHeader>
           {selectedPersonnel && (
-            <PersonnelDetails 
-              personnel={{ ...selectedPersonnel, staffId: selectedPersonnel.staff_id }} 
+            <PersonnelDetails
+              personnel={{ ...selectedPersonnel, staffId: selectedPersonnel.staff_id }}
               onScheduleUpdate={fetchPersonnel}
             />
           )}

@@ -57,17 +57,17 @@ const Login = () => {
     e.preventDefault();
 
     if (!role || !staffId || !password) {
-      toast({ 
-        title: "Missing Information", 
-        description: "Please fill in all fields", 
-        variant: "destructive" 
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all fields",
+        variant: "destructive"
       });
       return;
     }
 
     try {
       setLoading(true);
-      
+
       // Call the login API
       const res = await staffApi.login(staffId, password);
 
@@ -82,7 +82,7 @@ const Login = () => {
 
       // Map the response to your User type
       const user = {
-        id: res.user.staff_id,
+        id: res.user.id,  // ✅ Use the NUMERIC ID from backend
         staff_id: res.user.staff_id,
         name: res.user.name,
         email: res.user.email || "",
@@ -115,10 +115,10 @@ const Login = () => {
 
     } catch (err: any) {
       console.error("Login error:", err);
-      toast({ 
-        title: "Login Failed", 
-        description: err.message || "Invalid credentials. Please check your Staff ID and password.", 
-        variant: "destructive" 
+      toast({
+        title: "Login Failed",
+        description: err.message || "Invalid credentials. Please check your Staff ID and password.",
+        variant: "destructive"
       });
     } finally {
       setLoading(false);

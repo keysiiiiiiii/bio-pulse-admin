@@ -19,11 +19,42 @@ export function StaffSchedule() {
   }, [user]);
 
   const fetchSchedule = async () => {
-    if (!user?.id) return;
+    // ✅ DEBUG: Log everything
+    console.log('Full user object:', user);
+    console.log('user.id:', (user as any)?.id);
+    console.log('user.staff_id:', user?.staff_id);
+    
+    // ✅ FIX: If no numeric id, fetch it from API using staff_id
+    let userId = (user as any)?.id;
+    
+    if (!userId && user?.staff_id) {
+      console.warn('No numeric ID found, fetching from staff_id:', user.staff_id);
+      try {
+        // Fetch user details to get the numeric ID
+        const response = await fetch(`http://localhost:3001/api/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        const userData = await response.json();
+        console.log('Fetched user data:', userData);
+        userId = userData.id;
+      } catch (error) {
+        console.error('Failed to fetch user ID:', error);
+      }
+    }
+    
+    if (!userId) {
+      console.error('No user ID available after all attempts');
+      setLoading(false);
+      return;
+    }
+    
+    console.log('Using userId:', userId, 'Type:', typeof userId);
 
     setLoading(true);
     try {
-      const response = await scheduleApi.getSchedule(Number(user.id));
+      const response = await scheduleApi.getSchedule(Number(userId));
       setSchedule(response.schedules || []);
       if (response.schedules?.length > 0) {
         setCreatedBy(response.schedules[0].created_by_staff_id);

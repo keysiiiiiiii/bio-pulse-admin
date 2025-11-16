@@ -19,11 +19,18 @@ export function FacultySchedule() {
   }, [user]);
 
   const fetchSchedule = async () => {
-    if (!user?.id) return;
+    // ✅ FIX: Handle multiple possible user ID fields
+    const userId = (user as any)?.id || (user as any)?.staff_user_id;
+
+    if (!userId) {
+      console.error('No user ID available');
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     try {
-      const response = await scheduleApi.getSchedule(Number(user.id));
+      const response = await scheduleApi.getSchedule(Number(userId));
       setSchedule(response.schedules || []);
       if (response.schedules?.length > 0) {
         setCreatedBy(response.schedules[0].created_by_staff_id);
@@ -39,6 +46,7 @@ export function FacultySchedule() {
       setLoading(false);
     }
   };
+
 
   const formatTime = (time: string) => {
     if (!time) return '-';
@@ -108,8 +116,8 @@ export function FacultySchedule() {
             const isScheduled = !!daySchedule;
 
             return (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
               >
                 <div className="flex items-center gap-4">

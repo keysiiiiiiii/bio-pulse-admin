@@ -147,8 +147,21 @@ export function ScheduleEditorDialog({
           time_out: s.time_out,
         }));
 
+      // ✅ CRITICAL FIX: Convert personnel.id to number
+      const staffUserId = Number(personnel.id);
+      
+      if (isNaN(staffUserId)) {
+        throw new Error('Invalid staff user ID');
+      }
+
+      console.log('📤 Sending schedule data:', {
+        staff_user_id: staffUserId,
+        schedules_count: schedules.length,
+        created_by: user?.staff_id
+      });
+
       await scheduleApi.saveSchedule({
-        staff_user_id: Number(personnel.id),
+        staff_user_id: staffUserId,
         schedules,
         created_by_staff_id: user?.staff_id || '',
       });
