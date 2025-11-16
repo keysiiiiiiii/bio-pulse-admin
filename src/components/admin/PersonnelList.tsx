@@ -56,78 +56,90 @@ export function PersonnelList() {
   const [filterDepartment, setFilterDepartment] = useState("all");
   const [filterYearHired, setFilterYearHired] = useState("all");
   const [filterAgencyNumber, setFilterAgencyNumber] = useState("all");
+  const [filterScheduleStatus, setFilterScheduleStatus] = useState("all"); // "all", "scheduled", "unscheduled"
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [passwordDialog, setPasswordDialog] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
+  const [unscheduledUsers, setUnscheduledUsers] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchPersonnel = async () => {
+  const fetchPersonnel = async () => {
+    try {
+      setLoading(true);
+      
+      // Try the /users endpoint first (for Admin/ICTO)
+      let staffData;
       try {
-        setLoading(true);
-        
-        // Try the /users endpoint first (for Admin/ICTO)
-        let staffData;
-        try {
-          staffData = await staffApi.getAll();
-        } catch (error) {
-          // Fallback to /staff endpoint if /users fails
-          console.log('Falling back to /staff endpoint');
-          staffData = await staffApi.getAllStaff();
-        }
-        
-        if (!Array.isArray(staffData)) {
-          throw new Error('Invalid data format received from API');
-        }
-
-        // Transform the data to match our Personnel interface
-        const transformedData = staffData
-          .map((staff) => ({
-            id: staff.id?.toString() || staff.staff_id,
-            staff_id: staff.staff_id,
-            name: staff.name,
-            role: staff.role || staff.employee_type,
-            department: staff.department || "",
-            email: staff.email || "",
-            avatar_url: staff.avatar_url || staff.photo_url || "",
-            photo_url: staff.photo_url || staff.avatar_url || "",
-            employee_type: staff.employee_type || staff.role,
-            contact_number: staff.contact_no || staff.contact_number || "",
-          }))
-          .sort((a, b) => {
-            // Sort by the last 4 digits of staff_id
-            const getLastFour = (id: string) => {
-              const parts = id.split('-');
-              return parseInt(parts[parts.length - 1] || '0');
-            };
-            return getLastFour(a.staff_id) - getLastFour(b.staff_id);
-          });
-        
-        setPersonnel(transformedData);
-        
-        if (transformedData.length === 0) {
-          toast({
-            title: "No personnel found",
-            description: "The system has no registered personnel yet.",
-          });
-        }
+        staffData = await staffApi.getAll();
       } catch (error) {
-        console.error('Failed to fetch personnel:', error);
-        toast({
-          title: "Error loading personnel",
-          description: error instanceof Error ? error.message : "Failed to fetch data. Please check your connection and try again.",
-          variant: "destructive",
-        });
-        // Set empty array so the UI shows "No personnel found" instead of error
-        setPersonnel([]);
-      } finally {
-        setLoading(false);
+        // Fallback to /staff endpoint if /users fails
+        console.log('Falling back to /staff endpoint');
+        staffData = await staffApi.getAllStaff();
       }
-    };
+      
+      if (!Array.isArray(staffData)) {
+        throw new Error('Invalid data format received from API');
+      }
 
+      // Transform the data to match our Personnel interface
+      const transformedData = staffData
+        .map((staff) => ({
+          id: staff.id?.toString() || staff.staff_id,
+          staff_id: staff.staff_id,
+          name: staff.name,
+          role: staff.role || staff.employee_type,
+          department: staff.department || "",
+          email: staff.email || "",
+          avatar_url: staff.avatar_url || staff.photo_url || "",
+          photo_url: staff.photo_url || staff.avatar_url || "",
+          employee_type: staff.employee_type || staff.role,
+          contact_number: staff.contact_no || staff.contact_number || "",
+        }))
+        .sort((a, b) => {
+          // Sort by the last 4 digits of staff_id
+          const getLastFour = (id: string) => {
+            const parts = id.split('-');
+            return parseInt(parts[parts.length - 1] || '0');
+          };
+          return getLastFour(a.staff_id) - getLastFour(b.staff_id);
+        });
+      
+      setPersonnel(transformedData);
+      
+      // Fetch unscheduled users
+      try {
+        const { scheduleApi } = await import('@/services/api');
+        const unscheduledResponse = await scheduleApi.getUnscheduledUsers();
+        const unscheduledIds = new Set(unscheduledResponse.users.map((u: any) => u.id.toString()));
+        setUnscheduledUsers(unscheduledIds);
+      } catch (error) {
+        console.error('Failed to fetch unscheduled users:', error);
+      }
+      
+      if (transformedData.length === 0) {
+        toast({
+          title: "No personnel found",
+          description: "The system has no registered personnel yet.",
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch personnel:', error);
+      toast({
+        title: "Error loading personnel",
+        description: error instanceof Error ? error.message : "Failed to fetch data. Please check your connection and try again.",
+        variant: "destructive",
+      });
+      // Set empty array so the UI shows "No personnel found" instead of error
+      setPersonnel([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchPersonnel();
   }, [toast]);
 
@@ -152,8 +164,11 @@ export function PersonnelList() {
     const matchesDepartment = filterDepartment === "all" || (person.role === "Staff" && person.department === filterDepartment);
     const matchesYear = filterYearHired === "all" || getYearFromStaffId(person.staff_id) === filterYearHired;
     const matchesAgency = filterAgencyNumber === "all" || getAgencyFromStaffId(person.staff_id) === filterAgencyNumber;
+    const matchesSchedule = filterScheduleStatus === "all" || 
+      (filterScheduleStatus === "unscheduled" && unscheduledUsers.has(person.id)) ||
+      (filterScheduleStatus === "scheduled" && !unscheduledUsers.has(person.id));
     
-    return matchesSearch && matchesRole && matchesCollege && matchesDepartment && matchesYear && matchesAgency;
+    return matchesSearch && matchesRole && matchesCollege && matchesDepartment && matchesYear && matchesAgency && matchesSchedule;
   });
 
   const handleSelectAll = (checked: boolean) => {
@@ -325,6 +340,17 @@ export function PersonnelList() {
                   ))}
                 </SelectContent>
               </Select>
+              
+              <Select value={filterScheduleStatus} onValueChange={setFilterScheduleStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Schedule Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  <SelectItem value="unscheduled">🟡 Unscheduled Users</SelectItem>
+                  <SelectItem value="scheduled">✅ Scheduled Users</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardContent>
@@ -460,7 +486,12 @@ export function PersonnelList() {
               View and manage personnel information, leave credits, and settings
             </DialogDescription>
           </DialogHeader>
-          {selectedPersonnel && <PersonnelDetails personnel={{ ...selectedPersonnel, staffId: selectedPersonnel.staff_id }} />}
+          {selectedPersonnel && (
+            <PersonnelDetails 
+              personnel={{ ...selectedPersonnel, staffId: selectedPersonnel.staff_id }} 
+              onScheduleUpdate={fetchPersonnel}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

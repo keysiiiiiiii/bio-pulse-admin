@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { UserCheck, Calendar, TrendingUp, Shield } from "lucide-react";
+import { UserCheck, Calendar, TrendingUp, Shield, Clock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { scheduleApi } from "@/services/api";
+import { ScheduleEditorDialog } from "./ScheduleEditorDialog";
 
 interface PersonnelDetailsProps {
   personnel: {
@@ -22,6 +24,7 @@ interface PersonnelDetailsProps {
     avatar_url?: string;
     employee_type: string;
   };
+  onScheduleUpdate?: () => void;
 }
 
 const attendanceData = [
@@ -32,7 +35,9 @@ const attendanceData = [
   { day: "Fri", status: 100 },
 ];
 
-export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetailsProps) {
   const [leaveCredits, setLeaveCredits] = useState({ vacation: 15, sick: 10, emergency: 5 });
   const [leaveStatus, setLeaveStatus] = useState<'active' | 'inactive'>('inactive');
   const [editingCredits, setEditingCredits] = useState(false);
@@ -41,6 +46,45 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
   const [deanDialog, setDeanDialog] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [tempCredits, setTempCredits] = useState(leaveCredits);
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [loadingSchedule, setLoadingSchedule] = useState(true);
+  const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false);
+
+  useEffect(() => {
+    fetchSchedule();
+  }, [personnel.id]);
+
+  const fetchSchedule = async () => {
+    setLoadingSchedule(true);
+    try {
+      const response = await scheduleApi.getSchedule(Number(personnel.id));
+      setSchedule(response.schedules || []);
+    } catch (error: any) {
+      console.error('Error fetching schedule:', error);
+    } finally {
+      setLoadingSchedule(false);
+    }
+  };
+
+  const handleScheduleSuccess = () => {
+    fetchSchedule();
+    if (onScheduleUpdate) {
+      onScheduleUpdate();
+    }
+  };
+
+  const formatTime = (time: string) => {
+    if (!time) return '-';
+    const [hour, minute] = time.split(':');
+    const h = parseInt(hour);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+    return `${displayHour}:${minute} ${ampm}`;
+  };
+
+  const getScheduleForDay = (dayOfWeek: number) => {
+    return schedule.find(s => s.day_of_week === dayOfWeek);
+  };
 
   const getInitials = (name: string) => {
     return name
@@ -260,6 +304,69 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
         </CardContent>
       </Card>
 
+      {/* Work Schedule */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              Work Schedule
+            </CardTitle>
+            <Button 
+              size="sm" 
+              onClick={() => setScheduleEditorOpen(true)}
+              variant={schedule.length === 0 ? "default" : "outline"}
+            >
+              {schedule.length === 0 ? "Set Schedule" : "Edit Schedule"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loadingSchedule ? (
+            <p className="text-muted-foreground text-center py-4">Loading schedule...</p>
+          ) : schedule.length === 0 ? (
+            <div className="p-8 text-center border-2 border-dashed rounded-lg">
+              <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-lg font-medium text-muted-foreground">No work schedule set for this user</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Click "Set Schedule" to assign work days and hours
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {DAYS.map((dayName, index) => {
+                const daySchedule = getScheduleForDay(index);
+                const isScheduled = !!daySchedule;
+
+                return (
+                  <div 
+                    key={index} 
+                    className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-24 font-medium">{dayName}</div>
+                      {isScheduled ? (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Clock className="h-4 w-4" />
+                          <span>
+                            {formatTime(daySchedule.time_in)} - {formatTime(daySchedule.time_out)}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-muted-foreground">Not Scheduled</div>
+                      )}
+                    </div>
+                    <Badge variant={isScheduled ? "default" : "secondary"}>
+                      {isScheduled ? "Scheduled" : "Rest Day"}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Attendance Analytics */}
       <Card>
         <CardHeader>
@@ -414,6 +521,19 @@ export function PersonnelDetails({ personnel }: PersonnelDetailsProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Schedule Editor Dialog */}
+      <ScheduleEditorDialog
+        open={scheduleEditorOpen}
+        onOpenChange={setScheduleEditorOpen}
+        personnel={{
+          id: personnel.id,
+          name: personnel.name,
+          staffId: personnel.staffId,
+        }}
+        existingSchedule={schedule}
+        onSuccess={handleScheduleSuccess}
+      />
     </div>
   );
 }
