@@ -2,7 +2,11 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recha
 import { useEffect, useState } from "react";
 import { attendanceApi } from "@/services/api";
 
-export function AttendanceChart() {
+interface AttendanceChartProps {
+  selectedDate?: Date;
+}
+
+export function AttendanceChart({ selectedDate }: AttendanceChartProps) {
   const [data, setData] = useState([
     { name: "Present", value: 0, color: "hsl(var(--success))" },
     { name: "Absent", value: 0, color: "hsl(var(--destructive))" },
@@ -12,8 +16,8 @@ export function AttendanceChart() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const today = new Date().toISOString().split('T')[0];
-        const stats = await attendanceApi.getStats(today);
+        const date = selectedDate ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        const stats = await attendanceApi.getStats(date);
         
         setData([
           { name: "Present", value: stats.present, color: "hsl(var(--success))" },
@@ -26,7 +30,7 @@ export function AttendanceChart() {
     };
 
     fetchData();
-  }, []);
+  }, [selectedDate]);
 
   return (
     <ResponsiveContainer width="100%" height={300}>

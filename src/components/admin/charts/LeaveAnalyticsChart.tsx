@@ -1,24 +1,8 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useEffect, useState } from "react";
-import { analyticsApi } from "@/services/api";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-
-// Mock data structure with all 13 leave types
-const mockData = [
-  { month: "Jan", vacation: 5, forced: 2, sick: 3, maternity: 1, paternity: 0, spl: 1, solo: 0, study: 0, vawc: 0, rehab: 0, women: 1, emergency: 1, adoption: 0 },
-  { month: "Feb", vacation: 7, forced: 1, sick: 2, maternity: 0, paternity: 1, spl: 2, solo: 0, study: 0, vawc: 0, rehab: 0, women: 0, emergency: 2, adoption: 0 },
-  { month: "Mar", vacation: 10, forced: 3, sick: 4, maternity: 2, paternity: 1, spl: 1, solo: 1, study: 0, vawc: 0, rehab: 0, women: 1, emergency: 1, adoption: 0 },
-  { month: "Apr", vacation: 8, forced: 2, sick: 5, maternity: 1, paternity: 0, spl: 2, solo: 0, study: 1, vawc: 1, rehab: 0, women: 0, emergency: 3, adoption: 0 },
-  { month: "May", vacation: 6, forced: 1, sick: 3, maternity: 0, paternity: 1, spl: 1, solo: 0, study: 0, vawc: 0, rehab: 0, women: 1, emergency: 2, adoption: 1 },
-  { month: "Jun", vacation: 9, forced: 2, sick: 6, maternity: 1, paternity: 0, spl: 2, solo: 1, study: 0, vawc: 0, rehab: 0, women: 0, emergency: 1, adoption: 0 },
-  { month: "Jul", vacation: 7, forced: 1, sick: 4, maternity: 2, paternity: 1, spl: 1, solo: 0, study: 0, vawc: 1, rehab: 0, women: 1, emergency: 2, adoption: 0 },
-  { month: "Aug", vacation: 8, forced: 2, sick: 5, maternity: 0, paternity: 0, spl: 2, solo: 0, study: 1, vawc: 0, rehab: 1, women: 0, emergency: 1, adoption: 0 },
-  { month: "Sep", vacation: 10, forced: 3, sick: 3, maternity: 1, paternity: 1, spl: 1, solo: 1, study: 0, vawc: 0, rehab: 0, women: 1, emergency: 3, adoption: 0 },
-  { month: "Oct", vacation: 6, forced: 1, sick: 4, maternity: 0, paternity: 0, spl: 2, solo: 0, study: 0, vawc: 1, rehab: 0, women: 0, emergency: 2, adoption: 1 },
-  { month: "Nov", vacation: 9, forced: 2, sick: 6, maternity: 1, paternity: 1, spl: 1, solo: 0, study: 1, vawc: 0, rehab: 0, women: 1, emergency: 1, adoption: 0 },
-  { month: "Dec", vacation: 11, forced: 4, sick: 2, maternity: 0, paternity: 0, spl: 3, solo: 1, study: 0, vawc: 0, rehab: 0, women: 0, emergency: 2, adoption: 0 },
-];
+import { format } from "date-fns";
 
 const leaveTypes = [
   { key: "vacation", label: "Vacation Leave", color: "hsl(var(--primary))" },
@@ -37,131 +21,84 @@ const leaveTypes = [
 ];
 
 interface LeaveAnalyticsChartProps {
-  selectedDate?: Date;
-  dateRange?: { from?: Date; to?: Date };
+  selectedMonth: Date;
 }
 
-export function LeaveAnalyticsChart({ selectedDate, dateRange }: LeaveAnalyticsChartProps) {
-  const [chartData, setChartData] = useState<any[]>(mockData);
-  const [selectedLeaveTypes, setSelectedLeaveTypes] = useState<string[]>(
-    leaveTypes.map(lt => lt.key)
-  );
+export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps) {
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [selectedLeaveTypes, setSelectedLeaveTypes] = useState<string[]>(leaveTypes.map(lt => lt.key));
+  const [loading, setLoading] = useState(false);
 
   const toggleLeaveType = (key: string) => {
-    setSelectedLeaveTypes(prev => 
-      prev.includes(key) 
-        ? prev.filter(k => k !== key)
-        : [...prev, key]
-    );
+    setSelectedLeaveTypes(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   };
 
-  const unselectAll = () => {
-    setSelectedLeaveTypes([]);
-  };
+  const unselectAll = () => setSelectedLeaveTypes([]);
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
-        // Get date range for last 6 months or based on selected date
-        const end = selectedDate || new Date();
-        const start = new Date(end);
-        start.setMonth(start.getMonth() - 6);
-
-        const leaveSummary = await analyticsApi.getLeaveSummary(
-          start.toISOString().split('T')[0],
-          end.toISOString().split('T')[0]
-        );
-
-        // Transform data by month and leave type
-        const monthlyData: Record<string, any> = {};
-        
-        leaveSummary.forEach(item => {
-          // Aggregate by month
-          const statuses = item.status_breakdown;
-          Object.entries(statuses).forEach(([status, count]) => {
-            const month = new Date().toLocaleString('default', { month: 'short' });
-            if (!monthlyData[month]) {
-              monthlyData[month] = { month };
-              leaveTypes.forEach(lt => monthlyData[month][lt.key] = 0);
-            }
-            
-            // Map status to leave type keys
-            const lowerStatus = status.toLowerCase();
-            leaveTypes.forEach(lt => {
-              if (lowerStatus.includes(lt.key) || lowerStatus.includes(lt.label.toLowerCase())) {
-                monthlyData[month][lt.key] += count;
-              }
-            });
-          });
-        });
-
-        const transformedData = Object.values(monthlyData);
-        if (transformedData.length > 0) {
-          setChartData(transformedData);
+        const year = selectedMonth.getFullYear();
+        const month = selectedMonth.getMonth() + 1;
+        const response = await fetch(`/api/attendance/leave-analytics?year=${year}&month=${month}`);
+        if (!response.ok) {
+          setChartData([]);
+          return;
         }
+        const data = await response.json();
+        const transformedData = [];
+        for (let week = 1; week <= 4; week++) {
+          const weekData: any = { month: `Week ${week}` };
+          leaveTypes.forEach(lt => {
+            weekData[lt.key] = data.find((d: any) => d.week === week && d.leave_type?.toLowerCase().includes(lt.key))?.count || 0;
+          });
+          transformedData.push(weekData);
+        }
+        setChartData(transformedData);
       } catch (error) {
-        console.error('Failed to fetch leave analytics:', error);
-        // Use mock data on error
-        setChartData(mockData);
+        setChartData([]);
+      } finally {
+        setLoading(false);
       }
     };
-
     fetchData();
-  }, [selectedDate, dateRange]);
+  }, [selectedMonth]);
 
   return (
     <div className="space-y-4">
-      {/* Leave Type Filters */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <p className="text-sm text-muted-foreground">Select leave types to display</p>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={unselectAll}
-          >
-            Unselect All
-          </Button>
+          <p className="text-sm font-medium">Select leave types to display</p>
+          <Button variant="ghost" size="sm" onClick={unselectAll}>Unselect All</Button>
         </div>
-        <div className="flex flex-wrap gap-3 pb-4 border-b">
-          {leaveTypes.map((type) => (
-            <div key={type.key} className="flex items-center gap-2">
-              <Checkbox 
-                id={type.key} 
-                checked={selectedLeaveTypes.includes(type.key)}
-                onCheckedChange={() => toggleLeaveType(type.key)}
-              />
-              <label htmlFor={type.key} className="text-sm cursor-pointer">
-                {type.label}
-              </label>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {leaveTypes.map((leaveType) => (
+            <div key={leaveType.key} className="flex items-center space-x-2">
+              <Checkbox id={leaveType.key} checked={selectedLeaveTypes.includes(leaveType.key)} onCheckedChange={() => toggleLeaveType(leaveType.key)} />
+              <label htmlFor={leaveType.key} className="text-sm cursor-pointer select-none">{leaveType.label}</label>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Scrollable Chart */}
-      <div className="overflow-x-auto">
-        <ResponsiveContainer width="100%" height={300} minWidth={1000}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            {leaveTypes
-              .filter(type => selectedLeaveTypes.includes(type.key))
-              .map(type => (
-                <Bar 
-                  key={type.key}
-                  dataKey={type.key} 
-                  fill={type.color} 
-                  name={type.label} 
-                />
-              ))
-            }
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="w-full overflow-x-auto">
+        <div className="min-w-[800px]">
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              {leaveTypes.filter(lt => selectedLeaveTypes.includes(lt.key)).map((leaveType) => (
+                <Bar key={leaveType.key} dataKey={leaveType.key} name={leaveType.label} fill={leaveType.color} stackId="leaves" />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
+      {loading && <div className="text-center py-4 text-muted-foreground">Loading...</div>}
+      {!loading && chartData.length === 0 && <div className="text-center py-8 text-muted-foreground">No data for {format(selectedMonth, "MMMM yyyy")}</div>}
     </div>
   );
 }
