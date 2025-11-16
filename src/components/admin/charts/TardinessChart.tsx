@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { supabase } from '@/lib/supabase';
 
 interface TardinessChartProps {
   selectedMonth: Date;
@@ -25,7 +26,7 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 🎨 Color palette
+  // Color palette for departments/colleges
   const colors = [
     "#2563eb", // blue
     "#16a34a", // green
@@ -36,6 +37,7 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
     "#f43f5e", // rose
     "#84cc16", // lime
     "#e11d48", // pink-red
+    "#06b6d4", // cyan
   ];
 
   useEffect(() => {
@@ -45,15 +47,105 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
         const year = selectedMonth.getFullYear();
         const month = selectedMonth.getMonth() + 1;
         
-        const response = await fetch(`/api/attendance/tardiness-trends?year=${year}&month=${month}&type=${viewType}`);
-        if (!response.ok) {
-          console.error('Failed to fetch tardiness data');
+        // Get first and last day of month
+        const firstDay = new Date(year, month - 1, 1);
+        const lastDay = new Date(year, month, 0);
+        
+        const monthStart = format(firstDay, 'yyyy-MM-dd');
+        const monthEnd = format(lastDay, 'yyyy-MM-dd');
+        
+        console.log('Fetching tardiness data for:', { monthStart, monthEnd, viewType });
+        
+        // Join with staff_users to get employee_type and department
+        const { data: logs, error } = await supabase
+          .from('attendance_logs')
+          .select(`
+            week_of_year,
+            minute_late,
+            att_date,
+            staff_users!inner (
+              employee_type,
+              department
+            )
+          `)
+          .gte('att_date', monthStart)
+          .lte('att_date', monthEnd)
+          .gt('minute_late', 0);
+        
+        if (error) {
+          console.error('Supabase error:', error);
+          throw error;
+        }
+        
+        console.log('Fetched tardiness logs:', logs);
+        
+        if (!logs || logs.length === 0) {
+          console.log('No tardiness data found');
           setData([]);
           return;
         }
         
-        const result = await response.json();
-        setData(result);
+        // Normalize staff_users (handle both array and object responses)
+        const normalizedLogs = logs.map(log => ({
+          ...log,
+          staff_user: Array.isArray(log.staff_users) ? log.staff_users[0] : log.staff_users,
+        }));
+        
+        // Filter by employee type (faculty or staff)
+        const filteredLogs = normalizedLogs.filter(log => {
+          const empType = log.staff_user?.employee_type?.toLowerCase();
+          if (viewType === 'faculty') {
+            return empType === 'faculty';
+          } else {
+            return empType === 'staff';
+          }
+        });
+        
+        console.log('Filtered logs by role:', filteredLogs);
+        
+        if (filteredLogs.length === 0) {
+          setData([]);
+          return;
+        }
+        
+        // Get unique weeks
+        const weeksInData = [...new Set(filteredLogs.map(d => d.week_of_year))].filter(w => w != null).sort((a, b) => a - b);
+        
+        // Get unique departments/colleges
+        const uniqueDepts = [...new Set(
+          filteredLogs
+            .map(log => log.staff_user?.department)
+            .filter(Boolean)
+        )].sort();
+        
+        console.log('Weeks:', weeksInData);
+        console.log('Departments/Colleges:', uniqueDepts);
+        
+        if (weeksInData.length === 0) {
+          setData([]);
+          return;
+        }
+        
+        // Transform data: Per week, show total minutes late for each department/college
+        const transformedData = weeksInData.map(week => {
+          const weekData: any = { week: `Week ${week}` };
+          
+          uniqueDepts.forEach(dept => {
+            const totalMinutes = filteredLogs
+              .filter(log => 
+                log.week_of_year === week && 
+                log.staff_user?.department === dept
+              )
+              .reduce((sum, log) => sum + (log.minute_late || 0), 0);
+            
+            weekData[dept] = totalMinutes;
+          });
+          
+          return weekData;
+        });
+        
+        console.log('Transformed tardiness data:', transformedData);
+        setData(transformedData);
       } catch (error) {
         console.error('Error fetching tardiness data:', error);
         setData([]);
@@ -78,11 +170,11 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
           <div>
             <CardTitle>Tardiness Trends</CardTitle>
             <CardDescription>
-              Weekly tardiness patterns by {viewType === "faculty" ? "college" : "department"} for {format(selectedMonth, "MMMM yyyy")}
+              Weekly tardiness comparison by {viewType === "faculty" ? "department/college" : "department"} for {format(selectedMonth, "MMMM yyyy")}
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            {/* 👇 Chart Type Toggle */}
+            {/* Chart Type Toggle */}
             <Select value={chartType} onValueChange={(val) => setChartType(val as "bar" | "line")}>
               <SelectTrigger className="w-[120px]">
                 <SelectValue placeholder="Chart Type" />
@@ -93,14 +185,14 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
               </SelectContent>
             </Select>
 
-            {/* 👇 Faculty/Staff Toggle */}
+            {/* Faculty/Staff Toggle */}
             <Select value={viewType} onValueChange={(val) => setViewType(val as "faculty" | "staff")}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="faculty">Faculty (Colleges)</SelectItem>
-                <SelectItem value="staff">Staff (Departments)</SelectItem>
+                <SelectItem value="faculty">Faculty</SelectItem>
+                <SelectItem value="staff">Staff</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -114,16 +206,15 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
           </div>
         ) : data.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            No tardiness data available for {format(selectedMonth, "MMMM yyyy")}
+            No tardiness data for {viewType === 'faculty' ? 'faculty' : 'staff'} in {format(selectedMonth, "MMMM yyyy")}
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={320}>
-            {/* ✅ Conditional Rendering Based on Chart Type */}
             {chartType === "bar" ? (
               <BarChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="week" />
-                <YAxis label={{ value: 'Late Minutes', angle: -90, position: 'insideLeft' }} />
+                <YAxis label={{ value: 'Minutes Late', angle: -90, position: 'insideLeft' }} />
                 <Tooltip />
                 <Legend />
                 {getDataKeys().map((key, index) => (
@@ -134,7 +225,7 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="week" />
-                <YAxis label={{ value: 'Late Minutes', angle: -90, position: 'insideLeft' }} />
+                <YAxis label={{ value: 'Minutes Late', angle: -90, position: 'insideLeft' }} />
                 <Tooltip />
                 <Legend />
                 {getDataKeys().map((key, index) => (

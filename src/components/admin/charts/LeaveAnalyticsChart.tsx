@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+import { supabase } from '@/lib/supabase';
 
 const leaveTypes = [
   { key: "vacation", label: "Vacation Leave", color: "hsl(var(--primary))" },
@@ -41,27 +42,74 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
       try {
         const year = selectedMonth.getFullYear();
         const month = selectedMonth.getMonth() + 1;
-        const response = await fetch(`/api/attendance/leave-analytics?year=${year}&month=${month}`);
-        if (!response.ok) {
+        
+        // Get first and last day of month
+        const firstDay = new Date(year, month - 1, 1);
+        const lastDay = new Date(year, month, 0);
+        
+        const monthStart = format(firstDay, 'yyyy-MM-dd');
+        const monthEnd = format(lastDay, 'yyyy-MM-dd');
+        
+        console.log('Fetching leave data between:', monthStart, 'and', monthEnd);
+        
+        // Query with proper date range filtering using gte and lte
+        const { data, error } = await supabase
+          .from('attendance_logs')
+          .select('leave_type, week_of_year, att_date, on_leave')
+          .gte('att_date', monthStart)
+          .lte('att_date', monthEnd)
+          .eq('on_leave', 1)
+          .not('leave_type', 'is', null);
+        
+        if (error) {
+          console.error('Supabase error:', error);
+          throw error;
+        }
+        
+        console.log('Fetched leave data:', data);
+        
+        if (!data || data.length === 0) {
+          console.log('No leave data found');
           setChartData([]);
           return;
         }
-        const data = await response.json();
-        const transformedData = [];
-        for (let week = 1; week <= 4; week++) {
-          const weekData: any = { month: `Week ${week}` };
-          leaveTypes.forEach(lt => {
-            weekData[lt.key] = data.find((d: any) => d.week === week && d.leave_type?.toLowerCase().includes(lt.key))?.count || 0;
-          });
-          transformedData.push(weekData);
+        
+        // Get unique weeks from the data
+        const weeksInData = [...new Set(data.map(d => d.week_of_year))].filter(w => w != null).sort((a, b) => a - b);
+        
+        console.log('Weeks found:', weeksInData);
+        
+        if (weeksInData.length === 0) {
+          setChartData([]);
+          return;
         }
+        
+        // Transform data by week
+        const transformedData = weeksInData.map(week => {
+          const weekData: any = { month: `Week ${week}` };
+          
+          leaveTypes.forEach(lt => {
+            const count = data.filter(d => {
+              const leaveTypeMatch = d.leave_type?.toLowerCase().includes(lt.key.toLowerCase());
+              return d.week_of_year === week && leaveTypeMatch;
+            }).length;
+            
+            weekData[lt.key] = count;
+          });
+          
+          return weekData;
+        });
+        
+        console.log('Transformed leave data:', transformedData);
         setChartData(transformedData);
       } catch (error) {
+        console.error('Error fetching leave data:', error);
         setChartData([]);
       } finally {
         setLoading(false);
       }
     };
+    
     fetchData();
   }, [selectedMonth]);
 
@@ -75,30 +123,54 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {leaveTypes.map((leaveType) => (
             <div key={leaveType.key} className="flex items-center space-x-2">
-              <Checkbox id={leaveType.key} checked={selectedLeaveTypes.includes(leaveType.key)} onCheckedChange={() => toggleLeaveType(leaveType.key)} />
-              <label htmlFor={leaveType.key} className="text-sm cursor-pointer select-none">{leaveType.label}</label>
+              <Checkbox 
+                id={leaveType.key} 
+                checked={selectedLeaveTypes.includes(leaveType.key)} 
+                onCheckedChange={() => toggleLeaveType(leaveType.key)} 
+              />
+              <label htmlFor={leaveType.key} className="text-sm cursor-pointer select-none">
+                {leaveType.label}
+              </label>
             </div>
           ))}
         </div>
       </div>
+      
       <div className="w-full overflow-x-auto">
         <div className="min-w-[800px]">
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              {leaveTypes.filter(lt => selectedLeaveTypes.includes(lt.key)).map((leaveType) => (
-                <Bar key={leaveType.key} dataKey={leaveType.key} name={leaveType.label} fill={leaveType.color} stackId="leaves" />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
+          {loading ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Loading leave data...
+            </div>
+          ) : chartData.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No leave data for {format(selectedMonth, "MMMM yyyy")}
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                {leaveTypes
+                  .filter(lt => selectedLeaveTypes.includes(lt.key))
+                  .map((leaveType) => (
+                    <Bar 
+                      key={leaveType.key} 
+                      dataKey={leaveType.key} 
+                      name={leaveType.label} 
+                      fill={leaveType.color} 
+                      stackId="leaves" 
+                    />
+                  ))
+                }
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
-      {loading && <div className="text-center py-4 text-muted-foreground">Loading...</div>}
-      {!loading && chartData.length === 0 && <div className="text-center py-8 text-muted-foreground">No data for {format(selectedMonth, "MMMM yyyy")}</div>}
     </div>
   );
 }

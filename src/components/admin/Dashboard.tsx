@@ -14,31 +14,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
-import { attendanceApi, analyticsApi } from "@/services/api";
 import { toast } from "@/hooks/use-toast";
+import * as XLSX from 'xlsx';
+import { supabase } from '@/lib/supabase';
 
-// Helper to format time from database (handles both ISO and time-only strings)
+// Helper to format time from database
 const formatTime = (timeStr: string | null): string => {
   if (!timeStr) return 'N/A';
-
-  // Extract HH:MM from either "2025-10-14T08:46:00" or "08:46:00"
-  const time = timeStr.includes('T')
-    ? timeStr.split('T')[1].slice(0, 5)  // ISO format
-    : timeStr.slice(0, 5);               // Time-only format
-
-  const [h, m] = time.split(':').map(Number);
+  
+  // Handle time format: "HH:MM:SS" or timestamp
+  let timeOnly = timeStr;
+  if (timeStr.includes('T')) {
+    timeOnly = timeStr.split('T')[1];
+  }
+  
+  const [h, m] = timeOnly.split(':').map(Number);
   const period = h >= 12 ? 'PM' : 'AM';
   const hour12 = h % 12 || 12;
-
+  
   return `${hour12}:${m.toString().padStart(2, '0')} ${period}`;
 };
-
-// Mock data for daily attendance table
-const mockDailyAttendance = [
-  { staffId: "11-2025-0023", name: "Rafael Aquino", timeIn: "08:00 AM", timeOut: "05:00 PM", statusIn: "Present", statusOut: "On Time" },
-  { staffId: "11-2025-0024", name: "Ivy Perez", timeIn: "08:15 AM", timeOut: "05:30 PM", statusIn: "Late", statusOut: "Overtime" },
-  { staffId: "23-2025-0001", name: "Cedrick Plupenio", timeIn: "07:45 AM", timeOut: "04:45 PM", statusIn: "Present", statusOut: "Undertime" },
-];
 
 export function Dashboard() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
@@ -60,52 +55,130 @@ export function Dashboard() {
   const fetchDashboardData = async (date: string) => {
     setLoading(true);
     try {
-      const [statsData, logsData] = await Promise.all([
-        attendanceApi.getStats(date),
-        attendanceApi.getLogs(date)
-      ]);
-      setStats({
-        total: statsData.total,
-        present: statsData.present,
-        absent: statsData.absent,
-        late: statsData.late,
-        on_leave: statsData.on_leave || 0
-      });
-      setDailyAttendance(logsData);
+      console.log('Fetching data for date:', date);
+      
+      // Join with staff_users to get name, department, employee_type
+      const { data: logs, error } = await supabase
+        .from('attendance_logs')
+        .select(`
+          *,
+          staff_users!inner (
+            staff_id,
+            name,
+            employee_type,
+            department
+          )
+        `)
+        .eq('att_date', date);
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log('Fetched logs:', logs);
+
+      if (!logs || logs.length === 0) {
+        console.log('No records found for date:', date);
+        setStats({ total: 0, present: 0, absent: 0, late: 0, on_leave: 0 });
+        setDailyAttendance([]);
+        setLoading(false);
+        return;
+      }
+
+      // Transform data to flatten staff_users
+      const transformedLogs = logs.map(log => ({
+        ...log,
+        staff_id: log.staff_users.staff_id,
+        name: log.staff_users.name,
+        role: log.staff_users.employee_type,
+        department: log.staff_users.department
+      }));
+
+      // Calculate stats
+      const present = transformedLogs.filter(l => 
+        l.status && (l.status.toLowerCase() === 'present' || l.status.toLowerCase() === 'late')
+      ).length;
+      
+      const late = transformedLogs.filter(l => 
+        l.status && l.status.toLowerCase() === 'late'
+      ).length;
+      
+      const onLeave = transformedLogs.filter(l => l.on_leave === 1 || l.on_leave === true).length;
+
+      const calculatedStats = {
+        total: transformedLogs.length,
+        present: present,
+        absent: transformedLogs.length - present - onLeave,
+        late: late,
+        on_leave: onLeave
+      };
+
+      console.log('Calculated stats:', calculatedStats);
+
+      setStats(calculatedStats);
+      setDailyAttendance(transformedLogs);
     } catch (error) {
+      console.error('Error fetching dashboard data:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch dashboard data",
+        description: "Failed to fetch dashboard data. Check console for details.",
         variant: "destructive"
       });
+      setStats({ total: 0, present: 0, absent: 0, late: 0, on_leave: 0 });
+      setDailyAttendance([]);
     } finally {
       setLoading(false);
     }
   };
 
   const exportDailyAttendance = async () => {
-    if (!selectedDate) return;
+    if (!selectedDate || dailyAttendance.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No attendance records to export",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setExportingDaily(true);
     try {
-      const date = format(selectedDate, 'yyyy-MM-dd');
-      const response = await fetch(`/api/attendance/export/daily?date=${date}`);
-      if (!response.ok) throw new Error('Export failed');
+      const exportData = dailyAttendance.map(record => ({
+        'Staff ID': record.staff_id,
+        'Name': record.name,
+        'Role': record.role || 'N/A',
+        'Department': record.department || 'N/A',
+        'Date': record.att_date || format(selectedDate, 'yyyy-MM-dd'),
+        'Time In': formatTime(record.time_in),
+        'Original Time In': formatTime(record.orig_time_in),
+        'Time Out': formatTime(record.time_out),
+        'Original Time Out': formatTime(record.orig_time_out),
+        'Status': record.status || 'N/A',
+        'Minutes Late': record.minute_late || 0,
+        'Hours Worked': record.worked_hours || 0,
+        'Overtime Hours': record.overtime_hours || 0,
+        'Is Absent': record.is_absent ? 'Yes' : 'No',
+        'Week of Year': record.week_of_year || '',
+        'Month': record.month || '',
+        'On Leave': record.on_leave ? 'Yes' : 'No',
+        'Leave Type': record.leave_type || '',
+        'Leave Block ID': record.leave_block_id || '',
+        'Leave Duration (Days)': record.leave_duration || ''
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Daily Attendance");
       
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `attendance_${date}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      XLSX.writeFile(wb, `Daily_Attendance_${format(selectedDate, 'yyyy-MM-dd')}.xlsx`);
       
       toast({
         title: "Success",
         description: "Daily attendance exported successfully"
       });
     } catch (error) {
+      console.error('Export error:', error);
       toast({
         title: "Error",
         description: "Failed to export attendance",
@@ -118,28 +191,71 @@ export function Dashboard() {
 
   const exportMonthlyAttendance = async () => {
     if (!selectedMonth) return;
+    
     setExportingMonthly(true);
     try {
       const year = selectedMonth.getFullYear();
       const month = selectedMonth.getMonth() + 1;
-      const response = await fetch(`/api/attendance/export/monthly?year=${year}&month=${month}`);
-      if (!response.ok) throw new Error('Export failed');
       
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `attendance_${year}-${month.toString().padStart(2, '0')}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const { data: logs, error } = await supabase
+        .from('attendance_logs')
+        .select(`
+          *,
+          staff_users!inner (
+            staff_id,
+            name,
+            employee_type,
+            department
+          )
+        `)
+        .eq('month', month);
+      
+      if (error) throw error;
+      
+      if (!logs || logs.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No attendance records for this month",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const exportData = logs.map(record => ({
+        'Staff ID': record.staff_users.staff_id,
+        'Name': record.staff_users.name,
+        'Role': record.staff_users.employee_type || 'N/A',
+        'Department': record.staff_users.department || 'N/A',
+        'Date': record.att_date,
+        'Time In': formatTime(record.time_in),
+        'Original Time In': formatTime(record.orig_time_in),
+        'Time Out': formatTime(record.time_out),
+        'Original Time Out': formatTime(record.orig_time_out),
+        'Status': record.status || 'N/A',
+        'Minutes Late': record.minute_late || 0,
+        'Hours Worked': record.worked_hours || 0,
+        'Overtime Hours': record.overtime_hours || 0,
+        'Is Absent': record.is_absent ? 'Yes' : 'No',
+        'Week of Year': record.week_of_year || '',
+        'Month': record.month || '',
+        'On Leave': record.on_leave ? 'Yes' : 'No',
+        'Leave Type': record.leave_type || '',
+        'Leave Block ID': record.leave_block_id || '',
+        'Leave Duration (Days)': record.leave_duration || ''
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Monthly Attendance");
+      
+      XLSX.writeFile(wb, `Monthly_Attendance_${year}-${month.toString().padStart(2, '0')}.xlsx`);
       
       toast({
         title: "Success",
         description: "Monthly attendance exported successfully"
       });
     } catch (error) {
+      console.error('Export error:', error);
       toast({
         title: "Error",
         description: "Failed to export attendance",
@@ -169,7 +285,7 @@ export function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {statCards.map((stat) => (
           <Card key={stat.title} className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -266,7 +382,7 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Daily Attendance Table (only for single date) */}
+      {/* Daily Attendance Table */}
       {isSingleDate && selectedDate && (
         <Card className="shadow-md">
           <CardHeader>
@@ -319,8 +435,8 @@ export function Dashboard() {
                       <TableHead>Department</TableHead>
                       <TableHead>Time In</TableHead>
                       <TableHead>Time Out</TableHead>
-                      <TableHead>Status (In)</TableHead>
-                      <TableHead>Status (Out)</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Minutes Late</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -347,22 +463,15 @@ export function Dashboard() {
                             <TableCell>{formatTime(record.time_in)}</TableCell>
                             <TableCell>{formatTime(record.time_out)}</TableCell>
                             <TableCell>
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${record.status === 'Present' ? 'bg-success/10 text-success' :
-                                record.status === 'Late' ? 'bg-warning/10 text-warning' :
-                                  'bg-destructive/10 text-destructive'
-                                }`}>
-                                {record.status === 'Late' ? 'Late' : record.status === 'Present' ? 'On Time' : 'Absent'}
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                record.status?.toLowerCase() === 'present' ? 'bg-success/10 text-success' :
+                                record.status?.toLowerCase() === 'late' ? 'bg-warning/10 text-warning' :
+                                'bg-destructive/10 text-destructive'
+                              }`}>
+                                {record.status || 'N/A'}
                               </span>
                             </TableCell>
-                            <TableCell>
-                              {record.time_out ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/10 text-success">
-                                  On Time
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">-</span>
-                              )}
-                            </TableCell>
+                            <TableCell>{record.minute_late || 0}</TableCell>
                           </TableRow>
                         ))
                     )}
@@ -378,7 +487,7 @@ export function Dashboard() {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Leave Analytics</CardTitle>
-          <CardDescription>Monthly leave requests by type (scroll horizontally to see Jan-Dec)</CardDescription>
+          <CardDescription>Leave requests by type for {format(selectedMonth, "MMMM yyyy")}</CardDescription>
         </CardHeader>
         <CardContent>
           <LeaveAnalyticsChart selectedMonth={selectedMonth} />
@@ -388,10 +497,10 @@ export function Dashboard() {
       {/* Tardiness Analytics */}
       <TardinessChart selectedMonth={selectedMonth} />
 
-      {/* Top Employees - Moved from Analytics */}
+      {/* Top Employees */}
       <TopEmployeesDashboard selectedDate={selectedDate} dateRange={dateRange} />
 
-      {/* Top Late/Absent Employees - NEW */}
+      {/* Top Late/Absent Employees */}
       <TopLateAbsentEmployees selectedDate={selectedDate} dateRange={dateRange} />
 
       {/* Status Analytics */}
