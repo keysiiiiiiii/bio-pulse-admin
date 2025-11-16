@@ -8,7 +8,8 @@ import { TardinessChart } from "./charts/TardinessChart";
 import { StatusAnalytics } from "./charts/StatusAnalytics";
 import { TopLateAbsentEmployees } from "./charts/TopLateAbsentEmployees";
 import { TopEmployeesDashboard } from "./charts/TopEmployeesDashboard";
-import { Users, UserCheck, UserX, Clock } from "lucide-react";
+import { Users, UserCheck, UserX, Clock, CalendarDays, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -44,9 +45,11 @@ export function Dashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [loading, setLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
-  const [stats, setStats] = useState({ total: 0, present: 0, absent: 0, late: 0 });
+  const [stats, setStats] = useState({ total: 0, present: 0, absent: 0, late: 0, on_leave: 0 });
   const [dailyAttendance, setDailyAttendance] = useState<any[]>([]);
   const [attendanceFilter, setAttendanceFilter] = useState<"all" | "faculty" | "staff">("all");
+  const [exportingDaily, setExportingDaily] = useState(false);
+  const [exportingMonthly, setExportingMonthly] = useState(false);
 
   useEffect(() => {
     if (selectedDate) {
@@ -61,7 +64,13 @@ export function Dashboard() {
         attendanceApi.getStats(date),
         attendanceApi.getLogs(date)
       ]);
-      setStats(statsData);
+      setStats({
+        total: statsData.total,
+        present: statsData.present,
+        absent: statsData.absent,
+        late: statsData.late,
+        on_leave: statsData.on_leave || 0
+      });
       setDailyAttendance(logsData);
     } catch (error) {
       toast({
@@ -74,11 +83,79 @@ export function Dashboard() {
     }
   };
 
+  const exportDailyAttendance = async () => {
+    if (!selectedDate) return;
+    setExportingDaily(true);
+    try {
+      const date = format(selectedDate, 'yyyy-MM-dd');
+      const response = await fetch(`/api/attendance/export/daily?date=${date}`);
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendance_${date}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Success",
+        description: "Daily attendance exported successfully"
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to export attendance",
+        variant: "destructive"
+      });
+    } finally {
+      setExportingDaily(false);
+    }
+  };
+
+  const exportMonthlyAttendance = async () => {
+    if (!selectedMonth) return;
+    setExportingMonthly(true);
+    try {
+      const year = selectedMonth.getFullYear();
+      const month = selectedMonth.getMonth() + 1;
+      const response = await fetch(`/api/attendance/export/monthly?year=${year}&month=${month}`);
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendance_${year}-${month.toString().padStart(2, '0')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Success",
+        description: "Monthly attendance exported successfully"
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to export attendance",
+        variant: "destructive"
+      });
+    } finally {
+      setExportingMonthly(false);
+    }
+  };
+
   const statCards = [
     { title: "Total Staff", value: stats.total, icon: Users, color: "text-primary" },
     { title: "Present Today", value: stats.present, icon: UserCheck, color: "text-success" },
     { title: "Absent Today", value: stats.absent, icon: UserX, color: "text-destructive" },
     { title: "Tardy Today", value: stats.late, icon: Clock, color: "text-warning" },
+    { title: "Leave Today", value: stats.on_leave, icon: CalendarDays, color: "text-info" },
   ];
 
   const isSingleDate = selectedDate && !dateRange;
@@ -183,7 +260,7 @@ export function Dashboard() {
                 </div>
               </div>
             ) : (
-              <AttendanceChart />
+              <AttendanceChart selectedDate={selectedDate} />
             )}
           </CardContent>
         </Card>
@@ -198,16 +275,36 @@ export function Dashboard() {
                 <CardTitle>Daily Attendance Detail</CardTitle>
                 <CardDescription>Attendance records for {format(selectedDate, "PPPP")}</CardDescription>
               </div>
-              <Select value={attendanceFilter} onValueChange={(val) => setAttendanceFilter(val as "all" | "faculty" | "staff")}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="faculty">Faculty</SelectItem>
-                  <SelectItem value="staff">Staff</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select value={attendanceFilter} onValueChange={(val) => setAttendanceFilter(val as "all" | "faculty" | "staff")}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="faculty">Faculty</SelectItem>
+                    <SelectItem value="staff">Staff</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={exportDailyAttendance}
+                  disabled={exportingDaily}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {exportingDaily ? "Exporting..." : "Export Daily"}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={exportMonthlyAttendance}
+                  disabled={exportingMonthly}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {exportingMonthly ? "Exporting..." : "Export Monthly"}
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -284,12 +381,12 @@ export function Dashboard() {
           <CardDescription>Monthly leave requests by type (scroll horizontally to see Jan-Dec)</CardDescription>
         </CardHeader>
         <CardContent>
-          <LeaveAnalyticsChart selectedDate={selectedDate} dateRange={dateRange} />
+          <LeaveAnalyticsChart selectedMonth={selectedMonth} />
         </CardContent>
       </Card>
 
       {/* Tardiness Analytics */}
-      <TardinessChart selectedDate={selectedDate} />
+      <TardinessChart selectedMonth={selectedMonth} />
 
       {/* Top Employees - Moved from Analytics */}
       <TopEmployeesDashboard selectedDate={selectedDate} dateRange={dateRange} />
