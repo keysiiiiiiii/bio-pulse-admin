@@ -16,6 +16,22 @@ import { format } from "date-fns";
 import { attendanceApi, analyticsApi } from "@/services/api";
 import { toast } from "@/hooks/use-toast";
 
+// Helper to format time from database (handles both ISO and time-only strings)
+const formatTime = (timeStr: string | null): string => {
+  if (!timeStr) return 'N/A';
+
+  // Extract HH:MM from either "2025-10-14T08:46:00" or "08:46:00"
+  const time = timeStr.includes('T')
+    ? timeStr.split('T')[1].slice(0, 5)  // ISO format
+    : timeStr.slice(0, 5);               // Time-only format
+
+  const [h, m] = time.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 || 12;
+
+  return `${hour12}:${m.toString().padStart(2, '0')} ${period}`;
+};
+
 // Mock data for daily attendance table
 const mockDailyAttendance = [
   { staffId: "11-2025-0023", name: "Rafael Aquino", timeIn: "08:00 AM", timeOut: "05:00 PM", statusIn: "Present", statusOut: "On Time" },
@@ -31,13 +47,13 @@ export function Dashboard() {
   const [stats, setStats] = useState({ total: 0, present: 0, absent: 0, late: 0 });
   const [dailyAttendance, setDailyAttendance] = useState<any[]>([]);
   const [attendanceFilter, setAttendanceFilter] = useState<"all" | "faculty" | "staff">("all");
-  
+
   useEffect(() => {
     if (selectedDate) {
       fetchDashboardData(format(selectedDate, 'yyyy-MM-dd'));
     }
   }, [selectedDate]);
-  
+
   const fetchDashboardData = async (date: string) => {
     setLoading(true);
     try {
@@ -226,33 +242,32 @@ export function Dashboard() {
                           return true;
                         })
                         .map((record, index) => (
-                        <TableRow key={index} className="hover:bg-muted/50">
-                          <TableCell className="font-medium">{record.staff_id}</TableCell>
-                          <TableCell>{record.name}</TableCell>
-                          <TableCell className="capitalize">{record.role || 'N/A'}</TableCell>
-                          <TableCell>{record.department || 'N/A'}</TableCell>
-                          <TableCell>{record.time_in ? new Date(record.time_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</TableCell>
-                          <TableCell>{record.time_out ? new Date(record.time_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</TableCell>
-                          <TableCell>
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              record.status === 'Present' ? 'bg-success/10 text-success' :
-                              record.status === 'Late' ? 'bg-warning/10 text-warning' :
-                              'bg-destructive/10 text-destructive'
-                            }`}>
-                              {record.status === 'Late' ? 'Late' : record.status === 'Present' ? 'On Time' : 'Absent'}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            {record.time_out ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/10 text-success">
-                                On Time
+                          <TableRow key={index} className="hover:bg-muted/50">
+                            <TableCell className="font-medium">{record.staff_id}</TableCell>
+                            <TableCell>{record.name}</TableCell>
+                            <TableCell className="capitalize">{record.role || 'N/A'}</TableCell>
+                            <TableCell>{record.department || 'N/A'}</TableCell>
+                            <TableCell>{formatTime(record.time_in)}</TableCell>
+                            <TableCell>{formatTime(record.time_out)}</TableCell>
+                            <TableCell>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${record.status === 'Present' ? 'bg-success/10 text-success' :
+                                record.status === 'Late' ? 'bg-warning/10 text-warning' :
+                                  'bg-destructive/10 text-destructive'
+                                }`}>
+                                {record.status === 'Late' ? 'Late' : record.status === 'Present' ? 'On Time' : 'Absent'}
                               </span>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))
+                            </TableCell>
+                            <TableCell>
+                              {record.time_out ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/10 text-success">
+                                  On Time
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))
                     )}
                   </TableBody>
                 </Table>
