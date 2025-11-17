@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TopLateEmployeesEnhanced } from "./charts/TopLateEmployeesEnhanced";
+import { StatusDistributionDual } from "./charts/StatusDistributionDual";
+import { DayOfWeekComparison } from "./charts/DayOfWeekComparison";
+import { FacultyStaffPatternsStacked } from "./charts/FacultyStaffPatternsStacked";
 import { TimeAnalytics } from "./charts/TimeAnalytics";
 import { TrendAnalytics } from "./charts/TrendAnalytics";
 import { SeasonalAnalytics } from "./charts/SeasonalAnalytics";
@@ -29,68 +32,47 @@ export function Analytics() {
         </div>
         
         <div className="flex gap-2">
-          <Button
-            variant={!isRangeMode ? "default" : "outline"}
-            size="sm"
-            onClick={() => setIsRangeMode(false)}
-          >
-            Single Date
-          </Button>
-          <Button
-            variant={isRangeMode ? "default" : "outline"}
-            size="sm"
-            onClick={() => setIsRangeMode(true)}
-          >
-            Date Range
-          </Button>
-          
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
                   "w-[240px] justify-start text-left font-normal",
-                  !selectedDate && !dateRange && "text-muted-foreground"
+                  !selectedDate && "text-muted-foreground"
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {isRangeMode && dateRange?.from ? (
-                  dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
-                    </>
-                  ) : (
-                    format(dateRange.from, "LLL dd, y")
-                  )
-                ) : selectedDate ? (
-                  format(selectedDate, "PPP")
+                {selectedDate ? (
+                  format(selectedDate, "MMMM yyyy")
                 ) : (
-                  <span>Pick a date</span>
+                  <span>Pick a month</span>
                 )}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              {isRangeMode ? (
-                <Calendar
-                  mode="range"
-                  selected={dateRange}
-                  onSelect={(date) => setDateRange(date as { from: Date; to: Date })}
-                  initialFocus
-                  className="pointer-events-auto"
-                />
-              ) : (
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => setSelectedDate(date as Date)}
-                  initialFocus
-                  className="pointer-events-auto"
-                />
-              )}
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => setSelectedDate(date as Date)}
+                initialFocus
+                className="pointer-events-auto"
+              />
             </PopoverContent>
           </Popover>
         </div>
       </div>
+
+      {/* Top/Late Employees - Enhanced with Filters */}
+      <TopLateEmployeesEnhanced selectedDate={selectedDate} />
+
+      {/* Distribution of STATUS - Dual Pie Charts (Faculty vs Staff) */}
+      <StatusDistributionDual selectedDate={selectedDate} />
+
+      {/* Day-of-Week Analysis - Week Comparison */}
+      <DayOfWeekComparison selectedDate={selectedDate} />
+
+      {/* Faculty vs Staff Patterns - Stacked Bar Chart */}
+      <FacultyStaffPatternsStacked selectedDate={selectedDate} />
 
       {/* Group 1: Seasonal Trends - MOVED TO TOP */}
       <div className="space-y-6">
