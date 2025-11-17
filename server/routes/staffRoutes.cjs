@@ -875,10 +875,65 @@ function computeAccruedCredits(accrual_start_date, per_month_rate, used_credits)
   return Math.max(0, accrued - used);
 }
 
-/** GET /api/leave/:staff_id
- *  Returns computed balance + raw fields.
- *  Fallback: if table user_accounts is missing, try reading from staff_users instead.
- */
+/** GET /api/leave/me - Get current user's own leave credits */
+router.get('/leave/me',
+  verifyToken,
+  async (req, res) => {
+    try {
+      const staffId = req.user?.staff_id;
+      if (!staffId) return res.status(400).json({ message: 'No staff_id in token' });
+      
+      // Only Staff and Faculty can access leave credits
+      const role = req.user?.role || '';
+      if (role !== 'Staff' && role !== 'Faculty') {
+        return res.status(403).json({ message: 'Leave credits only available for Staff and Faculty' });
+      }
+
+      const su = await getStaffUserRow(staffId);
+      if (!su) return res.status(404).json({ message: 'User not found' });
+
+      let eligible = false;
+      let leave_credits = 0;
+      let accrual_start_date = null;
+      let per_month_rate = 2.5;
+      let used_credits = 0;
+
+      try {
+        const r = await db
+          .from('user_accounts')
+          .select('leave_eligible, leave_credits, accrual_start_date, per_month_rate, used_credits')
+          .eq('staff_user_id', su.id)
+          .maybeSingle();
+        
+        if (r.data) {
+          eligible = !!r.data.leave_eligible;
+          leave_credits = r.data.leave_credits || 0;
+          accrual_start_date = r.data.accrual_start_date;
+          per_month_rate = r.data.per_month_rate || 2.5;
+          used_credits = r.data.used_credits || 0;
+        }
+      } catch (e) {
+        console.error('Error fetching leave from user_accounts:', e);
+      }
+
+      const computed = eligible ? computeAccruedCredits(accrual_start_date, per_month_rate, used_credits) : 0;
+
+      return res.json({
+        leave_eligible: eligible,
+        computed_credits: computed,
+        leave_credits,
+        accrual_start_date,
+        per_month_rate,
+        used_credits
+      });
+    } catch (e) {
+      console.error('GET /leave/me failed:', e);
+      return res.status(500).json({ error: 'Server error' });
+    }
+  }
+);
+
+/** GET /api/leave/:staff_id - Admin endpoint to view any user's leave credits */
 router.get('/leave/:staff_id',
   verifyToken,
   requireRole('Admin', 'Vice President', 'ICTO'),

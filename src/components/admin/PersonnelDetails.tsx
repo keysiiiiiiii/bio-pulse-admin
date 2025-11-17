@@ -38,7 +38,7 @@ const attendanceData = [
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetailsProps) {
-  const [leaveCredits, setLeaveCredits] = useState({ vacation: 15, sick: 10, emergency: 5 });
+  const [leaveCredits, setLeaveCredits] = useState({ vacation: 0, sick: 0, emergency: 0 });
   const [leaveStatus, setLeaveStatus] = useState<'active' | 'inactive'>('inactive');
   const [editingCredits, setEditingCredits] = useState(false);
   const [passwordDialog, setPasswordDialog] = useState(false);
@@ -49,10 +49,36 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
   const [schedule, setSchedule] = useState<any[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
   const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false);
+  const [loadingLeave, setLoadingLeave] = useState(false);
+
+  // Check if user should have leave credits (Staff or Faculty only)
+  const shouldShowLeaveCredits = personnel.role === 'Staff' || personnel.role === 'Faculty';
 
   useEffect(() => {
     fetchSchedule();
-  }, [personnel.id]);
+    if (shouldShowLeaveCredits) {
+      fetchLeaveCredits();
+    }
+  }, [personnel.id, personnel.staff_id]);
+
+  const fetchLeaveCredits = async () => {
+    setLoadingLeave(true);
+    try {
+      const data = await staffApi.getLeaveCredits(personnel.staff_id);
+      const computed = data.computed_credits || 0;
+      setLeaveCredits({
+        vacation: computed / 2,  // Split equally between vacation and sick
+        sick: computed / 2,
+        emergency: 0  // Emergency leave not implemented yet
+      });
+      setLeaveStatus(data.leave_eligible ? 'active' : 'inactive');
+    } catch (error) {
+      console.error('Error fetching leave credits:', error);
+      setLeaveStatus('inactive');
+    } finally {
+      setLoadingLeave(false);
+    }
+  };
 
   const fetchSchedule = async () => {
     setLoadingSchedule(true);
