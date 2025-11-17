@@ -12,6 +12,7 @@ import { UserCheck, Calendar, TrendingUp, Shield, Clock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { scheduleApi } from "@/services/api";
 import { ScheduleEditorDialog } from "./ScheduleEditorDialog";
+import { staffApi } from "@/services/api/staffApi";
 
 interface PersonnelDetailsProps {
   personnel: {
@@ -59,18 +60,22 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
     if (shouldShowLeaveCredits) {
       fetchLeaveCredits();
     }
-  }, [personnel.id, personnel.staff_id]);
+  }, [personnel.id, personnel.staffId]);
 
   const fetchLeaveCredits = async () => {
     setLoadingLeave(true);
     try {
-      const data = await staffApi.getLeaveCredits(personnel.staff_id);
-      const computed = data.computed_credits || 0;
+      const data = await staffApi.getLeaveCredits(personnel.staffId);
+
+      // ✅ SIMPLE: Display leave_credits directly
+      const credits = data.leave_credits || 0;
+
       setLeaveCredits({
-        vacation: computed / 2,  // Split equally between vacation and sick
-        sick: computed / 2,
-        emergency: 0  // Emergency leave not implemented yet
+        vacation: credits / 2,  // Split for display purposes
+        sick: credits / 2,
+        emergency: 0
       });
+
       setLeaveStatus(data.leave_eligible ? 'active' : 'inactive');
     } catch (error) {
       console.error('Error fetching leave credits:', error);
@@ -156,7 +161,7 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
     setStatusDialog(true);
   };
 
-  const confirmToggleLeaveStatus = () => {
+  const confirmToggleLeaveStatus = async () => {
     if (!adminPassword) {
       toast({
         title: "Password Required",
@@ -166,16 +171,34 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
       return;
     }
 
-    // TODO: Verify admin password and update status via API
-    setLeaveStatus(leaveStatus === 'active' ? 'inactive' : 'active');
-    setStatusDialog(false);
-    setAdminPassword("");
+    try {
+      console.log('🔵 Activating leave for:', personnel.staffId);
+      console.log('🔵 Password provided:', adminPassword ? 'Yes' : 'No');
 
-    toast({
-      title: "Leave Status Updated",
-      description: `Leave credits are now ${leaveStatus === 'active' ? 'inactive' : 'active'}`,
-    });
+      // ✅ Call the backend API to activate leave
+      const result = await staffApi.activateLeave(personnel.staffId, adminPassword);
+      console.log('✅ Activation result:', result);
+
+      // ✅ Refresh leave credits from database
+      await fetchLeaveCredits();
+
+      setStatusDialog(false);
+      setAdminPassword("");
+
+      toast({
+        title: "Leave Status Updated",
+        description: `Leave credits have been activated successfully`,
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to activate leave:', error);
+      toast({
+        title: "Activation Failed",
+        description: error.message || "Failed to activate leave credits",
+        variant: "destructive",
+      });
+    }
   };
+
 
   const handleSetAsDean = () => {
     setDeanDialog(true);
@@ -248,92 +271,100 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
       </Card>
 
       {/* Leave Credits */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-secondary" />
-              Leave Credits
-            </CardTitle>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="leave-status">Status:</Label>
-                <Badge variant={leaveStatus === 'active' ? 'default' : 'secondary'}>
-                  {leaveStatus.toUpperCase()}
-                </Badge>
-                <Switch
-                  id="leave-status"
-                  checked={leaveStatus === 'active'}
-                  onCheckedChange={handleToggleLeaveStatus}
-                />
-              </div>
-              {!editingCredits ? (
-                <Button size="sm" onClick={() => {
-                  setEditingCredits(true);
-                  setTempCredits(leaveCredits);
-                }}>
-                  Edit Credits
-                </Button>
-              ) : (
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setEditingCredits(false)}>
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={handleSaveCredits}>
-                    Save Changes
-                  </Button>
+      {shouldShowLeaveCredits && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-secondary" />
+                Leave Credits
+              </CardTitle>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="leave-status">Status:</Label>
+                  <Badge variant={leaveStatus === 'active' ? 'default' : 'secondary'}>
+                    {leaveStatus.toUpperCase()}
+                  </Badge>
+                  <Switch
+                    id="leave-status"
+                    checked={leaveStatus === 'active'}
+                    onCheckedChange={handleToggleLeaveStatus}
+                    disabled={loadingLeave}
+                  />
                 </div>
-              )}
+                {!editingCredits ? (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditingCredits(true);
+                      setTempCredits(leaveCredits);
+                    }}
+                    disabled={leaveStatus !== 'active'}
+                  >
+                    Edit Credits
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setEditingCredits(false)}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleSaveCredits}>
+                      Save Changes
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label>Vacation Leave</Label>
-              {editingCredits ? (
-                <Input
-                  type="number"
-                  value={tempCredits.vacation}
-                  onChange={(e) => setTempCredits({ ...tempCredits, vacation: parseInt(e.target.value) || 0 })}
-                  min="0"
-                  step="0.25"
-                />
-              ) : (
-                <p className="text-2xl font-bold text-primary">{leaveCredits.vacation}</p>
-              )}
-            </div>
-            <div>
-              <Label>Sick Leave</Label>
-              {editingCredits ? (
-                <Input
-                  type="number"
-                  value={tempCredits.sick}
-                  onChange={(e) => setTempCredits({ ...tempCredits, sick: parseInt(e.target.value) || 0 })}
-                  min="0"
-                  step="0.25"
-                />
-              ) : (
-                <p className="text-2xl font-bold text-secondary">{leaveCredits.sick}</p>
-              )}
-            </div>
-            <div>
-              <Label>Emergency Leave</Label>
-              {editingCredits ? (
-                <Input
-                  type="number"
-                  value={tempCredits.emergency}
-                  onChange={(e) => setTempCredits({ ...tempCredits, emergency: parseInt(e.target.value) || 0 })}
-                  min="0"
-                  step="0.25"
-                />
-              ) : (
-                <p className="text-2xl font-bold text-accent">{leaveCredits.emergency}</p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            {loadingLeave ? (
+              <div className="text-center py-8 text-muted-foreground">Loading leave credits...</div>
+            ) : leaveStatus === 'inactive' ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>Leave credits not activated</p>
+                <p className="text-xs mt-1">Activate leave credits to start accrual</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label>Vacation Leave</Label>
+                  {editingCredits ? (
+                    <Input
+                      type="number"
+                      value={tempCredits.vacation}
+                      onChange={(e) => setTempCredits({ ...tempCredits, vacation: parseFloat(e.target.value) || 0 })}
+                      min="0"
+                      step="0.25"
+                    />
+                  ) : (
+                    <p className="text-2xl font-bold text-primary">{leaveCredits.vacation.toFixed(2)}</p>
+                  )}
+                </div>
+                <div>
+                  <Label>Sick Leave</Label>
+                  {editingCredits ? (
+                    <Input
+                      type="number"
+                      value={tempCredits.sick}
+                      onChange={(e) => setTempCredits({ ...tempCredits, sick: parseFloat(e.target.value) || 0 })}
+                      min="0"
+                      step="0.25"
+                    />
+                  ) : (
+                    <p className="text-2xl font-bold text-secondary">{leaveCredits.sick.toFixed(2)}</p>
+                  )}
+                </div>
+                <div>
+                  <Label>Emergency Leave</Label>
+                  <p className="text-xs text-muted-foreground mt-1">No limit (policy-based)</p>
+                  <p className="text-2xl font-bold text-accent">∞</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Work Schedule */}
       <Card>

@@ -23,6 +23,7 @@ import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { validateLeaveApplication } from '@/utils/leaveValidation';
 
 export const StaffLeaveForm = () => {
   const [startDate, setStartDate] = useState<Date>();
@@ -52,6 +53,24 @@ export const StaffLeaveForm = () => {
         variant: "destructive",
         title: "Missing Information",
         description: "Please fill in all required fields.",
+      });
+      return;
+    }
+
+    // ✅ ADD THIS VALIDATION
+    const duration = differenceInDays(endDate, startDate) + 1;
+
+    const validation = await validateLeaveApplication(
+      user.staff_id,
+      leaveType as 'sick' | 'vacation' | 'emergency',
+      duration
+    );
+
+    if (!validation.canApply) {
+      toast({
+        variant: "destructive",
+        title: "Cannot Apply for Leave",
+        description: validation.message,
       });
       return;
     }

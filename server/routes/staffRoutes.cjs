@@ -193,7 +193,7 @@ router.post('/auth/login', async (req, res) => {
   }
 
   attempts.delete(key);
-  
+
   // ✅ FIX: Include the database ID in the user object
   const user = {
     id: u.id,  // 👈 ADD THIS LINE
@@ -204,7 +204,7 @@ router.post('/auth/login', async (req, res) => {
     department: u.department || null,
     photo_url: u.photo_url || null
   };
-  
+
   const token = signUser(user);
   res.json({ token, user });
 });
@@ -329,9 +329,9 @@ router.get('/users',
 
     if (error) return res.status(500).json({ error: 'Database error' });
 
-    const shaped = (data || []).map(r => ({ 
-      ...r, 
-      phone: r.contact_number ?? null 
+    const shaped = (data || []).map(r => ({
+      ...r,
+      phone: r.contact_number ?? null
     }));
     return res.json(shaped);
   }
@@ -449,7 +449,7 @@ router.post('/users',
 
       if (insErr) {
         console.error('Create user failed:', insErr);
-        
+
         // Better error messages
         if (insErr.code === '23505') {
           if (insErr.message.includes('email')) {
@@ -457,7 +457,7 @@ router.post('/users',
           }
           return res.status(409).json({ message: 'Staff ID already exists in the system' });
         }
-        
+
         return res.status(insCode || 500).json({ message: insErr.message || 'Failed to create account' });
       }
 
@@ -875,63 +875,100 @@ function computeAccruedCredits(accrual_start_date, per_month_rate, used_credits)
   return Math.max(0, accrued - used);
 }
 
-/** GET /api/leave/me - Get current user's own leave credits */
-router.get('/leave/me',
-  verifyToken,
-  async (req, res) => {
-    try {
-      const staffId = req.user?.staff_id;
-      if (!staffId) return res.status(400).json({ message: 'No staff_id in token' });
-      
-      // Only Staff and Faculty can access leave credits
-      const role = req.user?.role || '';
-      if (role !== 'Staff' && role !== 'Faculty') {
-        return res.status(403).json({ message: 'Leave credits only available for Staff and Faculty' });
-      }
+// ✅ ADD THIS HELPER FUNCTION before the /leave/me endpoint
 
-      const su = await getStaffUserRow(staffId);
-      if (!su) return res.status(404).json({ message: 'User not found' });
+/**
+ * Reset used_credits to 0 at the start of each year
+ */
+async function checkAndResetYearlyCredits(staff_user_id) {
+  try {
+    const { data: account } = await db
+      .from('user_accounts')
+      .select('accrual_start_date, used_credits, last_reset_year')
+      .eq('staff_user_id', staff_user_id)
+      .single();
 
-      let eligible = false;
-      let leave_credits = 0;
-      let accrual_start_date = null;
-      let per_month_rate = 2.5;
-      let used_credits = 0;
+    if (!account) return;
 
-      try {
-        const r = await db
-          .from('user_accounts')
-          .select('leave_eligible, leave_credits, accrual_start_date, per_month_rate, used_credits')
-          .eq('staff_user_id', su.id)
-          .maybeSingle();
-        
-        if (r.data) {
-          eligible = !!r.data.leave_eligible;
-          leave_credits = r.data.leave_credits || 0;
-          accrual_start_date = r.data.accrual_start_date;
-          per_month_rate = r.data.per_month_rate || 2.5;
-          used_credits = r.data.used_credits || 0;
-        }
-      } catch (e) {
-        console.error('Error fetching leave from user_accounts:', e);
-      }
+    const currentYear = new Date().getFullYear();
+    const lastReset = account.last_reset_year || 0;
 
-      const computed = eligible ? computeAccruedCredits(accrual_start_date, per_month_rate, used_credits) : 0;
+    // ✅ If we're in a new year, reset used_credits
+    if (currentYear > lastReset) {
+      await db
+        .from('user_accounts')
+        .update({
+          used_credits: 0,
+          last_reset_year: currentYear
+        })
+        .eq('staff_user_id', staff_user_id);
 
-      return res.json({
-        leave_eligible: eligible,
-        computed_credits: computed,
-        leave_credits,
-        accrual_start_date,
-        per_month_rate,
-        used_credits
-      });
-    } catch (e) {
-      console.error('GET /leave/me failed:', e);
-      return res.status(500).json({ error: 'Server error' });
+      console.log(`✅ Reset used_credits for staff_user_id=${staff_user_id} (Year ${currentYear})`);
     }
+  } catch (e) {
+    console.warn('⚠️ Failed to reset yearly credits:', e);
   }
-);
+}
+
+
+/** GET /api/leave/me - Get current user's own leave credits */
+// ✅ UPDATE THIS ENDPOINT in staffRoutes.cjs around line 1000
+
+router.get('/leave/me', verifyToken, async (req, res) => {
+  try {
+    console.log('🔵 GET /leave/me called');
+    
+    const staffId = req.user?.sid;
+    if (!staffId) {
+      return res.status(400).json({ message: 'No staff_id in token' });
+    }
+
+    const role = req.user?.role || '';
+    if (role !== 'Staff' && role !== 'Faculty') {
+      return res.status(403).json({
+        message: 'Leave credits only available for Staff and Faculty',
+        current_role: role
+      });
+    }
+
+    const su = await getStaffUserRow(staffId);
+    if (!su) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // ✅ SELECT both leave_credits AND used_credits
+    const { data: account } = await db
+      .from('user_accounts')
+      .select('leave_eligible, leave_credits, used_credits')
+      .eq('staff_user_id', su.id)
+      .maybeSingle();
+
+    if (!account || !account.leave_eligible) {
+      return res.json({
+        leave_eligible: false,
+        leave_credits: 0,
+        used_credits: 0,
+        computed_credits: 0
+      });
+    }
+
+    const remaining = Number(account.leave_credits || 0);
+    const used = Number(account.used_credits || 0);
+
+    console.log('✅ Returning leave credits:', { remaining, used });
+
+    return res.json({
+      leave_eligible: true,
+      leave_credits: remaining,
+      used_credits: used,  // ✅ ADD THIS
+      computed_credits: remaining
+    });
+
+  } catch (e) {
+    console.error('❌ GET /leave/me failed:', e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
 
 /** GET /api/leave/:staff_id - Admin endpoint to view any user's leave credits */
 router.get('/leave/:staff_id',
@@ -943,93 +980,29 @@ router.get('/leave/:staff_id',
       const su = await getStaffUserRow(staffId);
       if (!su) return res.status(404).json({ message: 'User not found' });
 
-      let eligible = false;
-      let leave_credits = 0;
-      let accrual_start_date = null;
-      let per_month_rate = 2.5;
-      let used_credits = 0;
+      // ✅ SIMPLE: Just read leave_credits directly
+      const { data: account } = await db
+        .from('user_accounts')
+        .select('leave_eligible, leave_credits')
+        .eq('staff_user_id', su.id)
+        .maybeSingle();
 
-      // --- primary: user_accounts
-      try {
-        const r = await db
-          .from('user_accounts')
-          .select('leave_eligible, leave_credits, accrual_start_date, per_month_rate, used_credits')
-          .eq('staff_user_id', su.id)
-          .maybeSingle();
-        if (r.data) {
-          eligible = !!r.data.leave_eligible;
-          leave_credits = Number(r.data.leave_credits || 0);
-          accrual_start_date = r.data.accrual_start_date || null;
-          per_month_rate = Number(r.data.per_month_rate ?? 2.5);
-          used_credits = Number(r.data.used_credits || 0);
-        }
-      } catch { /* ignore */ }
-
-      // --- fallback: staff_users columns (if they exist)
-      if (!eligible && !accrual_start_date) {
-        try {
-          const r2 = await db
-            .from('staff_users')
-            .select('leave_eligible, leave_credits, accrual_start_date, per_month_rate, used_credits')
-            .eq('id', su.id)
-            .maybeSingle();
-          if (r2.data) {
-            eligible = !!r2.data.leave_eligible || eligible;
-            leave_credits = Number(r2.data.leave_credits || leave_credits);
-            accrual_start_date = r2.data.accrual_start_date || accrual_start_date;
-            per_month_rate = Number(r2.data.per_month_rate ?? per_month_rate);
-            used_credits = Number(r2.data.used_credits || used_credits);
-          }
-        } catch { /* ignore */ }
+      if (!account || !account.leave_eligible) {
+        return res.json({
+          leave_eligible: 0,
+          leave_credits: 0,
+          computed_credits: 0
+        });
       }
 
-      // --- FINAL fallback: infer from account_activity (works even with RLS on user_accounts)
-      if (!eligible) {
-        try {
-          const { data: acts } = await db
-            .from('account_activity')
-            .select('action, details, created_at')
-            .eq('staff_user_id', su.id)
-            .order('created_at', { ascending: false })
-            .limit(5);
-          const act = (acts || []).find(a => a.action === 'leave_activate');
-          if (act) {
-            eligible = true;
-            const d = act.details || {};
-            per_month_rate = Number(d.per_month_rate ?? per_month_rate);
-            accrual_start_date =
-              d.accrual_start_date ||
-              (act.created_at ? String(act.created_at).slice(0, 10) : accrual_start_date);
-          }
-        } catch { /* ignore */ }
-      }
-
-      // compute running balance
-      const computeAccrued = (startDate, rate, used) => {
-
-        if (!startDate) return Number(leave_credits || 0);
-        const sd = new Date(startDate + 'T00:00:00Z');
-        if (isNaN(sd)) return Number(leave_credits || 0);
-        const now = new Date();
-        let months = (now.getUTCFullYear() - sd.getUTCFullYear()) * 12 +
-          (now.getUTCMonth() - sd.getUTCMonth());
-        if (now.getUTCDate() >= sd.getUTCDate()) months += 1;
-        months = Math.max(0, months);
-        const accrued = months * Number(rate || 0);
-        return Math.max(0, accrued - Number(used || 0));
-      };
-
-      const computed = computeAccrued(accrual_start_date, per_month_rate, used_credits);
-
+      const credits = Number(account.leave_credits || 0);
 
       return res.json({
-        leave_eligible: eligible ? 1 : 0,
-        computed_credits: computed,
-        leave_credits,
-        accrual_start_date,
-        per_month_rate,
-        used_credits
+        leave_eligible: 1,
+        leave_credits: credits,
+        computed_credits: credits  // Same value
       });
+
     } catch (e) {
       console.error('GET /leave/:staff_id failed:', e);
       return res.status(500).json({ error: 'Server error' });
@@ -1116,6 +1089,77 @@ router.post('/leave/activate',
       return res.json({ message: 'activated' });
     } catch (e) {
       console.error('POST /leave/activate failed:', e);
+      return res.status(500).json({ error: 'Server error' });
+    }
+  }
+);
+
+// POST /api/leave/add-monthly-credits
+router.post('/leave/add-monthly-credits',
+  verifyToken,
+  requireRole('Admin', 'Vice President', 'ICTO'),
+  async (req, res) => {
+    try {
+      const { staff_id, hr_password } = req.body || {};
+      
+      if (!staff_id || !hr_password) {
+        return res.status(400).json({ error: 'Missing staff_id or hr_password' });
+      }
+
+      // Verify HR password
+      const hash = await findHrHeadHash();
+      const ok = await bcrypt.compare(hr_password, hash);
+      if (!ok) {
+        return res.status(401).json({ error: 'Invalid HR Head password' });
+      }
+
+      const su = await getStaffUserRow(staff_id);
+      if (!su) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Get current credits
+      const { data: account } = await db
+        .from('user_accounts')
+        .select('leave_credits, leave_eligible')
+        .eq('staff_user_id', su.id)
+        .single();
+
+      if (!account || !account.leave_eligible) {
+        return res.status(400).json({ error: 'Leave credits not activated for this user' });
+      }
+
+      const currentCredits = Number(account.leave_credits || 0);
+      const newCredits = currentCredits + 2.5;  // ✅ Add fixed 2.5 credits
+
+      // Update
+      const { error } = await db
+        .from('user_accounts')
+        .update({ leave_credits: newCredits })
+        .eq('staff_user_id', su.id);
+
+      if (error) throw error;
+
+      // Log activity
+      await logActivity({
+        staff_id,
+        action: 'leave_credits_monthly_add',
+        details: { 
+          previous: currentCredits, 
+          added: 2.5, 
+          new_balance: newCredits 
+        },
+        actor: req.user || {}
+      });
+
+      return res.json({ 
+        message: 'Monthly credits added', 
+        previous: currentCredits,
+        new_balance: newCredits 
+      });
+
+    } catch (e) {
+      console.error('POST /leave/add-monthly-credits failed:', e);
       return res.status(500).json({ error: 'Server error' });
     }
   }

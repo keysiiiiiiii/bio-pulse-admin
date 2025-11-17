@@ -483,15 +483,42 @@ router.get('/by-month', async (req, res) => {
   try {
     const y = parseInt(req.query.year, 10);
     const m = parseInt(req.query.month, 10);
-    if (!y || !m) return res.status(400).json({ error: 'year and month required' });
+
+    if (!y || !m) {
+      return res.status(400).json({ error: 'year and month required' });
+    }
+
+    // Resolve staff_user_id
+    const suid = await getSuidFromQuery(req);
+    if (!suid) {
+      return res.status(400).json({ error: 'staff_user_id or staff_id required' });
+    }
+
+    // Compute the month range
     const start = `${y}-${pad(m)}-01`;
-    const end   = `${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}`;
-    req.query.start = start; req.query.end = end;
-    return router.handle({ ...req, url: '/range' }, res, () => {});
+    const lastDay = new Date(y, m, 0).getDate();
+    const end = `${y}-${pad(m)}-${pad(lastDay)}`;
+
+    // Query attendance_logs directly
+    const { data, error } = await db
+      .from('attendance_logs')
+      .select(`
+        id, time_in, time_out, att_date, minute_late, method, attendance_status
+      `)
+      .eq('staff_user_id', suid)
+      .gte('att_date', start)
+      .lte('att_date', end)
+      .order('att_date', { ascending: true });
+
+    if (error) throw error;
+
+    return res.json(data || []);
+
   } catch (e) {
-    console.error('[by-month] error:', e.message || e);
+    console.error('[by-month FIXED] error:', e.message || e);
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 module.exports = router;

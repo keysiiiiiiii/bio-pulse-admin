@@ -577,81 +577,73 @@ router.get('/api/leaves/history', verifyToken, async (req, res) => {
 });
 
 /* ============ STATUS UPDATE ============ */
+// ✅ UPDATE THE APPROVAL SECTION in leaveRoutes.cjs
+
 router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice President', 'ICTO'), async (req, res) => {
   try {
-    console.log('📝 PATCH /api/leaves/:id/status');
-    console.log('   ID:', req.params.id);
-    console.log('   Body:', req.body);
+    // ... existing approval code ...
 
-    const id = Number(req.params.id);
-    const status = normStatus(req.body?.status);
-    const remarks = req.body?.remarks?.trim();
+    // ✅ AFTER DEDUCTING CREDITS, LOG DETAILED NOTIFICATION
+    if (status === 'approved' && leaveRequest.staff_user_id && leaveRequest.duration) {
+      const leaveType = leaveRequest.leave_type;
+      
+      if (leaveType === 'sick' || leaveType === 'vacation') {
+        const { data: account } = await db
+          .from('user_accounts')
+          .select('leave_credits')
+          .eq('staff_user_id', leaveRequest.staff_user_id)
+          .single();
 
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
-    if (status === 'disapproved' && !remarks) {
-      return res.status(400).json({ error: 'Remarks required for denial' });
-    }
+        if (account) {
+          const currentCredits = Number(account.leave_credits || 0);
+          const deducted = Number(leaveRequest.duration);
+          const newBalance = currentCredits - deducted;
 
-    const patch = {
-      status,
-      admin_remarks: remarks || null,
-      finalized_at: (status === 'approved' || status === 'disapproved') ? new Date().toISOString() : null
-    };
+          // ✅ UPDATE THE ACTIVITY LOG
+          await logLeaveActivity({
+            leave_id: id,
+            action: 'leave_status_update',
+            actor_staff_id: actorStaffId,
+            actor_role: req.user?.role || '',
+            staff_id: targetStaffId,
+            staff_user_id: data.staff_user_id,
+            details: {
+              leave_type: leaveRequest.leave_type,
+              status: status,
+              remarks: remarks || null,
+              days_deducted: deducted,
+              // ✅ ADD THESE FOR NOTIFICATION
+              previous_balance: currentCredits,
+              new_balance: Math.max(0, newBalance),
+              deduction_amount: deducted
+            }
+          });
 
-    const { data, error } = await db.from('leave_requests').update(patch).eq('id', id).select().single();
+          // ✅ UPDATE DEDUCTION LOGIC
+          const { error: updateErr } = await db
+            .from('user_accounts')
+            .update({ 
+              leave_credits: Math.max(0, newBalance),
+              used_credits: db.raw(`used_credits + ${deducted}`)  // ✅ Increment used
+            })
+            .eq('staff_user_id', leaveRequest.staff_user_id);
 
-    if (error) {
-      console.error('❌ Error:', error);
-      return res.status(500).json({ error: error.message });
-    }
+          if (updateErr) {
+            console.error('❌ Failed to deduct credits:', updateErr);
+            return res.status(500).json({ error: 'Failed to deduct leave credits' });
+          }
 
-    console.log('✅ Updated:', data);
-
-    // Get staff details for activity log
-    const actorStaffId = req.user?.sid || '';
-    const actorRole = req.user?.role || '';
-
-    // Fetch staff_id from staff_users table
-    let targetStaffId = null;
-    if (data.staff_user_id) {
-      const { data: staffData } = await db
-        .from('staff_users')
-        .select('staff_id')
-        .eq('id', data.staff_user_id)
-        .single();
-      if (staffData) targetStaffId = staffData.staff_id;
-    }
-
-    // ✅ Log activity to account_activity table
-    await logLeaveActivity({
-      leave_id: id,
-      action: 'leave_status_update',
-      actor_staff_id: actorStaffId,
-      actor_role: actorRole,
-      staff_id: targetStaffId,
-      staff_user_id: data.staff_user_id,
-      details: {
-        leave_type: data.fields?.leave_type || 'N/A',
-        status: status,
-        remarks: remarks || null,
-        start_date: data.fields?.start_date || null,
-        end_date: data.fields?.end_date || null
+          console.log('✅ Credits deducted successfully');
+        }
       }
-    });
+    }
 
-    // Send notification
-    const title = status === 'approved' ? 'Leave Approved' : status === 'disapproved' ? 'Leave Denied' : 'Leave Updated';
-    const message = status === 'disapproved' && remarks ? `Denied: ${remarks}` : `Status: ${status}`;
-
-    await safeNotify({ staff_user_id: data.staff_user_id, title, message, link: '' });
-
-    res.json({ ok: true, record: data });
+    // ... rest of approval code ...
   } catch (e) {
     console.error('❌ Error:', e);
     res.status(500).json({ error: e.message });
   }
 });
-
 /* ============ DRAFTS ============ */
 const DRAFTS_PATH = path.join(__dirname, '..', 'leave_drafts.json');
 const readDrafts = () => { try { return JSON.parse(fs.readFileSync(DRAFTS_PATH, 'utf8')) || []; } catch { return []; } };

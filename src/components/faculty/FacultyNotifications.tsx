@@ -113,54 +113,61 @@ const formatActivityMessage = (action: string, details: any) => {
     const endDate = details?.end_date || '';
     return `You submitted a ${leaveType} leave request from ${startDate} to ${endDate}`;
   }
-  
+
   if (action === 'leave_status_update') {
     const leaveType = details?.leave_type || 'leave';
     const status = details?.status || '';
     const remarks = details?.remarks;
-    
+
     if (status === 'approved') {
+      // If credits were deducted, include details
+      if (details?.days_deducted && details?.new_balance !== undefined) {
+        const newBalance = Number(details.new_balance).toFixed(2);
+        return `Your ${leaveType} leave request has been approved. ${details.days_deducted} day(s) deducted. New balance: ${newBalance} days.`;
+      }
       return `Your ${leaveType} leave request has been approved`;
     }
+
     if (status === 'disapproved') {
       return remarks ? `Disapproved: ${remarks}` : `Your ${leaveType} leave request was not approved`;
     }
+
     return `Your ${leaveType} leave status was updated to ${status}`;
   }
-  
+
   if (action === 'leave_credits_updated') {
     const creditType = details?.credit_type || 'leave credits';
     const amount = details?.amount || '';
     return `Your ${creditType} balance was updated: ${amount} days`;
   }
-  
+
   if (action === 'leave_credits_eligible') {
     return 'You are now eligible for leave credits';
   }
-  
+
   if (action === 'account_info_updated') {
     const field = details?.field || 'information';
     return `Your ${field} was successfully updated`;
   }
-  
+
   if (action === 'attendance_time_in') {
     const time = details?.time_in ? new Date(details.time_in).toLocaleTimeString() : '';
     return `You clocked in at ${time}`;
   }
-  
+
   if (action === 'attendance_time_out') {
     const time = details?.time_out ? new Date(details.time_out).toLocaleTimeString() : '';
     return `You clocked out at ${time}`;
   }
-  
+
   if (action === 'password_change') {
     return 'Your password was successfully changed';
   }
-  
+
   if (action === 'password_reset') {
-    return 'Your password was reset by an administrator';
+    return 'Your password was reset';
   }
-  
+
   return JSON.stringify(details || {});
 };
 
