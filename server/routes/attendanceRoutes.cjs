@@ -50,7 +50,7 @@ function shapeRow(r) {
   let status = r.attendance_status;
 
   if (!status) {
-    if (r.time_in) status = isLate(r.time_in) ? 'Late' : 'Present';
+    if (r.time_in) status = isLate(r.time_in) ? 'late' : 'present';
     else status = 'Absent';
   }
 
@@ -132,7 +132,7 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
         time_out: tsISO,
         att_date,
         method: 'biometric',
-        attendance_status: 'Present',
+        attendance_status: 'present',
       });
       if (insErr) throw insErr;
       return 'out(created)';
@@ -142,7 +142,7 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
         time_in: tsISO,
         att_date,
         method: 'biometric',
-        attendance_status: isLate(tsISO) ? 'Late' : 'Present',
+        attendance_status: isLate(tsISO) ? 'late' : 'present',
       });
       if (insErr) throw insErr;
       return 'in(created)';
@@ -166,7 +166,7 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
     const newIn = !row.time_in || new Date(tsISO) < new Date(row.time_in) ? tsISO : row.time_in;
     const { error: updErr } = await db
       .from('attendance_logs')
-      .update({ time_in: newIn, method: 'biometric', attendance_status: isLate(newIn) ? 'Late' : 'Present' })
+      .update({ time_in: newIn, method: 'biometric', attendance_status: isLate(newIn) ? 'late' : 'present' })
       .eq('id', row.id);
     if (updErr) throw updErr;
     return 'in(updated)';
@@ -361,7 +361,7 @@ router.get('/stats', async (req, res) => {
     if (error) throw error;
 
     const present = logs.filter(l => l.time_in).length;
-    const late = logs.filter(l => l.attendance_status === 'Late').length;
+    const late = logs.filter(l => l.attendance_status === 'late').length;
     const absent = Math.max(0, (totalCount || 0) - present);
 
     return res.json({
