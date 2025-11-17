@@ -15,15 +15,11 @@ const performanceData = [
   { month: "Nov", present: 18, absent: 1 },
 ];
 
-const leaveData = [
-  { name: "Used", value: 7, color: "hsl(var(--destructive))" },
-  { name: "Remaining", value: 8, color: "hsl(var(--primary))" },
-];
-
 export const FacultyDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { user } = useAuth();
-  const [leaveCredits, setLeaveCredits] = useState({ used: 7, remaining: 8 });
+  const [leaveCredits, setLeaveCredits] = useState<{ used: number; remaining: number; total: number } | null>(null);
+  const [leaveData, setLeaveData] = useState<Array<{name: string; value: number; color: string}>>([]);
   
   useEffect(() => {
     if (user?.staff_id) {
@@ -33,15 +29,27 @@ export const FacultyDashboard = () => {
   
   const fetchLeaveCredits = async () => {
     try {
-      if (user?.staff_id) {
-        const data = await staffApi.getLeaveCredits(user.staff_id);
-        setLeaveCredits({
-          used: data.vacation_used + data.sick_used,
-          remaining: data.vacation_balance + data.sick_balance
-        });
+      const data = await staffApi.getMyLeaveCredits();
+      
+      if (!data.leave_eligible) {
+        setLeaveCredits(null);
+        setLeaveData([]);
+        return;
       }
+
+      const total = data.computed_credits || 0;
+      const used = data.used_credits || 0;
+      const remaining = Math.max(0, total - used);
+      
+      setLeaveCredits({ used, remaining, total });
+      setLeaveData([
+        { name: "Used", value: used, color: "hsl(var(--destructive))" },
+        { name: "Remaining", value: remaining, color: "hsl(var(--primary))" },
+      ]);
     } catch (error) {
       console.error("Failed to fetch leave credits", error);
+      setLeaveCredits(null);
+      setLeaveData([]);
     }
   };
 
@@ -116,40 +124,50 @@ export const FacultyDashboard = () => {
         </Card>
 
         {/* Leave Credits Pie Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Leave Credits Overview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer
-              config={{
-                used: { label: "Used", color: "hsl(var(--destructive))" },
-                remaining: { label: "Remaining", color: "hsl(var(--primary))" },
-              }}
-              className="h-[300px]"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={leaveData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value }) => `${name}: ${value}`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {leaveData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                </PieChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Leave Credits Overview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {leaveCredits && leaveData.length > 0 ? (
+                <ChartContainer
+                  config={{
+                    used: { label: "Used", color: "hsl(var(--destructive))" },
+                    remaining: { label: "Remaining", color: "hsl(var(--primary))" },
+                  }}
+                  className="h-[300px]"
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={leaveData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, value }) => `${name}: ${value}`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {leaveData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                  <div className="text-center">
+                    <CalendarDays className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Leave credits not activated</p>
+                    <p className="text-xs">Contact admin to activate your leave credits</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
       </div>
 
       {/* Performance Chart */}

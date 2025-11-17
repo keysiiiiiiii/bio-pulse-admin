@@ -183,6 +183,21 @@ export const staffApi = {
   },
 
   // Leave management
+  // Get current user's own leave credits (Staff/Faculty only)
+  getMyLeaveCredits: async () => {
+    const response = await fetch(`${API_BASE}/leave/me`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch leave credits");
+    }
+    
+    return response.json();
+  },
+
+  // Admin endpoint to get any user's leave credits
   getLeaveCredits: async (staff_id: string) => {
     const response = await fetch(`${API_BASE}/leave/${staff_id}`, {
       method: "GET",
