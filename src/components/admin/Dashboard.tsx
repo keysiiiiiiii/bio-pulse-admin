@@ -5,9 +5,10 @@ import { DateRange } from "react-day-picker";
 import { AttendanceChart } from "./charts/AttendanceChart";
 import { LeaveAnalyticsChart } from "./charts/LeaveAnalyticsChart";
 import { TardinessChart } from "./charts/TardinessChart";
-import { StatusAnalytics } from "./charts/StatusAnalytics";
-import { TopLateAbsentEmployees } from "./charts/TopLateAbsentEmployees";
-import { TopEmployeesDashboard } from "./charts/TopEmployeesDashboard";
+import { TopLateEmployeesEnhanced } from "./charts/TopLateEmployeesEnhanced";
+import { StatusDistributionDual } from "./charts/StatusDistributionDual";
+import { DayOfWeekComparison } from "./charts/DayOfWeekComparison";
+import { FacultyStaffPatternsStacked } from "./charts/FacultyStaffPatternsStacked";
 import { Users, UserCheck, UserX, Clock, CalendarDays, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -497,14 +498,17 @@ export function Dashboard() {
       {/* Tardiness Analytics */}
       <TardinessChart selectedMonth={selectedMonth} />
 
-      {/* Top Employees */}
-      <TopEmployeesDashboard selectedDate={selectedDate} dateRange={dateRange} />
+      {/* Top/Late Employees */}
+      <TopLateEmployeesEnhanced selectedDate={selectedDate} />
 
-      {/* Top Late/Absent Employees */}
-      <TopLateAbsentEmployees selectedDate={selectedDate} dateRange={dateRange} />
+      {/* Distribution of STATUS */}
+      <StatusDistributionDual selectedDate={selectedDate} />
 
-      {/* Status Analytics */}
-      <StatusAnalytics selectedDate={selectedDate} dateRange={dateRange} />
+      {/* Day-of-Week Analysis */}
+      <DayOfWeekComparison selectedDate={selectedDate} />
+
+      {/* Faculty vs. Staff Attendance Patterns */}
+      <FacultyStaffPatternsStacked selectedDate={selectedDate} />
     </div>
   );
 }
