@@ -1,4 +1,4 @@
-// backend/index.cjs
+// server/index.cjs
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
@@ -105,11 +105,15 @@ if (leaveRoutes) app.use('/', leaveRoutes);
 const gsheetsRoutes = loadRoute('./routes/gsheetsRoutes.cjs', 'Google Sheets Routes');
 if (gsheetsRoutes) app.use('/', gsheetsRoutes);
 
+// FIX: Load and mount DTR routes immediately
 const dtrRoutes = loadRoute('./routes/dtrRoutes.cjs', 'DTR Routes');
+if (dtrRoutes) {
+  app.use('/api/dtr', dtrRoutes);
+  console.log('✅ Mounted DTR routes at /api/dtr');
+}
 
 const scheduleRoutes = loadRoute('./routes/scheduleRoutes.cjs', 'Schedule Routes');
 if (scheduleRoutes) app.use('/api/schedules', scheduleRoutes);
-if (dtrRoutes) app.use('/api/dtr', dtrRoutes);
 
 const activityRoutes = loadRoute('./routes/activityRoutes.cjs', 'Activity Routes');
 if (activityRoutes) app.use('/api/activity', activityRoutes);
@@ -129,24 +133,6 @@ app.get('/api/health', (req, res) => {
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/leave-files', express.static(path.join(__dirname, 'leave_files')));
 
-
-// ===================== ROUTE INSPECTOR =====================
-app.get('/__routes', (_req, res) => {
-  const list = [];
-  const parse = (stack, prefix = '') => {
-    stack.forEach((layer) => {
-      if (layer.route && layer.route.path) {
-        const methods = Object.keys(layer.route.methods).map(m => m.toUpperCase());
-        list.push({ methods, path: prefix + layer.route.path });
-      } else if (layer.name === 'router' && layer.handle?.stack) {
-        parse(layer.handle.stack, prefix);
-      }
-    });
-  };
-  parse(app._router.stack);
-  res.json({ ok: true, routes: list });
-});
-
 // ================= DRIVE SYNC TRIGGER =================
 app.post('/api/leaves/trigger-sync', async (req, res) => {
   try {
@@ -156,6 +142,49 @@ app.post('/api/leaves/trigger-sync', async (req, res) => {
   } catch (e) {
     console.error('[drive-sync] Error:', e);
     res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ===================== ROUTE INSPECTOR (MUST BE AFTER ALL ROUTES) =====================
+app.get('/__routes', (_req, res) => {
+  const list = [];
+  
+  try {
+    const parse = (stack, prefix = '') => {
+      if (!stack || !Array.isArray(stack)) return;
+      
+      stack.forEach((layer) => {
+        if (layer.route && layer.route.path) {
+          const methods = Object.keys(layer.route.methods).map(m => m.toUpperCase());
+          list.push({ methods, path: prefix + layer.route.path });
+        } else if (layer.name === 'router' && layer.handle?.stack) {
+          // Extract the mount path from regexp
+          let mountPath = '';
+          if (layer.regexp) {
+            const regexpStr = layer.regexp.toString();
+            // Try to extract path from regexp like /^\/api\/dtr\/?(?=\/|$)/i
+            const match = regexpStr.match(/\^\\?\/([\w\/\\-]+)/);
+            if (match) {
+              mountPath = '/' + match[1].replace(/\\/g, '');
+            }
+          }
+          parse(layer.handle.stack, prefix + mountPath);
+        }
+      });
+    };
+    
+    if (app._router && app._router.stack) {
+      parse(app._router.stack);
+      res.json({ ok: true, routes: list, count: list.length });
+    } else {
+      res.json({ 
+        ok: false, 
+        error: 'Router stack not available',
+        routes: list 
+      });
+    }
+  } catch (error) {
+    res.json({ ok: false, error: error.message, routes: list });
   }
 });
 
@@ -191,7 +220,7 @@ try {
   console.warn('[mount] zktecoPuller error:', e.message);
 }
 
-// ================= ERROR HANDLERS =================
+// ================= ERROR HANDLERS (MUST BE LAST) =================
 app.use((req, res) => {
   res.status(404).json({
     error: 'Route not found',
@@ -214,6 +243,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(` → Local:   http://localhost:${PORT}`);
   console.log(` → Network: http://${ip}:${PORT}`);
   console.log(` → Routes:  http://localhost:${PORT}/__routes`);
+  console.log(` → DTR Test: http://localhost:${PORT}/api/dtr/_diag`);
 });
 
 process.on('SIGTERM', () => {

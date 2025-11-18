@@ -182,7 +182,7 @@ export function StaffSchedule() {
 
         {createdBy && (
           <p className="text-xs text-muted-foreground text-center">
-            Last updated by ICTO Admin ({createdBy})
+             Last updated by Admin
           </p>
         )}
       </CardContent>

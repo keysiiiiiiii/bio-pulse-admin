@@ -1,4 +1,5 @@
-// routes/dtrRoutes.js — FULL DROP-IN
+// server/routes/dtrRoutes.cjs — FULL DROP-IN
+console.log('🔵 [DTR] Loading dtrRoutes.cjs...');
 
 const express = require('express');
 const router = express.Router();
@@ -6,7 +7,10 @@ const path = require('path');
 const fs = require('fs');
 
 const { createClient } = require('@supabase/supabase-js');
-const PDFDocument = require('pdfkit');
+const ExcelJS = require('exceljs');
+const axios = require('axios');
+
+console.log('🔵 [DTR] Express Router created');
 
 // ====== ENV / CONFIG ======
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -118,381 +122,150 @@ async function findExistingInStorage(staff_id, year, month) {
   return null;
 }
 
-// ====== PDF GENERATORS ======
+// ====== EXCEL GENERATOR ======
+async function buildExcelDTR({ staff, month, year }) {
+  const templatePath = path.join(__dirname, '..', 'DTR_FORM.xlsx');
 
-// ====== UPDATED buildHtmlDTR WITH REAL ATTENDANCE DATA ======
-async function buildHtmlDTR({ staff, month, year, logs = [] }) {
-  const puppeteer = require('puppeteer');
-  const tplPath = path.join(__dirname, '..', 'templates', 'dtr.html');
-  const htmlTpl = fs.readFileSync(tplPath, 'utf8');
+  if (!fs.existsSync(templatePath)) {
+    throw new Error('DTR_FORM.xlsx template not found at: ' + templatePath);
+  }
 
-  const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(templatePath);
+  const worksheet = workbook.getWorksheet(1); // First sheet
+
   const lastDay = new Date(year, month, 0).getDate();
-  const month_range = `${monthName} 1–${lastDay}, ${year}`;
-
-  // ===== FETCH REAL ATTENDANCE DATA =====
   const startDate = `${year}-${pad2(month)}-01`;
-  const endDate = `${year}-${pad2(month)}-${lastDay}`;
 
-  const { data: attendance } = await db
-    .from('attendance_logs')
-    .select('*')
-    .eq('staff_user_id', staff.id)
-    .gte('timestamp', startDate)
-    .lte('timestamp', `${year}-${pad2(month)}-${lastDay} 23:59:59`)
-    .order('timestamp', { ascending: true });
-
-  // Group by day
-  const byDay = {};
-  for (const log of attendance || []) {
-    const dt = new Date(log.timestamp);
-    const day = dt.getDate();
-    if (!byDay[day]) byDay[day] = [];
-    byDay[day].push({
-      time: dt.toTimeString().slice(0, 5), // HH:MM
-      hour: dt.getHours(),
-      minute: dt.getMinutes()
-    });
-  }
-
-  // Helper: convert 24h to 12h format
-  const to12 = (timeStr) => {
-    if (!timeStr) return '';
-    const [H, M] = timeStr.split(':').map(Number);
-    const h = H % 12 || 12;
-    const ampm = H < 12 ? 'AM' : 'PM';
-    return `${h}:${pad2(M)} ${ampm}`;
-  };
-
-  // Calculate time difference in minutes
-  const timeDiff = (t1, t2) => {
-    if (!t1 || !t2) return 0;
-    const [h1, m1] = t1.split(':').map(Number);
-    const [h2, m2] = t2.split(':').map(Number);
-    const min1 = h1 * 60 + m1;
-    const min2 = h2 * 60 + m2;
-    return Math.abs(min2 - min1);
-  };
-
-  const WORK_MIN = 8 * 60; // 8 hours = 480 minutes
-
-  // Build rows with actual data
-  const wk = d => new Date(year, month - 1, d).toLocaleDateString('en-US', { weekday: 'short' })[0];
-  const rows = [];
-
-  for (let d = 1; d <= lastDay; d++) {
-    const dayLogs = byDay[d] || [];
-
-    let am_in = '', am_out = '', pm_in = '', pm_out = '';
-    let tard_h = '', tard_m = '', und_h = '', und_m = '';
-
-    if (dayLogs.length > 0) {
-      // Assume: First log = AM in, then alternate in/out
-      // Simple logic: logs[0]=AM in, logs[1]=AM out, logs[2]=PM in, logs[3]=PM out
-      if (dayLogs[0]) am_in = to12(dayLogs[0].time);
-      if (dayLogs[1]) am_out = to12(dayLogs[1].time);
-      if (dayLogs[2]) pm_in = to12(dayLogs[2].time);
-      if (dayLogs[3]) pm_out = to12(dayLogs[3].time);
-
-      // Calculate worked minutes
-      const amMinutes = (dayLogs[0] && dayLogs[1])
-        ? timeDiff(dayLogs[0].time, dayLogs[1].time) : 0;
-      const pmMinutes = (dayLogs[2] && dayLogs[3])
-        ? timeDiff(dayLogs[2].time, dayLogs[3].time) : 0;
-      const totalWorked = amMinutes + pmMinutes;
-
-      // Tardiness (if first log is after 8:00 AM)
-      let tardiness = 0;
-      if (dayLogs[0] && dayLogs[0].hour >= 8) {
-        const expectedStart = 8 * 60; // 8:00 AM
-        const actualStart = dayLogs[0].hour * 60 + dayLogs[0].minute;
-        if (actualStart > expectedStart) {
-          tardiness = actualStart - expectedStart;
-        }
-      }
-
-      // Undertime
-      const undertime = totalWorked > 0 ? Math.max(0, WORK_MIN - totalWorked) : 0;
-
-      if (tardiness > 0) {
-        tard_h = Math.floor(tardiness / 60);
-        tard_m = tardiness % 60;
-      }
-      if (undertime > 0) {
-        und_h = Math.floor(undertime / 60);
-        und_m = undertime % 60;
-      }
-    }
-
-    rows.push({
-      day: d,
-      wk: wk(d),
-      am_in,
-      am_out,
-      pm_in,
-      pm_out,
-      tard_h: tard_h || '',
-      tard_m: tard_m ? pad2(tard_m) : '',
-      und_h: und_h || '',
-      und_m: und_m ? pad2(und_m) : ''
-    });
-  }
-
-  // Rest of template rendering (same as before)
-  const logoPath = path.join(__dirname, '..', 'assets', 'udmlogo.jpg');
-  const logo = fs.existsSync(logoPath) ? `file://${logoPath.replace(/\\/g, '/')}` : null;
-
-  const esc = s => String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
-  let html = htmlTpl
-    .replace(/{{name}}/g, esc(staff.name || ''))
-    .replace(/{{month_range}}/g, esc(month_range))
-    .replace(/{{employment}}/g, esc(staff.employee_type || ''))
-    .replace(/{{college}}/g, esc(staff.department || '—'))
-    .replace(/{{#if logo}}([\s\S]*?){{\/if}}/g, logo ? `$1` : '');
-
-  const rowHtml = rows.map(r => `
-    <tr>
-      <td class="day">${r.day}</td>
-      <td class="wk">${r.wk}</td>
-      <td>${r.am_in}</td><td>${r.am_out}</td>
-      <td>${r.pm_in}</td><td>${r.pm_out}</td>
-      <td>${r.tard_h}</td><td>${r.tard_m}</td>
-      <td>${r.und_h}</td><td>${r.und_m}</td>
-    </tr>`).join('');
-  html = html.replace(/{{#each rows}}[\s\S]*{{\/each}}/, rowHtml);
-  if (logo) html = html.replace(/{{logo}}/g, logo);
-
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--font-render-hinting=none'],
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
-  });
-  const page = await browser.newPage();
-  await page.setContent(html, { waitUntil: 'networkidle0' });
-  const pdf = await page.pdf({
-    format: 'Letter',
-    printBackground: true,
-    margin: { top: '0.5in', right: '0.5in', bottom: '0.5in', left: '0.5in' }
-  });
-  await browser.close();
-  return Buffer.from(pdf);
-}
-
-// ====== ALSO UPDATE buildClassicDTR (PDFKit version) ======
-// COMPLETE buildClassicDTR - Replace in dtrRoutes.js starting at line ~265
-
-async function buildClassicDTR({ staff, month, year, logs = [] }) {
   // Fetch attendance data
-  const startDate = `${year}-${pad2(month)}-01`;
-  const lastDay = new Date(year, month, 0).getDate();
-
   const { data: attendance } = await db
     .from('attendance_logs')
-    .select('*')
+    .select('att_date, time_in, time_out, orig_time_in, orig_time_out, minute_late, worked_hours')
     .eq('staff_user_id', staff.id)
-    .gte('timestamp', startDate)
-    .lte('timestamp', `${year}-${pad2(month)}-${lastDay} 23:59:59`)
-    .order('timestamp', { ascending: true });
+    .gte('att_date', startDate)
+    .lte('att_date', `${year}-${pad2(month)}-${lastDay}`)
+    .order('att_date', { ascending: true });
 
   // Group by day
   const byDay = {};
   for (const log of attendance || []) {
-    const dt = new Date(log.timestamp);
-    const day = dt.getDate();
-    if (!byDay[day]) byDay[day] = [];
-    byDay[day].push({
-      time: dt.toTimeString().slice(0, 5),
-      hour: dt.getHours(),
-      minute: dt.getMinutes()
-    });
+    const dt = new Date(log.att_date + 'T00:00:00Z');
+    const day = dt.getUTCDate();
+    if (!byDay[day]) byDay[day] = log;
   }
 
-  return await new Promise((resolve, reject) => {
-    try {
-      const doc = new PDFDocument({ size: 'LETTER', margin: 36 });
-      const bufs = [];
-      doc.on('data', d => bufs.push(d));
-      doc.on('end', () => resolve(Buffer.concat(bufs)));
-
-      const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
-
-      // Header
-      const logoPath = path.join(__dirname, '..', 'assets', 'udmlogo.jpg');
-      try {
-        doc.image(logoPath, 36, 28, { width: 54 });
-      } catch (_) { }
-
-      doc.font('Helvetica-Bold').fontSize(12).text('CITY OF MANILA', 0, 36, { align: 'center' });
-      doc.fontSize(14).text('UNIVERSIDAD DE MANILA', { align: 'center' });
-      doc.moveDown(0.2);
-      doc.fontSize(12).text('DAILY TIME RECORD', { align: 'center' });
-      doc.font('Helvetica').fontSize(9).text('CIVIL SERVICE FORM NO. 48', 0, 42, { align: 'right' });
-
-      doc.moveDown(0.8);
-      doc.fontSize(10);
-      doc.text(`Name: ${staff.name}`);
-      doc.text(`For the month of: ${monthName} 1–${lastDay}, ${year}`);
-
-      const etxt = (staff.employee_type || '').toLowerCase();
-      const emp = etxt.includes('full') ? 'Full-time' : (etxt.includes('part') ? 'Part-time' : (staff.employee_type || ''));
-      if (emp) doc.text(`Employment: ${emp}`);
-      if (staff.department) doc.text(`College: ${staff.department}`);
-
-      doc.moveDown(0.6);
-
-      // Table setup
-      const startX = 24;
-      const tableW = 560;
-      const rowH = 16;
-
-      const cols = [
-        { w: 30 }, { w: 18 },
-        { w: 68 }, { w: 68 },
-        { w: 68 }, { w: 68 },
-        { w: 44 }, { w: 44 },
-        { w: 44 }, { w: 44 },
-      ];
-      let x = startX;
-      cols.forEach(c => { c.x = x; x += c.w; });
-
-      // TABLE HEADERS
-      const headY = doc.y;
-      doc.font('Helvetica-Bold').fontSize(10);
-
-      // Group headers
-      doc.text(' ', cols[0].x, headY, { width: cols[0].w });
-      doc.text(' ', cols[1].x, headY, { width: cols[1].w });
-      doc.text('A.M.', cols[2].x, headY, { width: cols[2].w + cols[3].w, align: 'center' });
-      doc.text('P.M.', cols[4].x, headY, { width: cols[4].w + cols[5].w, align: 'center' });
-      doc.text('Tardiness', cols[6].x, headY, { width: cols[6].w + cols[7].w, align: 'center' });
-      doc.text('Undertime', cols[8].x, headY, { width: cols[8].w + cols[9].w, align: 'center' });
-
-      // Sub headers
-      const subY = headY + 12;
-      doc.font('Helvetica').fontSize(9);
-      doc.text('Day', cols[0].x + 4, subY);
-      doc.text(' ', cols[1].x + 2, subY);
-      doc.text('Arrival', cols[2].x + 2, subY);
-      doc.text('Departure', cols[3].x + 2, subY);
-      doc.text('Arrival', cols[4].x + 2, subY);
-      doc.text('Departure', cols[5].x + 2, subY);
-      doc.text('Hours', cols[6].x + 2, subY);
-      doc.text('Minutes', cols[7].x + 2, subY);
-      doc.text('Hours', cols[8].x + 2, subY);
-      doc.text('Minutes', cols[9].x + 2, subY);
-
-      // Draw grid
-      const gridTop = headY - 2;
-      const gridBottom = gridTop + rowH * (lastDay + 2);
-
-      // Horizontal lines
-      doc.moveTo(startX, gridTop).lineTo(startX + tableW, gridTop).stroke();
-      for (let i = 1; i <= lastDay + 2; i++) {
-        const y = gridTop + i * rowH;
-        doc.moveTo(startX, y).lineTo(startX + tableW, y).stroke();
-      }
-
-      // Vertical lines
-      cols.forEach(c => {
-        doc.moveTo(c.x, gridTop).lineTo(c.x, gridBottom).stroke();
-      });
-      doc.moveTo(startX + tableW, gridTop).lineTo(startX + tableW, gridBottom).stroke();
-
-      // DATA ROWS WITH REAL ATTENDANCE
-      const to12 = s => {
-        if (!s) return '';
-        const [H, M] = String(s).split(':').map(Number);
-        let h = H % 12 || 12;
-        const am = H < 12;
-        return `${h}:${pad2(M)} ${am ? 'AM' : 'PM'}`;
-      };
-
-      const timeDiff = (t1, t2) => {
-        if (!t1 || !t2) return 0;
-        const [h1, m1] = t1.split(':').map(Number);
-        const [h2, m2] = t2.split(':').map(Number);
-        return Math.abs((h2 * 60 + m2) - (h1 * 60 + m1));
-      };
-
-      const WORK_MIN = 8 * 60;
-      const dataStartY = subY + rowH;
-
-      for (let d = 1; d <= lastDay; d++) {
-        const y = dataStartY + (d - 1) * rowH;
-        const dayLogs = byDay[d] || [];
-
-        // Day number and weekday initial
-        doc.text(String(d), cols[0].x + 4, y);
-        doc.text(
-          new Date(year, month - 1, d).toLocaleDateString('en-US', { weekday: 'short' })[0],
-          cols[1].x + 6,
-          y
-        );
-
-        let am_in = '', am_out = '', pm_in = '', pm_out = '';
-        let tardy = 0, und = 0;
-
-        if (dayLogs.length > 0) {
-          if (dayLogs[0]) am_in = dayLogs[0].time;
-          if (dayLogs[1]) am_out = dayLogs[1].time;
-          if (dayLogs[2]) pm_in = dayLogs[2].time;
-          if (dayLogs[3]) pm_out = dayLogs[3].time;
-
-          const amMinutes = (dayLogs[0] && dayLogs[1]) ? timeDiff(am_in, am_out) : 0;
-          const pmMinutes = (dayLogs[2] && dayLogs[3]) ? timeDiff(pm_in, pm_out) : 0;
-          const totalWorked = amMinutes + pmMinutes;
-
-          // Calculate tardiness (if first log is after 8:00 AM)
-          if (dayLogs[0] && dayLogs[0].hour >= 8) {
-            const actualStart = dayLogs[0].hour * 60 + dayLogs[0].minute;
-            tardy = Math.max(0, actualStart - (8 * 60));
-          }
-
-          // Calculate undertime
-          und = totalWorked > 0 ? Math.max(0, WORK_MIN - totalWorked) : 0;
-        }
-
-        // Print attendance times
-        doc.text(to12(am_in), cols[2].x + 2, y);
-        doc.text(to12(am_out), cols[3].x + 2, y);
-        doc.text(to12(pm_in), cols[4].x + 2, y);
-        doc.text(to12(pm_out), cols[5].x + 2, y);
-
-        // Print tardiness and undertime
-        if (tardy || und) {
-          const tH = Math.floor(tardy / 60);
-          const tMin = tardy % 60;
-          const uH = Math.floor(und / 60);
-          const uMin = und % 60;
-
-          doc.text(String(tH || ''), cols[6].x + 2, y);
-          doc.text(tardy ? pad2(tMin) : '', cols[7].x + 2, y);
-          doc.text(String(uH || ''), cols[8].x + 2, y);
-          doc.text(und ? pad2(uMin) : '', cols[9].x + 2, y);
-        }
-      }
-
-      // Footer
-      doc.moveDown(2);
-      doc.fontSize(9).text(
-        'I certify on my honor that the above is a true and correct report of the hours of work performed, ' +
-        'record of which was made daily at the time of arrival and departure from office.'
-      );
-
-      const center = 306;
-      doc.moveDown(1.6);
-      doc.moveTo(center - 120, doc.y).lineTo(center + 120, doc.y).stroke();
-      doc.moveDown(0.2).font('Helvetica-Bold').text(staff.name, { align: 'center' });
-      doc.font('Helvetica').text('Verified as to prescribed office hours', { align: 'center' });
-      doc.moveDown(1.2);
-      doc.moveTo(center - 120, doc.y).lineTo(center + 120, doc.y).stroke();
-      doc.moveDown(0.2).text(`Dean, ${staff.department || '—'}`, { align: 'center' });
-
-      doc.end();
-    } catch (e) {
-      reject(e);
+  // Helper to format time from HH:MM:SS or ISO timestamp
+  const formatTime = (hhmmss, isoTimestamp) => {
+    if (hhmmss) {
+      const [h, m] = hhmmss.split(':').map(Number);
+      const hour12 = h % 12 || 12;
+      const ampm = h < 12 ? 'AM' : 'PM';
+      return `${hour12}:${pad2(m)} ${ampm}`;
     }
-  });
+    if (isoTimestamp) {
+      const dt = new Date(isoTimestamp);
+      const h = dt.getUTCHours();
+      const m = dt.getUTCMinutes();
+      const hour12 = h % 12 || 12;
+      const ampm = h < 12 ? 'AM' : 'PM';
+      return `${hour12}:${pad2(m)} ${ampm}`;
+    }
+    return '';
+  };
+
+  // Fill header information
+  const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
+
+  // B6-D6: Name (already merged in template, just set value)
+  worksheet.getCell('B6').value = staff.name || '';
+
+  // C7-D7: Month (already merged in template, just set value)
+  worksheet.getCell('C7').value = monthName;
+
+  // H3-I3: Employee Type (already merged in template, just set value)
+  worksheet.getCell('H3').value = staff.employee_type || '';
+
+  // H4-I4: Department (already merged in template, just set value)
+  worksheet.getCell('H4').value = staff.department || '';
+
+  // A1-B5: Photo (if available)
+  if (staff.photo_url) {
+    try {
+      const response = await axios.get(staff.photo_url, {
+        responseType: 'arraybuffer',
+        timeout: 10000
+      });
+      const imageBuffer = Buffer.from(response.data);
+
+      // Detect image type from URL or content
+      const ext = staff.photo_url.toLowerCase().includes('.png') ? 'png' : 'jpeg';
+
+      const imageId = workbook.addImage({
+        buffer: imageBuffer,
+        extension: ext,
+      });
+
+      worksheet.addImage(imageId, {
+        tl: { col: 0, row: 0 }, // A1
+        br: { col: 1, row: 4 }, // B5 (col and row are 0-indexed)
+        editAs: 'oneCell'
+      });
+    } catch (err) {
+      console.error('Failed to load photo:', err.message);
+    }
+  }
+
+  // Fill attendance data starting from row 9
+  for (let day = 1; day <= lastDay; day++) {
+    const rowIndex = 8 + day; // Row 9 is index 9 (9 = 8 + 1)
+    const log = byDay[day];
+
+    // Column A: Day
+    worksheet.getCell(`A${rowIndex}`).value = day;
+
+    if (log) {
+      // Column B: A.M Arrival
+      const amArrival = formatTime(log.orig_time_in, log.time_in);
+      worksheet.getCell(`B${rowIndex}`).value = amArrival;
+
+      // Column E: P.M Departure
+      const pmDeparture = formatTime(log.orig_time_out, log.time_out);
+      worksheet.getCell(`E${rowIndex}`).value = pmDeparture;
+
+      // ===== TARDINESS (always fill 0 even if there's no tardiness) =====
+      const minuteLate = Number(log.minute_late) || 0;
+
+      const tardinessHours = Math.floor(minuteLate / 60);
+      const tardinessMinutes = minuteLate % 60;
+
+      worksheet.getCell(`F${rowIndex}`).value = tardinessHours;
+      worksheet.getCell(`G${rowIndex}`).value = tardinessMinutes;
+
+
+      // ===== UNDERTIME (based on 9 required hours) =====
+      const requiredHours = 9;
+      let workedHours = Number(log.worked_hours) || 0;  // already decimal format
+
+      if (workedHours > 0 && workedHours < requiredHours) {
+        const undertimeDecimal = requiredHours - workedHours;   // e.g. 9 - 8.78 = 0.22
+        const undertimeMinutesTotal = undertimeDecimal * 60;     // convert to minutes
+
+        const undertimeHours = Math.floor(undertimeMinutesTotal / 60);
+        const undertimeMinutes = Math.round(undertimeMinutesTotal % 60); // round minutes
+
+        worksheet.getCell(`H${rowIndex}`).value = undertimeHours;
+        worksheet.getCell(`I${rowIndex}`).value = undertimeMinutes;
+      } else {
+        // Always write 0 for filled records
+        worksheet.getCell(`H${rowIndex}`).value = 0;
+        worksheet.getCell(`I${rowIndex}`).value = 0;
+      }
+    }
+  }
+
+  // Return the workbook as buffer
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer);
 }
 
 async function buildDTR({ staff, month, year, logs = [] }) {
@@ -811,7 +584,6 @@ router.post('/force-generate', async (req, res) => {
   }
 });
 
-
 // quick diag
 router.get('/_diag', async (_req, res) => {
   try {
@@ -827,6 +599,174 @@ router.get('/_diag', async (_req, res) => {
     });
   } catch (e) {
     res.json({ ok: false, error: e.message });
+  }
+});
+
+// add this in server/routes/dtrRoutes.cjs (e.g. after router.get('/_diag', ...))
+router.get('/test', (_req, res) => {
+  res.json({
+    ok: true,
+    path: '/api/dtr/test',
+    message: 'DTR test OK'
+  });
+});
+
+// GET /api/dtr/records?staff_id=...&year=2025&month=11
+router.get('/records', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+
+    const { staff_id, year, month } = req.query;
+
+    if (!staff_id || !year || !month) {
+      return res.status(400).json({ error: 'staff_id, year, and month are required' });
+    }
+
+    console.log(`[DTR Records] Fetching for staff_id=${staff_id}, year=${year}, month=${month}`);
+
+    // Get staff_user by staff_id
+    const staff = await getStaffRow({ staff_id });
+    if (!staff) {
+      console.error(`[DTR Records] Staff not found: ${staff_id}`);
+      return res.status(404).json({ error: 'Staff not found' });
+    }
+
+    console.log(`[DTR Records] Found staff: ${staff.name} (ID: ${staff.id})`);
+
+    // Calculate date range for the month
+    const y = Number(year);
+    const m = Number(month);
+    const lastDay = new Date(y, m, 0).getDate();
+    const startDate = `${y}-${pad2(m)}-01`;
+    const endDate = `${y}-${pad2(m)}-${lastDay}`;
+
+    console.log(`[DTR Records] Date range: ${startDate} to ${endDate}`);
+
+    // Fetch attendance logs for the month
+    // Note: include orig_time_in/orig_time_out and worked_hours so we can avoid timezone conversion
+    const { data: logs, error } = await db
+      .from('attendance_logs')
+      .select('att_date, time_in, time_out, orig_time_in, orig_time_out, minute_late, worked_hours, status')
+      .eq('staff_user_id', staff.id)
+      .gte('att_date', startDate)
+      .lte('att_date', endDate)
+      .order('att_date', { ascending: true });
+
+    if (error) {
+      console.error(`[DTR Records] DB Error:`, error);
+      throw new Error('Failed to fetch attendance logs: ' + error.message);
+    }
+
+    console.log(`[DTR Records] Found ${logs?.length || 0} attendance records`);
+
+    // helpers to format date and times without applying a Manila/GMT+8 conversion
+    const formatDateMonthDay = (dateStr) => {
+      if (!dateStr) return null;
+      // treat the date as UTC to avoid local timezone shifts
+      const dt = new Date(dateStr + 'T00:00:00Z');
+      return dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' });
+    };
+
+    const formatFromHHMMSS = (hhmmss) => {
+      if (!hhmmss) return null;
+      // construct a UTC time and format it in UTC so no server-local TZ conversion happens
+      const dt = new Date('1970-01-01T' + hhmmss + 'Z');
+      return dt.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'UTC'
+      });
+    };
+
+    const formatUtcIso = (isoString) => {
+      if (!isoString) return null;
+      // format an ISO timestamp using UTC (so the displayed hour will be the original +00 time)
+      const dt = new Date(isoString);
+      return dt.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'UTC'
+      });
+    };
+
+    // Format the response
+    const records = (logs || []).map((log) => {
+      let timeIn = null;
+      let timeOut = null;
+
+      if (log.orig_time_in) {
+        timeIn = formatFromHHMMSS(log.orig_time_in);
+      } else if (log.time_in) {
+        timeIn = formatUtcIso(log.time_in);
+      }
+
+      if (log.orig_time_out) {
+        timeOut = formatFromHHMMSS(log.orig_time_out);
+      } else if (log.time_out) {
+        timeOut = formatUtcIso(log.time_out);
+      }
+
+      return {
+        // "November 3"
+        date: formatDateMonthDay(log.att_date),
+
+        time_in: timeIn || "-",
+        time_out: timeOut || "-",
+
+        // "13 minutes"
+        tardiness: log.minute_late
+          ? `${log.minute_late} minute${log.minute_late === 1 ? "" : "s"}`
+          : "-",
+
+        // "8.78 hours"
+        undertime:
+          log.worked_hours !== null && log.worked_hours !== undefined
+            ? `${log.worked_hours} hours`
+            : "-",
+
+        status: log.status || "present",
+      };
+    });
+
+    console.log(`[DTR Records] Returning ${records.length} formatted records`);
+    res.json({ records });
+  } catch (err) {
+    console.error('[DTR Records] Error:', err);
+    res.status(500).json({ error: 'Failed to fetch records', details: err.message });
+  }
+});
+
+// GET /api/dtr/download-excel?staff_id=...&year=2025&month=11
+router.get('/download-excel', async (req, res) => {
+  try {
+    const { staff_id, year, month } = req.query;
+
+    if (!staff_id || !year || !month) {
+      return res.status(400).json({ error: 'staff_id, year, and month are required' });
+    }
+
+    const staff = await getStaffRow({ staff_id });
+    if (!staff) {
+      return res.status(404).json({ error: 'Staff not found' });
+    }
+
+    const excel = await buildExcelDTR({
+      staff,
+      month: Number(month),
+      year: Number(year)
+    });
+
+    const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
+    const filename = `DTR-${staff.staff_id}-${monthName}-${year}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(excel);
+  } catch (err) {
+    console.error('[DTR Excel Download] Error:', err);
+    res.status(500).json({ error: 'Failed to generate Excel', details: err.message });
   }
 });
 
