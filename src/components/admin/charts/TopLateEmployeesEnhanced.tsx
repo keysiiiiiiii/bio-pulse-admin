@@ -154,14 +154,18 @@ export function TopLateEmployeesEnhanced({ selectedDate }: TopLateEmployeesEnhan
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, any> = {
-      "Full-Time": "default",
-      "Part-Time": "secondary",
-      "Job Order": "outline",
-      "COS": "outline",
-      "Regular": "default",
+    const badgeConfig: Record<string, { variant: any; className: string }> = {
+      "Regular Admin": { variant: "default", className: "bg-blue-600 text-white hover:bg-blue-700" },
+      "Regular Faculty": { variant: "default", className: "bg-green-600 text-white hover:bg-green-700" },
+      "Part-Time Faculty": { variant: "default", className: "bg-teal-600 text-white hover:bg-teal-700" },
+      "Full-time": { variant: "default", className: "bg-purple-600 text-white hover:bg-purple-700" },
+      "Job Order": { variant: "default", className: "bg-orange-600 text-white hover:bg-orange-700" },
+      "Contract of Service": { variant: "default", className: "bg-pink-600 text-white hover:bg-pink-700" },
+      "COS": { variant: "default", className: "bg-pink-600 text-white hover:bg-pink-700" },
     };
-    return <Badge variant={variants[status] || "default"}>{status}</Badge>;
+    
+    const config = badgeConfig[status] || { variant: "default", className: "bg-gray-600 text-white hover:bg-gray-700" };
+    return <Badge variant={config.variant} className={config.className}>{status}</Badge>;
   };
 
   return (

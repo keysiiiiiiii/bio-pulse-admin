@@ -58,6 +58,19 @@ export function Dashboard() {
     try {
       console.log('Fetching data for date:', date);
       
+      // First, get total staff count (always display)
+      const { data: totalStaff, error: staffError } = await supabase
+        .from('staff_users')
+        .select('id', { count: 'exact', head: true });
+      
+      if (staffError) {
+        console.error('Error fetching total staff:', staffError);
+        throw staffError;
+      }
+      
+      const totalStaffCount = totalStaff?.length || 0;
+      console.log('Total staff in system:', totalStaffCount);
+      
       // Join with staff_users to get name, department, employee_type
       const { data: logs, error } = await supabase
         .from('attendance_logs')
@@ -79,9 +92,16 @@ export function Dashboard() {
 
       console.log('Fetched logs:', logs);
 
+      // If no attendance records exist, default to all absent
       if (!logs || logs.length === 0) {
         console.log('No records found for date:', date);
-        setStats({ total: 0, present: 0, absent: 0, late: 0, on_leave: 0 });
+        setStats({ 
+          total: totalStaffCount, 
+          present: 0, 
+          absent: totalStaffCount, 
+          late: 0, 
+          on_leave: 0 
+        });
         setDailyAttendance([]);
         setLoading(false);
         return;
@@ -107,10 +127,13 @@ export function Dashboard() {
       
       const onLeave = transformedLogs.filter(l => l.on_leave === 1 || l.on_leave === true).length;
 
+      // Absent = Total Staff - Present - On Leave
+      const absent = totalStaffCount - present - onLeave;
+
       const calculatedStats = {
-        total: transformedLogs.length,
+        total: totalStaffCount,
         present: present,
-        absent: transformedLogs.length - present - onLeave,
+        absent: absent,
         late: late,
         on_leave: onLeave
       };
