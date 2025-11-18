@@ -185,11 +185,12 @@ export function TopLateEmployeesEnhanced({ selectedDate }: TopLateEmployeesEnhan
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Full-Time">Full-Time</SelectItem>
-              <SelectItem value="Part-Time">Part-Time</SelectItem>
+              <SelectItem value="Regular Admin">Regular Admin</SelectItem>
+              <SelectItem value="Regular Faculty">Regular Faculty</SelectItem>
+              <SelectItem value="Part-Time Faculty">Part Time Faculty</SelectItem>
+              <SelectItem value="Full-time">Full Time</SelectItem>
               <SelectItem value="Job Order">Job Order</SelectItem>
-              <SelectItem value="COS">COS</SelectItem>
-              <SelectItem value="Regular">Regular</SelectItem>
+              <SelectItem value="Contract of Service">COS</SelectItem>
             </SelectContent>
           </Select>
 
