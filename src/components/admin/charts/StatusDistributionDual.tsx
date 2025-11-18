@@ -4,9 +4,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { attendanceApi } from "@/services/api";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
+import { StatusDistributionStacked } from "./StatusDistributionStacked";
 
 interface StatusDistributionDualProps {
   selectedDate?: Date;
+  selectedMonth?: Date;
 }
 
 interface StatusData {
@@ -15,18 +17,18 @@ interface StatusData {
   color: string;
 }
 
-export function StatusDistributionDual({ selectedDate }: StatusDistributionDualProps) {
-  const [chartType, setChartType] = useState<"pie" | "bar">("pie");
-  const [selectedMonth, setSelectedMonth] = useState<string>("");
+export function StatusDistributionDual({ selectedDate, selectedMonth }: StatusDistributionDualProps) {
+  const [chartType, setChartType] = useState<"pie" | "bar" | "stacked">("pie");
+  const [monthDisplay, setMonthDisplay] = useState<string>("");
   const [facultyData, setFacultyData] = useState<StatusData[]>([]);
   const [staffData, setStaffData] = useState<StatusData[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const currentDate = selectedDate || new Date();
-    setSelectedMonth(format(currentDate, 'MMMM yyyy'));
+    const currentDate = selectedMonth || selectedDate || new Date();
+    setMonthDisplay(format(currentDate, 'MMMM yyyy'));
     fetchStatusData(currentDate);
-  }, [selectedDate]);
+  }, [selectedDate, selectedMonth]);
 
   const fetchStatusData = async (date: Date) => {
     setLoading(true);
@@ -165,17 +167,18 @@ export function StatusDistributionDual({ selectedDate }: StatusDistributionDualP
             <CardDescription>Monthly attendance breakdown by employment type</CardDescription>
           </div>
           <div className="flex gap-2">
-            <Select value={chartType} onValueChange={(val) => setChartType(val as "pie" | "bar")}>
+            <Select value={chartType} onValueChange={(val) => setChartType(val as "pie" | "bar" | "stacked")}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pie">Pie Chart</SelectItem>
                 <SelectItem value="bar">Bar Chart</SelectItem>
+                <SelectItem value="stacked">Stacked Bar</SelectItem>
               </SelectContent>
             </Select>
             <div className="px-3 py-2 bg-muted rounded-md text-sm">
-              Month: {selectedMonth}
+              Month: {monthDisplay}
             </div>
           </div>
         </div>
@@ -189,6 +192,8 @@ export function StatusDistributionDual({ selectedDate }: StatusDistributionDualP
             {renderPieChart(facultyData, "FACULTY")}
             {renderPieChart(staffData, "STAFF")}
           </div>
+        ) : chartType === "stacked" ? (
+          <StatusDistributionStacked selectedDate={selectedDate} selectedMonth={selectedMonth} />
         ) : (
           renderBarChart()
         )}
