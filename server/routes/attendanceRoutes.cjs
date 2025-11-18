@@ -355,21 +355,31 @@ router.get('/stats', async (req, res) => {
     // Get attendance logs for the date
     const { data: logs, error } = await db
       .from('attendance_logs')
-      .select('staff_user_id, time_in, time_out, attendance_status')
+      .select('staff_user_id, time_in, time_out, attendance_status, on_leave')
       .eq('att_date', date);
 
     if (error) throw error;
 
-    const present = logs.filter(l => l.time_in).length;
+    // Count present (including late)
+    const present = logs.filter(l => 
+      l.time_in && (l.attendance_status === 'present' || l.attendance_status === 'late')
+    ).length;
+    
+    // Count late specifically
     const late = logs.filter(l => l.attendance_status === 'late').length;
-    const absent = Math.max(0, (totalCount || 0) - present);
+    
+    // Count on leave
+    const onLeave = logs.filter(l => l.on_leave === 1 || l.on_leave === true).length;
+    
+    // Absent = Total - Present - On Leave
+    const absent = Math.max(0, (totalCount || 0) - present - onLeave);
 
     return res.json({
       total: totalCount || 0,
       present,
       absent,
       late,
-      on_leave: 0
+      on_leave: onLeave
     });
   } catch (e) {
     console.error('[stats] error:', e.message || e);

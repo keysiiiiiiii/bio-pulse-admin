@@ -23,9 +23,10 @@ interface EmployeeAnalytics {
 
 interface TopLateEmployeesEnhancedProps {
   selectedDate?: Date;
+  selectedMonth?: Date;
 }
 
-export function TopLateEmployeesEnhanced({ selectedDate }: TopLateEmployeesEnhancedProps) {
+export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLateEmployeesEnhancedProps) {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
   const [filterCollege, setFilterCollege] = useState<string>("all");
@@ -38,12 +39,12 @@ export function TopLateEmployeesEnhanced({ selectedDate }: TopLateEmployeesEnhan
 
   useEffect(() => {
     fetchEmployeeAnalytics();
-  }, [selectedDate, filterStatus, filterDepartment, filterCollege, sortBy, topCount]);
+  }, [selectedDate, selectedMonth, filterStatus, filterDepartment, filterCollege, sortBy, topCount]);
 
   const fetchEmployeeAnalytics = async () => {
     setLoading(true);
     try {
-      const currentDate = selectedDate || new Date();
+      const currentDate = selectedMonth || selectedDate || new Date();
       const monthStart = startOfMonth(currentDate);
       const monthEnd = endOfMonth(currentDate);
       const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });

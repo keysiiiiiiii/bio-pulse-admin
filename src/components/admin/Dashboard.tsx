@@ -8,7 +8,6 @@ import { TardinessChart } from "./charts/TardinessChart";
 import { TopLateEmployeesEnhanced } from "./charts/TopLateEmployeesEnhanced";
 import { StatusDistributionDual } from "./charts/StatusDistributionDual";
 import { DayOfWeekComparison } from "./charts/DayOfWeekComparison";
-import { FacultyStaffPatternsStacked } from "./charts/FacultyStaffPatternsStacked";
 import { Users, UserCheck, UserX, Clock, CalendarDays, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
+import { attendanceApi } from '@/services/api';
 import { supabase } from '@/lib/supabase';
 
 // Helper to format time from database
@@ -58,95 +58,21 @@ export function Dashboard() {
     try {
       console.log('Fetching data for date:', date);
       
-      // First, get total staff count (always display)
-      const { data: totalStaff, error: staffError } = await supabase
-        .from('staff_users')
-        .select('id', { count: 'exact', head: true });
+      // Use the backend stats API that handles all the calculations correctly
+      const stats = await attendanceApi.getStats(date);
+      setStats(stats);
       
-      if (staffError) {
-        console.error('Error fetching total staff:', staffError);
-        throw staffError;
-      }
+      // Fetch logs for the table
+      const logs = await attendanceApi.getLogs(date);
+      setDailyAttendance(logs);
       
-      const totalStaffCount = totalStaff?.length || 0;
-      console.log('Total staff in system:', totalStaffCount);
-      
-      // Join with staff_users to get name, department, employee_type
-      const { data: logs, error } = await supabase
-        .from('attendance_logs')
-        .select(`
-          *,
-          staff_users!inner (
-            staff_id,
-            name,
-            employee_type,
-            department
-          )
-        `)
-        .eq('att_date', date);
-
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-
-      console.log('Fetched logs:', logs);
-
-      // If no attendance records exist, default to all absent
-      if (!logs || logs.length === 0) {
-        console.log('No records found for date:', date);
-        setStats({ 
-          total: totalStaffCount, 
-          present: 0, 
-          absent: totalStaffCount, 
-          late: 0, 
-          on_leave: 0 
-        });
-        setDailyAttendance([]);
-        setLoading(false);
-        return;
-      }
-
-      // Transform data to flatten staff_users
-      const transformedLogs = logs.map(log => ({
-        ...log,
-        staff_id: log.staff_users.staff_id,
-        name: log.staff_users.name,
-        role: log.staff_users.employee_type,
-        department: log.staff_users.department
-      }));
-
-      // Calculate stats
-      const present = transformedLogs.filter(l => 
-        l.status && (l.status.toLowerCase() === 'present' || l.status.toLowerCase() === 'late')
-      ).length;
-      
-      const late = transformedLogs.filter(l => 
-        l.status && l.status.toLowerCase() === 'late'
-      ).length;
-      
-      const onLeave = transformedLogs.filter(l => l.on_leave === 1 || l.on_leave === true).length;
-
-      // Absent = Total Staff - Present - On Leave
-      const absent = totalStaffCount - present - onLeave;
-
-      const calculatedStats = {
-        total: totalStaffCount,
-        present: present,
-        absent: absent,
-        late: late,
-        on_leave: onLeave
-      };
-
-      console.log('Calculated stats:', calculatedStats);
-
-      setStats(calculatedStats);
-      setDailyAttendance(transformedLogs);
+      console.log('Stats:', stats);
+      console.log('Logs:', logs);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch dashboard data. Check console for details.",
+        description: "Failed to fetch dashboard data.",
         variant: "destructive"
       });
       setStats({ total: 0, present: 0, absent: 0, late: 0, on_leave: 0 });
@@ -522,16 +448,14 @@ export function Dashboard() {
       <TardinessChart selectedMonth={selectedMonth} />
 
       {/* Top/Late Employees */}
-      <TopLateEmployeesEnhanced selectedDate={selectedDate} />
+      <TopLateEmployeesEnhanced selectedDate={selectedDate} selectedMonth={selectedMonth} />
 
       {/* Distribution of STATUS */}
-      <StatusDistributionDual selectedDate={selectedDate} />
+      <StatusDistributionDual selectedDate={selectedDate} selectedMonth={selectedMonth} />
 
       {/* Day-of-Week Analysis */}
       <DayOfWeekComparison selectedDate={selectedDate} />
 
-      {/* Faculty vs. Staff Attendance Patterns */}
-      <FacultyStaffPatternsStacked selectedDate={selectedDate} />
     </div>
   );
 }
