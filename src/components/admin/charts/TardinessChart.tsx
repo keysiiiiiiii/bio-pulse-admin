@@ -20,24 +20,27 @@ interface TardinessChartProps {
   selectedMonth: Date;
 }
 
+// ✅ College whitelist for faculty identification
+const COLLEGE_WHITELIST = new Set([
+  'CED - College of Education',
+  'CCS - College of Computing Science',
+  'CCJ - College of Criminal Justice',
+  'CBA - College of Business Administration',
+  'CAS - College of Arts and Sciences',
+  'CHS - College of Health Sciences',
+  'COL - College of Law',
+  'NSTP - National Service Training Program'
+]);
+
 export function TardinessChart({ selectedMonth }: TardinessChartProps) {
   const [viewType, setViewType] = useState<"faculty" | "staff">("faculty");
   const [chartType, setChartType] = useState<"bar" | "line">("bar");
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Color palette for departments/colleges
   const colors = [
-    "#2563eb", // blue
-    "#16a34a", // green
-    "#f59e0b", // amber
-    "#dc2626", // red
-    "#9333ea", // violet
-    "#0ea5e9", // sky
-    "#f43f5e", // rose
-    "#84cc16", // lime
-    "#e11d48", // pink-red
-    "#06b6d4", // cyan
+    "#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#9333ea",
+    "#0ea5e9", "#f43f5e", "#84cc16", "#e11d48", "#06b6d4",
   ];
 
   useEffect(() => {
@@ -47,7 +50,6 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
         const year = selectedMonth.getFullYear();
         const month = selectedMonth.getMonth() + 1;
         
-        // Get first and last day of month
         const firstDay = new Date(year, month - 1, 1);
         const lastDay = new Date(year, month, 0);
         
@@ -56,13 +58,14 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
         
         console.log('Fetching tardiness data for:', { monthStart, monthEnd, viewType });
         
-        // Join with staff_users to get employee_type and department
+        // ✅ FIXED: Query with proper status filter
         const { data: logs, error } = await supabase
           .from('attendance_logs')
           .select(`
             week_of_year,
             minute_late,
             att_date,
+            attendance_status,
             staff_users!inner (
               employee_type,
               department
@@ -70,6 +73,7 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
           `)
           .gte('att_date', monthStart)
           .lte('att_date', monthEnd)
+          .eq('attendance_status', 'late') // ✅ Only get late records
           .gt('minute_late', 0);
         
         if (error) {
@@ -85,19 +89,21 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
           return;
         }
         
-        // Normalize staff_users (handle both array and object responses)
+        // Normalize staff_users
         const normalizedLogs = logs.map(log => ({
           ...log,
           staff_user: Array.isArray(log.staff_users) ? log.staff_users[0] : log.staff_users,
         }));
         
-        // Filter by employee type (faculty or staff)
+        // ✅ FIXED: Filter by college whitelist (faculty) or non-whitelist (staff)
         const filteredLogs = normalizedLogs.filter(log => {
-          const empType = log.staff_user?.employee_type?.toLowerCase();
+          const dept = (log.staff_user?.department || '').trim();
+          const isFaculty = COLLEGE_WHITELIST.has(dept);
+          
           if (viewType === 'faculty') {
-            return empType === 'faculty';
+            return isFaculty;
           } else {
-            return empType === 'staff';
+            return !isFaculty; // Staff = not in college whitelist
           }
         });
         
@@ -126,7 +132,7 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
           return;
         }
         
-        // Transform data: Per week, show total minutes late for each department/college
+        // Transform data: Per week, total minutes late per department/college
         const transformedData = weeksInData.map(week => {
           const weekData: any = { week: `Week ${week}` };
           
@@ -170,11 +176,10 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
           <div>
             <CardTitle>Tardiness Trends</CardTitle>
             <CardDescription>
-              Weekly tardiness comparison by {viewType === "faculty" ? "department/college" : "department"} for {format(selectedMonth, "MMMM yyyy")}
+              Weekly tardiness comparison by {viewType === "faculty" ? "college" : "department"} for {format(selectedMonth, "MMMM yyyy")}
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            {/* Chart Type Toggle */}
             <Select value={chartType} onValueChange={(val) => setChartType(val as "bar" | "line")}>
               <SelectTrigger className="w-[120px]">
                 <SelectValue placeholder="Chart Type" />
@@ -185,7 +190,6 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
               </SelectContent>
             </Select>
 
-            {/* Faculty/Staff Toggle */}
             <Select value={viewType} onValueChange={(val) => setViewType(val as "faculty" | "staff")}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />

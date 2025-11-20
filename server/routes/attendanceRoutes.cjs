@@ -8,7 +8,7 @@ const router = express.Router();
 const db = require('../db.cjs'); // Supabase client
 
 // ---------- config / helpers ----------
-const OFFICE_START = process.env.OFFICE_START || '08:00'; // HH:MM (24h)
+const OFFICE_START = process.env.OFFICE_START || '07:35'; // ✅ FIXED: Changed to 7:35 AM // HH:MM (24h)
 
 const pad = (n) => String(n).padStart(2, '0');
 const toISO = (ts) => new Date(ts).toISOString();
@@ -35,7 +35,7 @@ function normalizeYMD(input) {
 
 function isLate(tsISO) {
   if (!tsISO) return false;
-  const [HH, MM] = (OFFICE_START || '08:00').split(':').map((v) => parseInt(v, 10) || 0);
+  const [HH, MM] = (OFFICE_START || '07:35').split(':').map((v) => parseInt(v, 10) || 0); // ✅ FIXED
   const start = new Date();
   start.setHours(HH, MM, 0, 0);
 

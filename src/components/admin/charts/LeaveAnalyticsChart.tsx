@@ -43,7 +43,6 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
         const year = selectedMonth.getFullYear();
         const month = selectedMonth.getMonth() + 1;
         
-        // Get first and last day of month
         const firstDay = new Date(year, month - 1, 1);
         const lastDay = new Date(year, month, 0);
         
@@ -52,13 +51,13 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
         
         console.log('Fetching leave data between:', monthStart, 'and', monthEnd);
         
-        // Query with proper date range filtering using gte and lte
+        // ✅ FIXED: Query with proper leave filtering
         const { data, error } = await supabase
           .from('attendance_logs')
           .select('leave_type, week_of_year, att_date, on_leave')
           .gte('att_date', monthStart)
           .lte('att_date', monthEnd)
-          .eq('on_leave', 1)
+          .or('on_leave.eq.1,on_leave.eq.true') // ✅ Handle both boolean and integer
           .not('leave_type', 'is', null);
         
         if (error) {
@@ -74,18 +73,18 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
           return;
         }
         
-        // Get unique weeks from the data
-        const weeksInData = [...new Set(data.map(d => d.week_of_year))].filter(w => w != null).sort((a, b) => a - b);
-        
-        console.log('Weeks found:', weeksInData);
-        
-        if (weeksInData.length === 0) {
-          setChartData([]);
-          return;
+        // ✅ FIXED: Generate all weeks in the month (1-5 typically)
+        const firstWeek = Math.ceil((firstDay.getDate() - firstDay.getDay()) / 7) + 1;
+        const lastWeek = Math.ceil((lastDay.getDate() - lastDay.getDay()) / 7) + 1;
+        const weeksInMonth = [];
+        for (let w = firstWeek; w <= lastWeek; w++) {
+          weeksInMonth.push(w);
         }
         
+        console.log('Weeks in month:', weeksInMonth);
+        
         // Transform data by week
-        const transformedData = weeksInData.map(week => {
+        const transformedData = weeksInMonth.map(week => {
           const weekData: any = { month: `Week ${week}` };
           
           leaveTypes.forEach(lt => {

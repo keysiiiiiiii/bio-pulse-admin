@@ -1,4 +1,4 @@
-// server/routes/dtrRoutes.cjs — COMPLETE FIXED VERSION
+// server/routes/dtrRoutes.cjs – FIXED: Actually generates PDF files
 console.log('🔵 [DTR] Loading dtrRoutes.cjs...');
 
 const express = require('express');
@@ -9,6 +9,7 @@ const fs = require('fs');
 const { createClient } = require('@supabase/supabase-js');
 const ExcelJS = require('exceljs');
 const axios = require('axios');
+const PDFDocument = require('pdfkit'); // ✅ ADD: For PDF generation
 
 console.log('🔵 [DTR] Express Router created');
 
@@ -20,7 +21,6 @@ const BUCKET_FALLBACK = process.env.DTR_BUCKET || 'dtr';
 const BUCKET_PRIMARY = process.env.DTR_BUCKET_NEW || BUCKET_FALLBACK;
 
 const DTR_FILES_HAS_BUCKET = String(process.env.DTR_FILES_HAS_BUCKET || 'false') === 'true';
-const DTR_RENDERER = String(process.env.DTR_RENDERER || 'pdfkit'); // 'pdfkit' | 'html'
 
 // ====== Supabase admin client ======
 if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -132,7 +132,6 @@ async function buildExcelDTR({ staff, month, year }) {
   const lastDay = new Date(year, month, 0).getDate();
   const startDate = `${year}-${pad2(month)}-01`;
 
-  // ✅ FIX: Select only columns that exist in attendance_logs
   const { data: attendance } = await db
     .from('attendance_logs')
     .select('att_date, time_in, time_out, minute_late')
@@ -148,7 +147,6 @@ async function buildExcelDTR({ staff, month, year }) {
     if (!byDay[day]) byDay[day] = log;
   }
 
-  // Helper to format time from ISO timestamp
   const formatTime = (isoTimestamp) => {
     if (!isoTimestamp) return '';
     const dt = new Date(isoTimestamp);
@@ -161,13 +159,11 @@ async function buildExcelDTR({ staff, month, year }) {
 
   const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
 
-  // Fill header information
   worksheet.getCell('B6').value = staff.name || '';
   worksheet.getCell('C7').value = monthName;
   worksheet.getCell('H3').value = staff.employee_type || '';
   worksheet.getCell('H4').value = staff.department || '';
 
-  // A1-B5: Photo (if available)
   if (staff.photo_url) {
     try {
       const response = await axios.get(staff.photo_url, {
@@ -192,7 +188,6 @@ async function buildExcelDTR({ staff, month, year }) {
     }
   }
 
-  // Fill attendance data starting from row 9
   for (let day = 1; day <= lastDay; day++) {
     const rowIndex = 8 + day;
     const log = byDay[day];
@@ -206,7 +201,6 @@ async function buildExcelDTR({ staff, month, year }) {
       worksheet.getCell(`B${rowIndex}`).value = amArrival;
       worksheet.getCell(`E${rowIndex}`).value = pmDeparture;
 
-      // Tardiness (always fill 0 even if no tardiness)
       const minuteLate = Number(log.minute_late) || 0;
       const tardinessHours = Math.floor(minuteLate / 60);
       const tardinessMinutes = minuteLate % 60;
@@ -214,14 +208,13 @@ async function buildExcelDTR({ staff, month, year }) {
       worksheet.getCell(`F${rowIndex}`).value = tardinessHours;
       worksheet.getCell(`G${rowIndex}`).value = tardinessMinutes;
 
-      // ✅ FIX: Calculate work hours from time_in and time_out
       const requiredHours = 9;
       let workedHours = 0;
       
       if (log.time_in && log.time_out) {
         const inDate = new Date(log.time_in);
         const outDate = new Date(log.time_out);
-        workedHours = (outDate - inDate) / (1000 * 60 * 60); // hours as decimal
+        workedHours = (outDate - inDate) / (1000 * 60 * 60);
       }
 
       if (workedHours > 0 && workedHours < requiredHours) {
@@ -243,11 +236,129 @@ async function buildExcelDTR({ staff, month, year }) {
   return Buffer.from(buffer);
 }
 
-async function buildDTR({ staff, month, year, logs = [] }) {
-  if (DTR_RENDERER === 'html') {
-    return buildHtmlDTR({ staff, month, year, logs });
+// ✅ NEW: Generate PDF from Excel data
+async function buildPDFfromExcel({ staff, month, year }) {
+  const lastDay = new Date(year, month, 0).getDate();
+  const startDate = `${year}-${pad2(month)}-01`;
+
+  const { data: attendance } = await db
+    .from('attendance_logs')
+    .select('att_date, time_in, time_out, minute_late')
+    .eq('staff_user_id', staff.id)
+    .gte('att_date', startDate)
+    .lte('att_date', `${year}-${pad2(month)}-${lastDay}`)
+    .order('att_date', { ascending: true });
+
+  const byDay = {};
+  for (const log of attendance || []) {
+    const dt = new Date(log.att_date + 'T00:00:00Z');
+    const day = dt.getUTCDate();
+    if (!byDay[day]) byDay[day] = log;
   }
-  return buildClassicDTR({ staff, month, year, logs });
+
+  const formatTime = (isoTimestamp) => {
+    if (!isoTimestamp) return '';
+    const dt = new Date(isoTimestamp);
+    const h = dt.getUTCHours();
+    const m = dt.getUTCMinutes();
+    const hour12 = h % 12 || 12;
+    const ampm = h < 12 ? 'AM' : 'PM';
+    return `${hour12}:${pad2(m)} ${ampm}`;
+  };
+
+  const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
+
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    const chunks = [];
+
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    // Header
+    doc.fontSize(16).font('Helvetica-Bold').text('CIUDAD DE MANILA', { align: 'center' });
+    doc.fontSize(14).text('UNIVERSIDAD DE MANILA', { align: 'center' });
+    doc.fontSize(12).font('Helvetica').text('DAILY TIME RECORD', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(10).text(`CIVIL SERVICE FORM NO. 48`, { align: 'right' });
+    doc.moveDown();
+
+    // Employee Info
+    doc.fontSize(11).font('Helvetica-Bold').text(`Name: ${staff.name || 'N/A'}`);
+    doc.fontSize(10).font('Helvetica').text(`For the month of: ${monthName} ${year}`);
+    doc.text(`Employment: ${staff.employee_type || 'N/A'}`);
+    doc.text(`Department/College: ${staff.department || 'N/A'}`);
+    doc.moveDown();
+
+    // Table Header
+    const tableTop = doc.y;
+    const colWidths = [30, 80, 80, 80, 80, 60, 60, 60, 60];
+    const headers = ['Day', 'A.M.\nArrival', 'A.M.\nDeparture', 'P.M.\nArrival', 'P.M.\nDeparture', 
+                     'Tardiness\nHours', 'Tardiness\nMinutes', 'Undertime\nHours', 'Undertime\nMinutes'];
+
+    doc.fontSize(8).font('Helvetica-Bold');
+    let xPos = 40;
+    headers.forEach((header, i) => {
+      doc.text(header, xPos, tableTop, { width: colWidths[i], align: 'center' });
+      xPos += colWidths[i];
+    });
+
+    doc.moveDown();
+    let yPos = doc.y;
+
+    // Table Rows
+    doc.font('Helvetica').fontSize(8);
+    for (let day = 1; day <= lastDay; day++) {
+      const log = byDay[day];
+      xPos = 40;
+
+      const rowData = [
+        day.toString(),
+        log ? formatTime(log.time_in) : '',
+        '', // AM Departure (not tracked)
+        '', // PM Arrival (not tracked)
+        log ? formatTime(log.time_out) : '',
+        log ? Math.floor((log.minute_late || 0) / 60).toString() : '0',
+        log ? ((log.minute_late || 0) % 60).toString() : '0',
+        '0', // Undertime hours (calculated)
+        '0'  // Undertime minutes (calculated)
+      ];
+
+      // Calculate undertime
+      if (log && log.time_in && log.time_out) {
+        const inDate = new Date(log.time_in);
+        const outDate = new Date(log.time_out);
+        const workedHours = (outDate - inDate) / (1000 * 60 * 60);
+        const requiredHours = 9;
+        
+        if (workedHours > 0 && workedHours < requiredHours) {
+          const undertimeMinutesTotal = (requiredHours - workedHours) * 60;
+          rowData[7] = Math.floor(undertimeMinutesTotal / 60).toString();
+          rowData[8] = Math.round(undertimeMinutesTotal % 60).toString();
+        }
+      }
+
+      rowData.forEach((cell, i) => {
+        doc.text(cell, xPos, yPos, { width: colWidths[i], align: 'center' });
+        xPos += colWidths[i];
+      });
+
+      yPos += 15;
+      if (yPos > 750) {
+        doc.addPage();
+        yPos = 50;
+      }
+    }
+
+    doc.end();
+  });
+}
+
+// ✅ FIXED: Main DTR builder function
+async function buildDTR({ staff, month, year }) {
+  console.log(`📄 [DTR] Generating PDF for ${staff.name} - ${month}/${year}`);
+  return await buildPDFfromExcel({ staff, month, year });
 }
 
 // ====== ROUTES ======
@@ -312,7 +423,7 @@ router.post('/generate', async (req, res) => {
       return res.status(400).json({ error: 'staff_id or staff_user_id, month, year are required' });
     }
     const staff = await getStaffRow({ staff_user_id, staff_id });
-    const pdf = await buildDTR({ staff, month: Number(month), year: Number(year), logs: [] });
+    const pdf = await buildDTR({ staff, month: Number(month), year: Number(year) });
 
     const { fullpath, filename } = canonicalFileInfo(staff.staff_id, year, month);
     await ensureBucketExists(BUCKET_PRIMARY);
@@ -344,7 +455,7 @@ router.post('/generate-many', async (req, res) => {
     for (const it of items) {
       try {
         const staff = await getStaffRow({ staff_user_id: it.staff_user_id, staff_id: it.staff_id });
-        const pdf = await buildDTR({ staff, month: Number(month), year: Number(year), logs: [] });
+        const pdf = await buildDTR({ staff, month: Number(month), year: Number(year) });
 
         const { fullpath, filename } = canonicalFileInfo(staff.staff_id, year, month);
         const { error: upErr } = await storage.from(BUCKET_PRIMARY).upload(fullpath, pdf, {
@@ -372,7 +483,7 @@ router.post('/ensure-month', async (req, res) => {
     const { month, year, dept } = req.body || {};
     if (!month || !year) return res.status(400).json({ error: 'month, year required' });
 
-    let base = db.from('staff_users').select('id, staff_id, name, department, employee_type');
+    let base = db.from('staff_users').select('id, staff_id, name, department, employee_type, role, photo_url');
     if (dept && dept !== 'All Departments') base = base.eq('department', String(dept));
 
     const { data: users, error } = await base;
@@ -391,7 +502,7 @@ router.post('/ensure-month', async (req, res) => {
         if (!row) {
           let fileRef = await findExistingInStorage(u.staff_id, year, month);
           if (!fileRef) {
-            const pdf = await buildDTR({ staff: u, month: Number(month), year: Number(year), logs: [] });
+            const pdf = await buildDTR({ staff: u, month: Number(month), year: Number(year) });
             const { fullpath, filename } = canonicalFileInfo(u.staff_id, year, month);
             const { error: upErr } = await storage.from(BUCKET_PRIMARY).upload(fullpath, pdf, {
               contentType: 'application/pdf',
@@ -450,7 +561,9 @@ router.post('/ensure-sign', async (req, res) => {
         if (fileRef) {
           try {
             signed = await trySign(fileRef);
-          } catch (e) { }
+          } catch (e) {
+            console.log('⚠️ Failed to sign existing file, will regenerate');
+          }
         }
 
         if (!signed) {
@@ -469,7 +582,7 @@ router.post('/ensure-sign', async (req, res) => {
 
         if (!signed) {
           await ensureBucketExists(BUCKET_PRIMARY);
-          const pdf = await buildDTR({ staff: user, month: Number(month), year: Number(year), logs: [] });
+          const pdf = await buildDTR({ staff: user, month: Number(month), year: Number(year) });
           const { fullpath, filename } = canonicalFileInfo(user.staff_id, year, month);
           const { error: upErr } = await storage.from(BUCKET_PRIMARY).upload(fullpath, pdf, {
             contentType: 'application/pdf',
@@ -490,6 +603,7 @@ router.post('/ensure-sign', async (req, res) => {
 
         out.push({ staff_id: user.staff_id, filename: signed.ref.filename, url: signed.url });
       } catch (e) {
+        console.error(`[ensure-sign] Error for ${it.staff_id}:`, e.message);
         out.push({ staff_id: it.staff_id || it.staff_user_id, error: e.message || 'No file' });
       }
     }
@@ -501,84 +615,9 @@ router.post('/ensure-sign', async (req, res) => {
   }
 });
 
-// POST /api/dtr/force-generate { items:[{staff_id|staff_user_id}], month, year }
-router.post('/force-generate', async (req, res) => {
-  try {
-    const { items = [], month, year } = req.body || {};
-    if (!Array.isArray(items) || !month || !year) {
-      return res.status(400).json({ error: 'items, month, year required' });
-    }
-
-    await ensureBucketExists(BUCKET_PRIMARY);
-
-    const out = [];
-    for (const it of items) {
-      try {
-        const staff = await getStaffRow({ staff_user_id: it.staff_user_id, staff_id: it.staff_id });
-
-        const pdf = await buildDTR({ staff, month: Number(month), year: Number(year), logs: [] });
-
-        const { fullpath, filename } = canonicalFileInfo(staff.staff_id, year, month);
-        const { error: upErr } = await storage.from(BUCKET_PRIMARY).upload(fullpath, pdf, {
-          contentType: 'application/pdf',
-          upsert: true
-        });
-        if (upErr) throw new Error('upload failed: ' + upErr.message);
-
-        await upsertDtrRow({
-          staff_user_id: staff.id,
-          year, month,
-          path: fullpath,
-          filename,
-          bucket: BUCKET_PRIMARY
-        });
-
-        const url = await signOrPublic(BUCKET_PRIMARY, fullpath);
-        out.push({ staff_id: staff.staff_id, filename, url, ok: true });
-      } catch (e) {
-        out.push({ staff_id: it.staff_id || it.staff_user_id, error: e.message });
-      }
-    }
-
-    res.json({ ok: true, items: out });
-  } catch (e) {
-    console.error('[dtr/force-generate]', e);
-    res.status(500).json({ error: 'force-generate failed', details: e.message });
-  }
-});
-
-// GET /api/dtr/_diag
-router.get('/_diag', async (_req, res) => {
-  try {
-    const { data, error } = await storage.from(BUCKET_PRIMARY).list('', { limit: 1 });
-    res.json({
-      ok: !error,
-      error: error?.message || null,
-      canList: Array.isArray(data),
-      bucket_primary: BUCKET_PRIMARY,
-      bucket_fallback: BUCKET_FALLBACK,
-      dtr_files_has_bucket: DTR_FILES_HAS_BUCKET,
-      renderer: DTR_RENDERER
-    });
-  } catch (e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-// GET /api/dtr/test
-router.get('/test', (_req, res) => {
-  console.log('✅ [DTR /test] Route is working!');
-  res.json({
-    ok: true,
-    path: '/api/dtr/test',
-    message: 'DTR test OK'
-  });
-});
-
-// ✅ GET /api/dtr/records?staff_id=...&year=2025&month=11
+// GET /api/dtr/records?staff_id=...&year=2025&month=11
 router.get('/records', async (req, res) => {
   try {
-    console.log('🔵 [DTR /records] Request:', req.query);
     res.set('Cache-Control', 'no-store');
 
     const { staff_id, year, month } = req.query;
@@ -587,15 +626,10 @@ router.get('/records', async (req, res) => {
       return res.status(400).json({ error: 'staff_id, year, and month are required' });
     }
 
-    console.log(`[DTR Records] Fetching for staff_id=${staff_id}, year=${year}, month=${month}`);
-
     const staff = await getStaffRow({ staff_id });
     if (!staff) {
-      console.error(`[DTR Records] Staff not found: ${staff_id}`);
       return res.status(404).json({ error: 'Staff not found' });
     }
-
-    console.log(`[DTR Records] Found staff: ${staff.name} (ID: ${staff.id})`);
 
     const y = Number(year);
     const m = Number(month);
@@ -603,9 +637,6 @@ router.get('/records', async (req, res) => {
     const startDate = `${y}-${pad2(m)}-01`;
     const endDate = `${y}-${pad2(m)}-${lastDay}`;
 
-    console.log(`[DTR Records] Date range: ${startDate} to ${endDate}`);
-
-    // ✅ FIX: Only select columns that exist
     const { data: logs, error } = await db
       .from('attendance_logs')
       .select('att_date, time_in, time_out, minute_late, attendance_status')
@@ -614,12 +645,7 @@ router.get('/records', async (req, res) => {
       .lte('att_date', endDate)
       .order('att_date', { ascending: true });
 
-    if (error) {
-      console.error(`[DTR Records] DB Error:`, error);
-      throw new Error('Failed to fetch attendance logs: ' + error.message);
-    }
-
-    console.log(`[DTR Records] Found ${logs?.length || 0} attendance records`);
+    if (error) throw new Error('Failed to fetch attendance logs: ' + error.message);
 
     const formatDateMonthDay = (dateStr) => {
       if (!dateStr) return null;
@@ -641,7 +667,6 @@ router.get('/records', async (req, res) => {
       const timeIn = formatTime(log.time_in);
       const timeOut = formatTime(log.time_out);
 
-      // Calculate work hours
       let workHours = 0;
       if (log.time_in && log.time_out) {
         const inDate = new Date(log.time_in);
@@ -661,7 +686,6 @@ router.get('/records', async (req, res) => {
       };
     });
 
-    console.log(`[DTR Records] Returning ${records.length} formatted records`);
     res.json({ records });
   } catch (err) {
     console.error('[DTR Records] Error:', err);
@@ -699,6 +723,16 @@ router.get('/download-excel', async (req, res) => {
     console.error('[DTR Excel Download] Error:', err);
     res.status(500).json({ error: 'Failed to generate Excel', details: err.message });
   }
+});
+
+// GET /api/dtr/test
+router.get('/test', (_req, res) => {
+  console.log('✅ [DTR /test] Route is working!');
+  res.json({
+    ok: true,
+    path: '/api/dtr/test',
+    message: 'DTR test OK - PDF generation enabled'
+  });
 });
 
 console.log('✅ [DTR] All routes loaded successfully');
