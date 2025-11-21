@@ -259,7 +259,7 @@ export function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="shadow-md">
           <CardHeader>
-            <CardTitle>Select Date</CardTitle>
+            <CardTitle>Attendance Calendar</CardTitle>
             <CardDescription>Choose a date to view attendance analytics</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
