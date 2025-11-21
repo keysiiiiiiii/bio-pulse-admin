@@ -30,8 +30,8 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
   const [filterCollege, setFilterCollege] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<"late" | "punctual">("late");
-  const [topCount, setTopCount] = useState<number>(20);
+  const [sortBy, setSortBy] = useState<"late" | "punctual" | "absent">("punctual");
+  const [topCount, setTopCount] = useState<number>(5);
   const [employees, setEmployees] = useState<EmployeeAnalytics[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [colleges, setColleges] = useState<string[]>([]);
@@ -117,6 +117,8 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
       // Sort
       if (sortBy === "late") {
         employeeList.sort((a, b) => b.total - a.total);
+      } else if (sortBy === "absent") {
+        employeeList.sort((a, b) => b.absentCount - a.absentCount);
       } else {
         employeeList.sort((a, b) => b.onTimeRate - a.onTimeRate);
       }
@@ -223,13 +225,14 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
             </SelectContent>
           </Select>
 
-          <Select value={sortBy} onValueChange={(val) => setSortBy(val as "late" | "punctual")}>
+          <Select value={sortBy} onValueChange={(val) => setSortBy(val as "late" | "punctual" | "absent")}>
             <SelectTrigger className="w-[140px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="late">Most Late</SelectItem>
               <SelectItem value="punctual">Most Punctual</SelectItem>
+              <SelectItem value="late">Most Late</SelectItem>
+              <SelectItem value="absent">Most Absent</SelectItem>
             </SelectContent>
           </Select>
 
