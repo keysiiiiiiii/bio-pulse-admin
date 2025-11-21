@@ -22,17 +22,17 @@ import { supabase } from '@/lib/supabase';
 // Helper to format time from database
 const formatTime = (timeStr: string | null): string => {
   if (!timeStr) return 'N/A';
-  
+
   // Handle time format: "HH:MM:SS" or timestamp
   let timeOnly = timeStr;
   if (timeStr.includes('T')) {
     timeOnly = timeStr.split('T')[1];
   }
-  
+
   const [h, m] = timeOnly.split(':').map(Number);
   const period = h >= 12 ? 'PM' : 'AM';
   const hour12 = h % 12 || 12;
-  
+
   return `${hour12}:${m.toString().padStart(2, '0')} ${period}`;
 };
 
@@ -57,15 +57,15 @@ export function Dashboard() {
     setLoading(true);
     try {
       console.log('Fetching data for date:', date);
-      
+
       // Use the backend stats API that handles all the calculations correctly
       const stats = await attendanceApi.getStats(date);
       setStats(stats);
-      
+
       // Fetch logs for the table
       const logs = await attendanceApi.getLogs(date);
       setDailyAttendance(logs);
-      
+
       console.log('Stats:', stats);
       console.log('Logs:', logs);
     } catch (error) {
@@ -91,7 +91,7 @@ export function Dashboard() {
       });
       return;
     }
-    
+
     setExportingDaily(true);
     try {
       const exportData = dailyAttendance.map(record => ({
@@ -120,9 +120,9 @@ export function Dashboard() {
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Daily Attendance");
-      
+
       XLSX.writeFile(wb, `Daily_Attendance_${format(selectedDate, 'yyyy-MM-dd')}.xlsx`);
-      
+
       toast({
         title: "Success",
         description: "Daily attendance exported successfully"
@@ -141,12 +141,12 @@ export function Dashboard() {
 
   const exportMonthlyAttendance = async () => {
     if (!selectedMonth) return;
-    
+
     setExportingMonthly(true);
     try {
       const year = selectedMonth.getFullYear();
       const month = selectedMonth.getMonth() + 1;
-      
+
       const { data: logs, error } = await supabase
         .from('attendance_logs')
         .select(`
@@ -159,9 +159,9 @@ export function Dashboard() {
           )
         `)
         .eq('month', month);
-      
+
       if (error) throw error;
-      
+
       if (!logs || logs.length === 0) {
         toast({
           title: "No Data",
@@ -170,7 +170,7 @@ export function Dashboard() {
         });
         return;
       }
-      
+
       const exportData = logs.map(record => ({
         'Staff ID': record.staff_users.staff_id,
         'Name': record.staff_users.name,
@@ -197,9 +197,9 @@ export function Dashboard() {
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Monthly Attendance");
-      
+
       XLSX.writeFile(wb, `Monthly_Attendance_${year}-${month.toString().padStart(2, '0')}.xlsx`);
-      
+
       toast({
         title: "Success",
         description: "Monthly attendance exported successfully"
@@ -332,8 +332,8 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Daily Attendance Table */}
-      {isSingleDate && selectedDate && (
+     {/* Daily Attendance Table */}
+      {selectedDate && (
         <Card className="shadow-md">
           <CardHeader>
             <div className="flex justify-between items-start">
@@ -352,18 +352,18 @@ export function Dashboard() {
                     <SelectItem value="staff">Staff</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={exportDailyAttendance}
                   disabled={exportingDaily}
                 >
                   <Download className="h-4 w-4 mr-2" />
                   {exportingDaily ? "Exporting..." : "Export Daily"}
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={exportMonthlyAttendance}
                   disabled={exportingMonthly}
                 >
@@ -387,12 +387,13 @@ export function Dashboard() {
                       <TableHead>Time Out</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Minutes Late</TableHead>
+                      <TableHead>Early Minutes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {dailyAttendance.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                           No attendance records for this date
                         </TableCell>
                       </TableRow>
@@ -416,12 +417,14 @@ export function Dashboard() {
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                 record.status?.toLowerCase() === 'present' ? 'bg-success/10 text-success' :
                                 record.status?.toLowerCase() === 'late' ? 'bg-warning/10 text-warning' :
+                                record.status?.toLowerCase() === 'on leave' ? 'bg-info/10 text-info' :
                                 'bg-destructive/10 text-destructive'
                               }`}>
                                 {record.status || 'N/A'}
                               </span>
                             </TableCell>
-                            <TableCell>{record.minute_late || 0}</TableCell>
+                            <TableCell className="text-center">{record.minute_late || 0}</TableCell>
+                            <TableCell className="text-center text-success">{record.early_minutes || 0}</TableCell>
                           </TableRow>
                         ))
                     )}

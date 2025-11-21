@@ -1,14 +1,13 @@
 // backend/routes/attendanceRoutes.js
 // Supabase-based attendance routes aligned to your schema.
 // IMPORTANT: Every read/write uses the numeric FK: staff_user_id.
-// If a caller only has string staff_id, we resolve it to staff_user_id first.
 
 const express = require('express');
 const router = express.Router();
 const db = require('../db.cjs'); // Supabase client
 
 // ---------- config / helpers ----------
-const OFFICE_START = process.env.OFFICE_START || '07:35'; // ✅ FIXED: Changed to 7:35 AM // HH:MM (24h)
+const OFFICE_START = process.env.OFFICE_START || '07:35'; // HH:MM (24h)
 
 const pad = (n) => String(n).padStart(2, '0');
 const toISO = (ts) => new Date(ts).toISOString();
@@ -33,57 +32,22 @@ function normalizeYMD(input) {
   return `${y}-${pad(m)}-${pad(d)}`;
 }
 
-function isLate(tsISO) {
-  if (!tsISO) return false;
-  
-  // Parse the time_in value
-  let checkTime;
-  
-  // Handle different time formats
-  if (tsISO.includes('T')) {
-    // Full ISO timestamp - convert to Manila timezone
-    const dateObj = new Date(tsISO);
-    checkTime = dateObj.toLocaleString('en-US', { 
-      timeZone: 'Asia/Manila', 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      hour12: false 
-    });
-  } else if (tsISO.includes(':')) {
-    // Already a time string like "07:30:00"
-    checkTime = tsISO;
-  } else {
-    return false;
-  }
-  
-  // Extract hours and minutes from check time
-  const [checkHH, checkMM] = checkTime.split(':').map(v => parseInt(v, 10) || 0);
-  
-  // Compare against office start (07:35)
-  const [startHH, startMM] = (OFFICE_START || '07:35').split(':').map(v => parseInt(v, 10) || 0);
-  
-  // Late if check-in time is after office start
-  if (checkHH > startHH) return true;
-  if (checkHH === startHH && checkMM > startMM) return true;
-  
-  return false;
-}
-
 // Return rows formatted for the Admin modal table
 function shapeRow(r) {
   const su = r.staff_users || {};
   const type = r.method || 'biometric';
   
-  // Determine status with proper timezone handling
-  let status;
-  if (r.on_leave === 1 || r.on_leave === true) {
-    status = 'On Leave';
-  } else if (!r.time_in) {
-    status = 'Absent';
-  } else if (isLate(r.time_in)) {
-    status = 'Late';
-  } else {
-    status = 'Present';
+  // Status is now directly from database (calculated by trigger)
+  let status = r.status || 'Unknown';
+  
+  // Extract early minutes from interval if exists
+  let early_minutes = 0;
+  if (r.early_time_in) {
+    // early_time_in is an interval, extract minutes
+    const match = String(r.early_time_in).match(/(\d+):(\d+):(\d+)/);
+    if (match) {
+      early_minutes = parseInt(match[1]) * 60 + parseInt(match[2]);
+    }
   }
 
   return {
@@ -96,6 +60,9 @@ function shapeRow(r) {
     type,
     status,
     minute_late: r.minute_late || 0,
+    early_minutes: early_minutes,
+    on_leave: r.on_leave,
+    leave_type: r.leave_type,
   };
 }
 
@@ -111,14 +78,11 @@ async function getStaffUserIdByStaffId(staff_id) {
   return row ? row.id : null;
 }
 
-// Unified query resolver: returns numeric staff_user_id if provided,
-// otherwise resolves from ?staff_id=...
+// Unified query resolver
 async function getSuidFromQuery(req) {
-  // prefer staff_user_id
   const qSuid = parseIntSafe(req.query.staff_user_id);
   if (qSuid) return qSuid;
 
-  // fallback: staff_id (string)
   const sid = req.query.staff_id && String(req.query.staff_id).trim();
   if (!sid) return null;
 
@@ -129,9 +93,9 @@ async function getSuidFromQuery(req) {
 async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
   const att_date = todayPH();
 
-  // ✅ SCHEDULE VALIDATION: Check if user has a work schedule for today
+  // Schedule validation
   const now = new Date(tsISO);
-  const dayOfWeek = now.getDay(); // 0=Sunday, 6=Saturday
+  const dayOfWeek = now.getDay();
 
   const { data: schedule, error: schedErr } = await db
     .from('work_schedules')
@@ -147,7 +111,7 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
     throw new Error('NO_SCHEDULE_TODAY: You are not scheduled to work today. Contact admin.');
   }
 
-  // check if a row exists for today
+  // Check if a row exists for today
   const { data: found, error: selErr } = await db
     .from('attendance_logs')
     .select('id, time_in, time_out')
@@ -157,15 +121,13 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
   if (selErr) throw selErr;
 
   if (!found || !found.length) {
-    // create new
+    // Create new - trigger will calculate minute_late, early_time_in, status
     if (out) {
-      // OUT-only → create row with time_out
       const { error: insErr } = await db.from('attendance_logs').insert({
         staff_user_id,
         time_out: tsISO,
         att_date,
         method: 'biometric',
-        attendance_status: 'present',
       });
       if (insErr) throw insErr;
       return 'out(created)';
@@ -175,14 +137,13 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
         time_in: tsISO,
         att_date,
         method: 'biometric',
-        attendance_status: isLate(tsISO) ? 'late' : 'present',
       });
       if (insErr) throw insErr;
       return 'in(created)';
     }
   }
 
-  // update existing
+  // Update existing - trigger will recalculate everything
   const row = found[0];
   if (out) {
     if (!row.time_out || new Date(tsISO) > new Date(row.time_out)) {
@@ -199,7 +160,7 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
     const newIn = !row.time_in || new Date(tsISO) < new Date(row.time_in) ? tsISO : row.time_in;
     const { error: updErr } = await db
       .from('attendance_logs')
-      .update({ time_in: newIn, method: 'biometric', attendance_status: isLate(newIn) ? 'late' : 'present' })
+      .update({ time_in: newIn, method: 'biometric' })
       .eq('id', row.id);
     if (updErr) throw updErr;
     return 'in(updated)';
@@ -231,7 +192,6 @@ router.post('/biometric', async (req, res) => {
     const tsISO = toISO(timestamp);
     const result = await upsertBiometric({ staff_user_id, tsISO, out: false });
 
-    // Log activity to account_activity table
     try {
       await db.from('account_activity').insert([{
         action: 'attendance_time_in',
@@ -269,7 +229,6 @@ router.post('/biometric/out', async (req, res) => {
     const tsISO = toISO(timestamp);
     const result = await upsertBiometric({ staff_user_id, tsISO, out: true });
 
-    // Log activity to account_activity table
     try {
       await db.from('account_activity').insert([{
         action: 'attendance_time_out',
@@ -294,7 +253,7 @@ router.post('/biometric/out', async (req, res) => {
   }
 });
 
-// (4) TODAY  — supports ?staff_user_id= or ?staff_id=
+// (4) TODAY
 router.get('/today', async (req, res) => {
   try {
     const date = todayPH();
@@ -309,6 +268,11 @@ router.get('/today', async (req, res) => {
         att_date,
         method,
         attendance_status,
+        status,
+        minute_late,
+        early_time_in,
+        on_leave,
+        leave_type,
         staff_users!inner(
           id,
           staff_id,
@@ -333,7 +297,7 @@ router.get('/today', async (req, res) => {
   }
 });
 
-// (5) BY DATE — supports ?staff_user_id= or ?staff_id=
+// (5) BY DATE
 router.get('/date/:selectedDate', async (req, res) => {
   try {
     const date = normalizeYMD(req.params.selectedDate);
@@ -348,6 +312,11 @@ router.get('/date/:selectedDate', async (req, res) => {
         att_date,
         method,
         attendance_status,
+        status,
+        minute_late,
+        early_time_in,
+        on_leave,
+        leave_type,
         staff_users!inner(
           id,
           staff_id,
@@ -375,7 +344,7 @@ router.get('/date/:selectedDate', async (req, res) => {
   }
 });
 
-// (6) STATS — Daily attendance statistics
+// (6) STATS – Daily attendance statistics
 router.get('/stats', async (req, res) => {
   try {
     const date = normalizeYMD(req.query.date || todayPH());
@@ -388,40 +357,37 @@ router.get('/stats', async (req, res) => {
     // Get attendance logs for the date
     const { data: logs, error } = await db
       .from('attendance_logs')
-      .select('staff_user_id, time_in, time_out, attendance_status, on_leave')
+      .select('staff_user_id, time_in, status, on_leave')
       .eq('att_date', date);
 
     if (error) throw error;
 
-    // Recalculate status for each log to ensure accuracy
+    // Count by status using database-calculated status
     let presentCount = 0;
     let lateCount = 0;
     let onLeaveCount = 0;
     
     for (const log of (logs || [])) {
-      // Check if on leave first
-      if (log.on_leave === 1 || log.on_leave === true) {
-        onLeaveCount++;
-        continue;
-      }
+      const status = (log.status || '').toLowerCase();
       
-      // If has time_in, determine if late or present
-      if (log.time_in) {
-        if (isLate(log.time_in)) {
-          lateCount++;
-        }
+      if (log.on_leave === 1 || log.on_leave === true || status === 'on leave') {
+        onLeaveCount++;
+      } else if (status === 'late') {
+        lateCount++;
+        presentCount++; // Late is a subset of present
+      } else if (status === 'present') {
         presentCount++;
       }
     }
     
-    // Absent = Total staff - Present (including late) - On Leave
+    // Absent = Total - Present (including late) - On Leave
     const absentCount = Math.max(0, (totalCount || 0) - presentCount - onLeaveCount);
 
     return res.json({
       total: totalCount || 0,
-      present: presentCount,  // This includes both on-time and late
+      present: presentCount,
       absent: absentCount,
-      late: lateCount,        // This is the subset that arrived late
+      late: lateCount,
       on_leave: onLeaveCount
     });
   } catch (e) {
@@ -444,6 +410,11 @@ router.get('/logs', async (req, res) => {
         att_date,
         method,
         attendance_status,
+        status,
+        minute_late,
+        early_time_in,
+        on_leave,
+        leave_type,
         staff_users!inner(
           id,
           staff_id,
@@ -465,7 +436,7 @@ router.get('/logs', async (req, res) => {
   }
 });
 
-// (8) INCOMPLETE — unchanged (optionally filter by suid if sent)
+// (8) INCOMPLETE
 router.get('/incomplete', async (req, res) => {
   try {
     const date = todayPH();
@@ -480,6 +451,11 @@ router.get('/incomplete', async (req, res) => {
         att_date,
         method,
         attendance_status,
+        status,
+        minute_late,
+        early_time_in,
+        on_leave,
+        leave_type,
         staff_users!inner(
           id,
           staff_id,
@@ -496,7 +472,10 @@ router.get('/incomplete', async (req, res) => {
     const { data, error } = await q;
     if (error) throw error;
 
-    const shaped = (data || []).map(shapeRow).filter(r => r.status !== 'Present' && r.status !== 'Late');
+    const shaped = (data || []).map(shapeRow).filter(r => {
+      const status = (r.status || '').toLowerCase();
+      return status !== 'present' && status !== 'late';
+    });
     return res.json(shaped);
   } catch (e) {
     console.error('[incomplete] error:', e.message || e);
@@ -504,8 +483,7 @@ router.get('/incomplete', async (req, res) => {
   }
 });
 
-// (9) RANGE — optional helper used by DTR builders
-// GET /api/attendance/range?start=YYYY-MM-DD&end=YYYY-MM-DD&staff_user_id=123
+// (9) RANGE
 router.get('/range', async (req, res) => {
   try {
     const start = normalizeYMD(String(req.query.start || '').trim());
@@ -515,7 +493,7 @@ router.get('/range', async (req, res) => {
 
     const { data, error } = await db
       .from('attendance_logs')
-      .select('id,time_in,time_out,att_date,method,attendance_status')
+      .select('id,time_in,time_out,att_date,method,attendance_status,status,minute_late,early_time_in')
       .eq('staff_user_id', suid)
       .gte('att_date', start)
       .lte('att_date', end)
@@ -530,8 +508,7 @@ router.get('/range', async (req, res) => {
   }
 });
 
-// (10) BY MONTH — convenience for a month; returns same rows as /range
-// GET /api/attendance/by-month?year=2025&month=10&staff_user_id=123
+// (10) BY MONTH
 router.get('/by-month', async (req, res) => {
   try {
     const y = parseInt(req.query.year, 10);
@@ -541,22 +518,19 @@ router.get('/by-month', async (req, res) => {
       return res.status(400).json({ error: 'year and month required' });
     }
 
-    // Resolve staff_user_id
     const suid = await getSuidFromQuery(req);
     if (!suid) {
       return res.status(400).json({ error: 'staff_user_id or staff_id required' });
     }
 
-    // Compute the month range
     const start = `${y}-${pad(m)}-01`;
     const lastDay = new Date(y, m, 0).getDate();
     const end = `${y}-${pad(m)}-${pad(lastDay)}`;
 
-    // Query attendance_logs directly
     const { data, error } = await db
       .from('attendance_logs')
       .select(`
-        id, time_in, time_out, att_date, minute_late, method, attendance_status
+        id, time_in, time_out, att_date, minute_late, method, attendance_status, status, early_time_in
       `)
       .eq('staff_user_id', suid)
       .gte('att_date', start)
@@ -572,6 +546,5 @@ router.get('/by-month', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
-
 
 module.exports = router;
