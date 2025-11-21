@@ -18,7 +18,6 @@ interface EmployeeAnalytics {
   lateRate: number;
   lateCount: number;
   absentCount: number;
-  total: number;
 }
 
 interface TopLateEmployeesEnhancedProps {
@@ -26,11 +25,42 @@ interface TopLateEmployeesEnhancedProps {
   selectedMonth?: Date;
 }
 
+const COLLEGE_OPTIONS = [
+  'CCS - College of Computing Studies',
+  'CAS - College of Arts and Sciences',
+  'CHS - College of Health Sciences',
+  'CCJ - College of Criminal Justice',
+  'CED - College of Education',
+  'CBPM - College of Business and Public Management',
+  'CL - College of Law',
+  'Gen Ed - General Education',
+  'NSTP - National Service Training Program'
+];
+
+const DEPARTMENT_OPTIONS = [
+  'Canteen',
+  'Cleaning Service',
+  'Clinic',
+  'Library',
+  'Security',
+  'Human Resource (HR)',
+  'Registrar'
+];
+
+const STATUS_OPTIONS = [
+  'Regular Admin',
+  'Regular Faculty',
+  'Part-Time Faculty',
+  'Full-time',
+  'Job Order',
+  'Contract of Service'
+];
+
 export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLateEmployeesEnhancedProps) {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
   const [filterCollege, setFilterCollege] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<"late" | "punctual" | "absent">("punctual");
+  const [sortBy, setSortBy] = useState<"punctual" | "late" | "absent">("punctual");
   const [topCount, setTopCount] = useState<number>(5);
   const [employees, setEmployees] = useState<EmployeeAnalytics[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
@@ -82,7 +112,7 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
         staff.totalDays++;
         
         if (log.time_in) {
-          if (log.status === 'late' || log.status === 'Late') {
+          if (log.status === 'late' || log.status === 'Late' || log.attendance_status === 'late') {
             staff.lateDays++;
           } else {
             staff.onTimeDays++;
@@ -111,12 +141,11 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
           lateRate: staff.totalDays > 0 ? (staff.lateDays / staff.totalDays) * 100 : 0,
           lateCount: staff.lateDays,
           absentCount: staff.absentDays,
-          total: staff.lateDays + staff.absentDays,
         }));
 
-      // Sort
+      // Sort based on selected criteria
       if (sortBy === "late") {
-        employeeList.sort((a, b) => b.total - a.total);
+        employeeList.sort((a, b) => b.lateCount - a.lateCount);
       } else if (sortBy === "absent") {
         employeeList.sort((a, b) => b.absentCount - a.absentCount);
       } else {
@@ -131,9 +160,9 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
 
       setEmployees(employeeList);
 
-      // Extract unique departments and colleges
-      const uniqueDepts = Array.from(new Set(Array.from(staffMap.values()).map(s => s.department))).sort();
-      const uniqueColleges = Array.from(new Set(Array.from(staffMap.values()).map(s => s.college))).sort();
+      // Set unique departments and colleges from the data
+      const uniqueDepts = Array.from(new Set(Array.from(staffMap.values()).map(s => s.department).filter(Boolean))).sort();
+      const uniqueColleges = Array.from(new Set(Array.from(staffMap.values()).map(s => s.college).filter(Boolean))).sort();
       setDepartments(uniqueDepts);
       setColleges(uniqueColleges);
 
@@ -177,9 +206,9 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
         <div className="flex items-start gap-2">
           <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5" />
           <div className="flex-1">
-            <CardTitle className="text-orange-500">Top/Late Employees</CardTitle>
+            <CardTitle className="text-orange-500">Top Punctual/Late/Absent Employees</CardTitle>
             <CardDescription>
-              Employees with the highest late and absent occurrences
+              Employees with the highest punctuality, late and absent occurrences
             </CardDescription>
           </div>
         </div>
@@ -187,46 +216,43 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
         {/* Filters */}
         <div className="flex flex-wrap gap-2 mt-4">
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="All Status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Regular Admin">Regular Admin</SelectItem>
-              <SelectItem value="Regular Faculty">Regular Faculty</SelectItem>
-              <SelectItem value="Part-Time Faculty">Part Time Faculty</SelectItem>
-              <SelectItem value="Full-time">Full Time</SelectItem>
-              <SelectItem value="Job Order">Job Order</SelectItem>
-              <SelectItem value="Contract of Service">COS</SelectItem>
+              {STATUS_OPTIONS.map(status => (
+                <SelectItem key={status} value={status}>{status}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
           <Select value={filterDepartment} onValueChange={setFilterDepartment}>
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All Departments" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Departments</SelectItem>
-              {departments.map(dept => (
+              {DEPARTMENT_OPTIONS.map(dept => (
                 <SelectItem key={dept} value={dept}>{dept}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select value={filterCollege} onValueChange={setFilterCollege}>
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="All Colleges" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Colleges</SelectItem>
-              {colleges.map(college => (
+              {COLLEGE_OPTIONS.map(college => (
                 <SelectItem key={college} value={college}>{college}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select value={sortBy} onValueChange={(val) => setSortBy(val as "late" | "punctual" | "absent")}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-[150px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -243,7 +269,7 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
             <SelectContent>
               <SelectItem value="5">Top 5</SelectItem>
               <SelectItem value="10">Top 10</SelectItem>
-              <SelectItem value="20">Top 20</SelectItem>
+              <SelectItem value="15">Top 15</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -257,50 +283,52 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
             No employees match the selected criteria
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[60px]">Rank</TableHead>
-                <TableHead>Staff ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>College/Dept</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">On-Time Rate</TableHead>
-                <TableHead className="text-right">Late Rate</TableHead>
-                <TableHead className="text-right">Late</TableHead>
-                <TableHead className="text-right">Absent</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {employees.map((emp) => (
-                <TableRow key={emp.staff_id}>
-                  <TableCell>
-                    {emp.rank <= 3 ? (
-                      <Badge variant="destructive" className="rounded-full">
-                        #{emp.rank}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">#{emp.rank}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">{emp.staff_id}</TableCell>
-                  <TableCell className="font-medium">{emp.name}</TableCell>
-                  <TableCell className="text-sm">{emp.college || emp.department}</TableCell>
-                  <TableCell>{getStatusBadge(emp.status)}</TableCell>
-                  <TableCell className={`text-right font-semibold ${getRateColor(emp.onTimeRate, true)}`}>
-                    {emp.onTimeRate.toFixed(1)}%
-                  </TableCell>
-                  <TableCell className={`text-right font-semibold ${getRateColor(emp.lateRate, false)}`}>
-                    {emp.lateRate.toFixed(1)}%
-                  </TableCell>
-                  <TableCell className="text-right text-orange-600 font-semibold">{emp.lateCount}</TableCell>
-                  <TableCell className="text-right text-destructive font-semibold">{emp.absentCount}</TableCell>
-                  <TableCell className="text-right font-bold">{emp.total}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="rounded-md border">
+            <div className="max-h-[500px] overflow-auto">
+              <Table>
+                <TableHeader className="sticky top-0 bg-background z-10">
+                  <TableRow>
+                    <TableHead className="w-[60px]">Rank</TableHead>
+                    <TableHead>Staff ID</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>College/Dept</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">On-Time Rate</TableHead>
+                    <TableHead className="text-right">Late Rate</TableHead>
+                    <TableHead className="text-right">Late</TableHead>
+                    <TableHead className="text-right">Absent</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {employees.map((emp) => (
+                    <TableRow key={emp.staff_id}>
+                      <TableCell>
+                        {emp.rank <= 3 ? (
+                          <Badge variant="destructive" className="rounded-full">
+                            #{emp.rank}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">#{emp.rank}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{emp.staff_id}</TableCell>
+                      <TableCell className="font-medium">{emp.name}</TableCell>
+                      <TableCell className="text-sm">{emp.college || emp.department}</TableCell>
+                      <TableCell>{getStatusBadge(emp.status)}</TableCell>
+                      <TableCell className={`text-right font-semibold ${getRateColor(emp.onTimeRate, true)}`}>
+                        {emp.onTimeRate.toFixed(1)}%
+                      </TableCell>
+                      <TableCell className={`text-right font-semibold ${getRateColor(emp.lateRate, false)}`}>
+                        {emp.lateRate.toFixed(1)}%
+                      </TableCell>
+                      <TableCell className="text-right text-orange-600 font-semibold">{emp.lateCount}</TableCell>
+                      <TableCell className="text-right text-destructive font-semibold">{emp.absentCount}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

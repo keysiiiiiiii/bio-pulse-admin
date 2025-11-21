@@ -384,7 +384,6 @@ router.post('/users',
         CED: 'CED - College of Education',
         CBPM: 'CBPM - College of Business and Public Management',
         CL: 'CL - College of Law',
-        'Gen Ed': 'Gen Ed - General Education',
         GenEd: 'Gen Ed - General Education',
         NSTP: 'NSTP - National Service Training Program'
       };
