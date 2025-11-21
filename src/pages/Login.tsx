@@ -68,14 +68,15 @@ const Login = () => {
     try {
       setLoading(true);
 
-      // Call the login API
+      // Call the login API - backend validates role
       const res = await staffApi.login(staffId, password);
 
       if (!res.user || !res.token) {
         throw new Error(res.error || "Login failed");
       }
 
-      // Validate that the selected role matches the user's actual role
+      // ✅ SECURITY: Backend already validates role, no client-side check needed
+      // Just verify the role matches what user selected (for UX feedback only)
       if (res.user.role !== role) {
         throw new Error("Invalid role selected. Please select the correct role for your account.");
       }
@@ -240,9 +241,6 @@ const Login = () => {
 
 const ForgotPasswordForm = () => {
   const [staffId, setStaffId] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [newPassword, setNewPassword] = useState("");
 
   const formatStaffId = (value: string) => {
     const numbers = value.replace(/\D/g, "");
@@ -256,18 +254,12 @@ const ForgotPasswordForm = () => {
     setStaffId(formatted);
   };
 
-  const handleSendOtp = () => {
+  const handleRequestReset = () => {
+    // TODO: Implement backend password reset endpoint
     toast({
-      title: "OTP Sent",
-      description: "Please check your registered email for the OTP",
-    });
-    setOtpSent(true);
-  };
-
-  const handleResetPassword = () => {
-    toast({
-      title: "Password Reset Successful",
-      description: "You can now log in with your new password",
+      title: "Feature Not Available",
+      description: "Please contact ICTO to reset your password",
+      variant: "destructive",
     });
   };
 
@@ -282,46 +274,16 @@ const ForgotPasswordForm = () => {
           value={staffId}
           onChange={handleStaffIdChange}
           maxLength={12}
-          disabled={otpSent}
         />
       </div>
 
-      {!otpSent ? (
-        <Button onClick={handleSendOtp} className="w-full" disabled={!staffId}>
-          Send OTP
-        </Button>
-      ) : (
-        <>
-          <div className="space-y-2">
-            <Label htmlFor="otp">Enter OTP</Label>
-            <Input
-              id="otp"
-              type="text"
-              placeholder="Enter 6-digit OTP"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              maxLength={6}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="newPassword">New Password</Label>
-            <Input
-              id="newPassword"
-              type="password"
-              placeholder="Enter new password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-          </div>
-          <Button
-            onClick={handleResetPassword}
-            className="w-full"
-            disabled={!otp || !newPassword}
-          >
-            Reset Password
-          </Button>
-        </>
-      )}
+      <Button onClick={handleRequestReset} className="w-full" disabled={!staffId}>
+        Request Password Reset
+      </Button>
+
+      <p className="text-xs text-muted-foreground text-center">
+        For security reasons, please contact ICTO to reset your password
+      </p>
     </div>
   );
 };
