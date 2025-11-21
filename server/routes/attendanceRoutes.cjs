@@ -35,27 +35,59 @@ function normalizeYMD(input) {
 
 function isLate(tsISO) {
   if (!tsISO) return false;
-  const [HH, MM] = (OFFICE_START || '07:35').split(':').map((v) => parseInt(v, 10) || 0); // ✅ FIXED
-  const start = new Date();
-  start.setHours(HH, MM, 0, 0);
-
-  const t = new Date(tsISO);
-  return t.getHours() > start.getHours() || (t.getHours() === start.getHours() && t.getMinutes() > start.getMinutes());
+  
+  // Parse the time_in value
+  let checkTime;
+  
+  // Handle different time formats
+  if (tsISO.includes('T')) {
+    // Full ISO timestamp - convert to Manila timezone
+    const dateObj = new Date(tsISO);
+    checkTime = dateObj.toLocaleString('en-US', { 
+      timeZone: 'Asia/Manila', 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: false 
+    });
+  } else if (tsISO.includes(':')) {
+    // Already a time string like "07:30:00"
+    checkTime = tsISO;
+  } else {
+    return false;
+  }
+  
+  // Extract hours and minutes from check time
+  const [checkHH, checkMM] = checkTime.split(':').map(v => parseInt(v, 10) || 0);
+  
+  // Compare against office start (07:35)
+  const [startHH, startMM] = (OFFICE_START || '07:35').split(':').map(v => parseInt(v, 10) || 0);
+  
+  // Late if check-in time is after office start
+  if (checkHH > startHH) return true;
+  if (checkHH === startHH && checkMM > startMM) return true;
+  
+  return false;
 }
 
 // Return rows formatted for the Admin modal table
 function shapeRow(r) {
   const su = r.staff_users || {};
   const type = r.method || 'biometric';
-  let status = r.attendance_status;
-
-  if (!status) {
-    if (r.time_in) status = isLate(r.time_in) ? 'late' : 'present';
-    else status = 'Absent';
+  
+  // Determine status with proper timezone handling
+  let status;
+  if (r.on_leave === 1 || r.on_leave === true) {
+    status = 'On Leave';
+  } else if (!r.time_in) {
+    status = 'Absent';
+  } else if (isLate(r.time_in)) {
+    status = 'Late';
+  } else {
+    status = 'Present';
   }
 
   return {
-    staff_id: su.staff_id,            // first column in UI
+    staff_id: su.staff_id,
     name: su.name,
     department: su.department,
     role: su.employee_type,
@@ -63,6 +95,7 @@ function shapeRow(r) {
     time_out: r.time_out,
     type,
     status,
+    minute_late: r.minute_late || 0,
   };
 }
 
@@ -360,26 +393,36 @@ router.get('/stats', async (req, res) => {
 
     if (error) throw error;
 
-    // Count present (including late)
-    const present = logs.filter(l => 
-      l.time_in && (l.attendance_status === 'present' || l.attendance_status === 'late')
-    ).length;
+    // Recalculate status for each log to ensure accuracy
+    let presentCount = 0;
+    let lateCount = 0;
+    let onLeaveCount = 0;
     
-    // Count late specifically
-    const late = logs.filter(l => l.attendance_status === 'late').length;
+    for (const log of (logs || [])) {
+      // Check if on leave first
+      if (log.on_leave === 1 || log.on_leave === true) {
+        onLeaveCount++;
+        continue;
+      }
+      
+      // If has time_in, determine if late or present
+      if (log.time_in) {
+        if (isLate(log.time_in)) {
+          lateCount++;
+        }
+        presentCount++;
+      }
+    }
     
-    // Count on leave
-    const onLeave = logs.filter(l => l.on_leave === 1 || l.on_leave === true).length;
-    
-    // Absent = Total - Present - On Leave
-    const absent = Math.max(0, (totalCount || 0) - present - onLeave);
+    // Absent = Total staff - Present (including late) - On Leave
+    const absentCount = Math.max(0, (totalCount || 0) - presentCount - onLeaveCount);
 
     return res.json({
       total: totalCount || 0,
-      present,
-      absent,
-      late,
-      on_leave: onLeave
+      present: presentCount,  // This includes both on-time and late
+      absent: absentCount,
+      late: lateCount,        // This is the subset that arrived late
+      on_leave: onLeaveCount
     });
   } catch (e) {
     console.error('[stats] error:', e.message || e);
