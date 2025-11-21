@@ -26,8 +26,8 @@ export function AccountTools({ selectedUser }: AccountToolsProps) {
           <Card className="border-2">
             <CardHeader>
               <div className="flex items-start gap-4">
-                <div className="p-3 rounded-lg bg-orange-500/10">
-                  <KeyRound className="h-6 w-6 text-orange-600" />
+                <div className="p-3 rounded-lg bg-destructive/10">
+                  <KeyRound className="h-6 w-6 text-destructive" />
                 </div>
                 <div className="flex-1">
                   <CardTitle className="text-lg">Password Reset</CardTitle>
@@ -57,8 +57,8 @@ export function AccountTools({ selectedUser }: AccountToolsProps) {
           <Card className="border-2">
             <CardHeader>
               <div className="flex items-start gap-4">
-                <div className="p-3 rounded-lg bg-green-500/10">
-                  <UserPlus className="h-6 w-6 text-green-600" />
+                <div className="p-3 rounded-lg bg-primary/10">
+                  <UserPlus className="h-6 w-6 text-primary" />
                 </div>
                 <div className="flex-1">
                   <CardTitle className="text-lg">Create Account</CardTitle>
