@@ -5,20 +5,21 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { supabase } from '@/lib/supabase';
 
+// ✅ FIXED: Match exact database values for leave_type
 const leaveTypes = [
-  { key: "vacation", label: "Vacation Leave", color: "hsl(var(--primary))" },
-  { key: "forced", label: "Mandatory/Forced Leave", color: "hsl(220, 70%, 50%)" },
-  { key: "sick", label: "Sick Leave", color: "hsl(var(--destructive))" },
-  { key: "maternity", label: "Maternity Leave", color: "hsl(280, 65%, 60%)" },
-  { key: "paternity", label: "Paternity Leave", color: "hsl(200, 70%, 50%)" },
-  { key: "spl", label: "Special Privilege Leave", color: "hsl(var(--success))" },
-  { key: "solo", label: "Solo Parent Leave", color: "hsl(320, 65%, 55%)" },
-  { key: "study", label: "Study Leave", color: "hsl(180, 60%, 50%)" },
-  { key: "vawc", label: "10-Day VAWC Leave", color: "hsl(340, 75%, 55%)" },
-  { key: "rehab", label: "Rehabilitation Privilege", color: "hsl(40, 70%, 55%)" },
-  { key: "women", label: "Special Leave Benefits for Women", color: "hsl(300, 70%, 60%)" },
-  { key: "emergency", label: "Special Emergency (Calamity) Leave", color: "hsl(var(--warning))" },
-  { key: "adoption", label: "Adoption Leave", color: "hsl(260, 65%, 60%)" },
+  { key: "Vacation Leave", label: "Vacation Leave", color: "#3b82f6" },
+  { key: "Mandatory/Forced Leave", label: "Mandatory/Forced Leave", color: "#8b5cf6" },
+  { key: "Sick Leave", label: "Sick Leave", color: "#ef4444" },
+  { key: "Maternity Leave", label: "Maternity Leave", color: "#ec4899" },
+  { key: "Paternity Leave", label: "Paternity Leave", color: "#06b6d4" },
+  { key: "Special Privilege Leave", label: "Special Privilege Leave", color: "#22c55e" },
+  { key: "Solo Parent Leave", label: "Solo Parent Leave", color: "#f43f5e" },
+  { key: "Study Leave", label: "Study Leave", color: "#14b8a6" },
+  { key: "10-Day VAWC Leave", label: "10-Day VAWC Leave", color: "#db2777" },
+  { key: "Rehabilitation Privilege", label: "Rehabilitation Privilege", color: "#f97316" },
+  { key: "Special Leave Benefits for Women", label: "Special Leave Benefits for Women", color: "#a855f7" },
+  { key: "Special Emergency (Calamity) Leave", label: "Special Emergency (Calamity) Leave", color: "#eab308" },
+  { key: "Adoption Leave", label: "Adoption Leave", color: "#6366f1" },
 ];
 
 interface LeaveAnalyticsChartProps {
@@ -49,52 +50,85 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
         const monthStart = format(firstDay, 'yyyy-MM-dd');
         const monthEnd = format(lastDay, 'yyyy-MM-dd');
         
-        console.log('Fetching leave data between:', monthStart, 'and', monthEnd);
+        console.log('🔍 Fetching leave data between:', monthStart, 'and', monthEnd);
         
-        // Query leave data with leave_duration
+        // ✅ FIXED: More flexible query
         const { data, error } = await supabase
           .from('attendance_logs')
           .select('leave_type, week_of_year, att_date, on_leave, leave_duration')
           .gte('att_date', monthStart)
           .lte('att_date', monthEnd)
-          .eq('on_leave', 1)
-          .not('leave_type', 'is', null)
-          .not('leave_duration', 'is', null);
+          .not('leave_type', 'is', null);
         
         if (error) {
-          console.error('Supabase error:', error);
+          console.error('❌ Supabase error:', error);
           throw error;
         }
         
-        console.log('Fetched leave data:', data);
+        console.log('✅ Fetched leave data (ALL):', data);
+        console.log('📊 Total records:', data?.length || 0);
         
-        if (!data || data.length === 0) {
-          console.log('No leave data found');
+        // ✅ Filter records with on_leave = 1 or true
+        const leaveRecords = data?.filter(d => d.on_leave === 1 || d.on_leave === true || d.on_leave === '1') || [];
+        console.log('✅ Filtered leave records (on_leave=1):', leaveRecords);
+        console.log('📊 Leave records count:', leaveRecords.length);
+        
+        if (leaveRecords.length === 0) {
+          console.log('⚠️ No leave data found');
+          
+          // Debug: Show what leave types exist in the data
+          if (data && data.length > 0) {
+            const allLeaveTypes = [...new Set(data.map(d => d.leave_type).filter(Boolean))];
+            console.log('📝 Available leave types in DB:', allLeaveTypes);
+            console.log('📝 Sample records:', data.slice(0, 5));
+          }
+          
           setChartData([]);
           return;
         }
         
-        // ✅ FIXED: Generate all weeks in the month (1-5 typically)
-        const firstWeek = Math.ceil((firstDay.getDate() - firstDay.getDay()) / 7) + 1;
-        const lastWeek = Math.ceil((lastDay.getDate() - lastDay.getDay()) / 7) + 1;
-        const weeksInMonth = [];
-        for (let w = firstWeek; w <= lastWeek; w++) {
-          weeksInMonth.push(w);
+        // ✅ Show unique leave types for debugging
+        const uniqueLeaveTypes = [...new Set(leaveRecords.map(d => d.leave_type))];
+        console.log('📝 Unique leave types found:', uniqueLeaveTypes);
+        
+        // ✅ Generate week numbers for the month
+        const weeksInMonth: number[] = [];
+        const allWeeks = [...new Set(leaveRecords.map(d => d.week_of_year).filter(Boolean))].sort((a, b) => a - b);
+        
+        console.log('📅 Weeks found in data:', allWeeks);
+        
+        // If no weeks, calculate based on dates
+        if (allWeeks.length === 0) {
+          for (let w = 1; w <= 5; w++) {
+            weeksInMonth.push(w);
+          }
+        } else {
+          weeksInMonth.push(...allWeeks);
         }
         
-        console.log('Weeks in month:', weeksInMonth);
+        console.log('📅 Weeks to display:', weeksInMonth);
         
-        // Transform data by week - sum leave_duration instead of count
+        // ✅ Transform data by week - sum leave_duration
         const transformedData = weeksInMonth.map(week => {
           const weekData: any = { month: `Week ${week}` };
           
           leaveTypes.forEach(lt => {
-            const totalDays = data
+            // ✅ FIXED: Exact match or contains check (case-insensitive)
+            const totalDays = leaveRecords
               .filter(d => {
-                const leaveTypeMatch = d.leave_type?.toLowerCase().includes(lt.key.toLowerCase());
-                return d.week_of_year === week && leaveTypeMatch;
+                if (!d.leave_type) return false;
+                
+                const dbLeaveType = d.leave_type.trim().toLowerCase();
+                const searchKey = lt.key.trim().toLowerCase();
+                
+                // Exact match or contains
+                const matches = dbLeaveType === searchKey || 
+                               dbLeaveType.includes(searchKey) || 
+                               searchKey.includes(dbLeaveType);
+                
+                return d.week_of_year === week && matches;
               })
-              .reduce((sum, d) => sum + (Number(d.leave_duration) || 0), 0);
+              .reduce((sum, d) => sum + (Number(d.leave_duration) || 1), 0); // Default to 1 if no duration
             
             weekData[lt.key] = totalDays;
           });
@@ -102,10 +136,18 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
           return weekData;
         });
         
-        console.log('Transformed leave data:', transformedData);
+        console.log('📊 Transformed leave data:', transformedData);
+        
+        // ✅ Check if there's any data
+        const hasAnyData = transformedData.some(week => {
+          return leaveTypes.some(lt => week[lt.key] > 0);
+        });
+        
+        console.log('📊 Has any data to display:', hasAnyData);
+        
         setChartData(transformedData);
       } catch (error) {
-        console.error('Error fetching leave data:', error);
+        console.error('❌ Error fetching leave data:', error);
         setChartData([]);
       } finally {
         setLoading(false);
@@ -146,14 +188,15 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
             </div>
           ) : chartData.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No leave data for {format(selectedMonth, "MMMM yyyy")}
+              <p>No leave data for {format(selectedMonth, "MMMM yyyy")}</p>
+              <p className="text-xs mt-2">Check the console for debugging info</p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={400}>
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
-                <YAxis />
+                <YAxis label={{ value: 'Days', angle: -90, position: 'insideLeft' }} />
                 <Tooltip />
                 <Legend />
                 {leaveTypes
