@@ -51,14 +51,15 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
         
         console.log('Fetching leave data between:', monthStart, 'and', monthEnd);
         
-        // Query leave data - simplified approach
+        // Query leave data with leave_duration
         const { data, error } = await supabase
           .from('attendance_logs')
-          .select('leave_type, week_of_year, att_date, on_leave')
+          .select('leave_type, week_of_year, att_date, on_leave, leave_duration')
           .gte('att_date', monthStart)
           .lte('att_date', monthEnd)
-          .eq('on_leave', 1) // Filter for on_leave = 1 (smallint)
-          .not('leave_type', 'is', null);
+          .eq('on_leave', 1)
+          .not('leave_type', 'is', null)
+          .not('leave_duration', 'is', null);
         
         if (error) {
           console.error('Supabase error:', error);
@@ -83,17 +84,19 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
         
         console.log('Weeks in month:', weeksInMonth);
         
-        // Transform data by week
+        // Transform data by week - sum leave_duration instead of count
         const transformedData = weeksInMonth.map(week => {
           const weekData: any = { month: `Week ${week}` };
           
           leaveTypes.forEach(lt => {
-            const count = data.filter(d => {
-              const leaveTypeMatch = d.leave_type?.toLowerCase().includes(lt.key.toLowerCase());
-              return d.week_of_year === week && leaveTypeMatch;
-            }).length;
+            const totalDays = data
+              .filter(d => {
+                const leaveTypeMatch = d.leave_type?.toLowerCase().includes(lt.key.toLowerCase());
+                return d.week_of_year === week && leaveTypeMatch;
+              })
+              .reduce((sum, d) => sum + (Number(d.leave_duration) || 0), 0);
             
-            weekData[lt.key] = count;
+            weekData[lt.key] = totalDays;
           });
           
           return weekData;
