@@ -415,12 +415,12 @@ export function Dashboard() {
                             <TableCell>{formatTime(record.time_out)}</TableCell>
                             <TableCell>
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                record.on_leave ? 'bg-info/10 text-info' :
                                 record.status?.toLowerCase() === 'present' ? 'bg-success/10 text-success' :
                                 record.status?.toLowerCase() === 'late' ? 'bg-warning/10 text-warning' :
-                                record.status?.toLowerCase() === 'on leave' ? 'bg-info/10 text-info' :
                                 'bg-destructive/10 text-destructive'
                               }`}>
-                                {record.status || 'N/A'}
+                                {record.on_leave ? 'On Leave' : (record.status || 'N/A')}
                               </span>
                             </TableCell>
                             <TableCell className="text-center">{record.minute_late || 0}</TableCell>
