@@ -2,20 +2,20 @@ import { useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, TrendingUp, Activity, Building2, User } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { TimeAnalytics } from "./charts/TimeAnalytics";
-import { TrendAnalytics } from "./charts/TrendAnalytics";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SeasonalAnalytics } from "./charts/SeasonalAnalytics";
 import { PredictiveAnalytics } from "./charts/PredictiveAnalytics";
-import { OvertimeUndertimeAnalytics } from "./charts/OvertimeUndertimeAnalytics";
+import { DepartmentInsights } from "./charts/DepartmentInsights";
+import { EmployeePerformance } from "./charts/EmployeePerformance";
 
 export function Analytics() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date } | undefined>();
   const [isRangeMode, setIsRangeMode] = useState(false);
+  const [activeTab, setActiveTab] = useState("seasonal");
 
   return (
     <div className="space-y-6">
@@ -92,44 +92,49 @@ export function Analytics() {
         </div>
       </div>
 
-      {/* Group 1: Seasonal Trends - MOVED TO TOP */}
-      <div className="space-y-6">
-        <div className="border-l-4 border-orange-500 pl-4">
-          <h3 className="text-xl font-semibold">Seasonal Trends</h3>
-          <p className="text-sm text-muted-foreground">Analyze attendance patterns across different seasons</p>
-        </div>
-        <SeasonalAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-      </div>
+      {/* Tab Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+          <TabsTrigger value="seasonal" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            <span className="hidden sm:inline">Seasonal Trends</span>
+            <span className="sm:hidden">Seasonal</span>
+          </TabsTrigger>
+          <TabsTrigger value="predictive" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            <span className="hidden sm:inline">Predictive Analytics</span>
+            <span className="sm:hidden">Predictive</span>
+          </TabsTrigger>
+          <TabsTrigger value="department" className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Department Insights</span>
+            <span className="sm:hidden">Department</span>
+          </TabsTrigger>
+          <TabsTrigger value="employee" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            <span className="hidden sm:inline">Employee Performance</span>
+            <span className="sm:hidden">Employee</span>
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Group 2: Predictive Analytics */}
-      <div className="space-y-6">
-        <div className="border-l-4 border-purple-500 pl-4">
-          <h3 className="text-xl font-semibold">Predictive Analytics</h3>
-          <p className="text-sm text-muted-foreground">Forecast future trends and identify high-risk patterns (Note: Top Employees moved to Dashboard)</p>
-        </div>
-        <PredictiveAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-      </div>
+        <div className="mt-6">
+          <TabsContent value="seasonal" className="space-y-6 m-0 animate-in fade-in-50 duration-300">
+            <SeasonalAnalytics selectedDate={selectedDate} dateRange={dateRange} />
+          </TabsContent>
 
-      {/* Group 3: Overtime & Undertime Analytics */}
-      <div className="space-y-6">
-        <div className="border-l-4 border-blue-500 pl-4">
-          <h3 className="text-xl font-semibold">Overtime & Undertime Analytics</h3>
-          <p className="text-sm text-muted-foreground">Monitor work hours and overtime patterns</p>
-        </div>
-        <div className="grid gap-6">
-          <OvertimeUndertimeAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-          <TrendAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-        </div>
-      </div>
+          <TabsContent value="predictive" className="space-y-6 m-0 animate-in fade-in-50 duration-300">
+            <PredictiveAnalytics selectedDate={selectedDate} dateRange={dateRange} />
+          </TabsContent>
 
-      {/* Group 4: Time & Lateness Analytics */}
-      <div className="space-y-6">
-        <div className="border-l-4 border-primary pl-4">
-          <h3 className="text-xl font-semibold">Time & Lateness Analytics</h3>
-          <p className="text-sm text-muted-foreground">Track punctuality patterns and time management (Note: Average Minutes Late moved to Seasonal Trends)</p>
+          <TabsContent value="department" className="space-y-6 m-0 animate-in fade-in-50 duration-300">
+            <DepartmentInsights selectedDate={selectedDate} dateRange={dateRange} />
+          </TabsContent>
+
+          <TabsContent value="employee" className="space-y-6 m-0 animate-in fade-in-50 duration-300">
+            <EmployeePerformance selectedDate={selectedDate} dateRange={dateRange} />
+          </TabsContent>
         </div>
-        <TimeAnalytics selectedDate={selectedDate} dateRange={dateRange} />
-      </div>
+      </Tabs>
     </div>
   );
 }
