@@ -19,10 +19,14 @@ export function AttendanceChart({ selectedDate }: AttendanceChartProps) {
         const date = selectedDate ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
         const stats = await attendanceApi.getStats(date);
         
+        // Present includes both on-time and late arrivals
+        // Calculate on-time by subtracting late from present
+        const onTime = stats.present - stats.late;
+        
         setData([
-          { name: "Present", value: stats.present, color: "hsl(var(--success))" },
+          { name: "On Time", value: onTime, color: "hsl(var(--success))" },
+          { name: "Late", value: stats.late, color: "hsl(var(--warning))" },
           { name: "Absent", value: stats.absent, color: "hsl(var(--destructive))" },
-          { name: "Tardy", value: stats.late, color: "hsl(var(--warning))" },
         ]);
       } catch (error) {
         console.error('Failed to fetch attendance stats:', error);
