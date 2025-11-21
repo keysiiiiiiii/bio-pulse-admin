@@ -51,13 +51,13 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
         
         console.log('Fetching leave data between:', monthStart, 'and', monthEnd);
         
-        // ✅ FIXED: Query with proper leave filtering
+        // Query leave data - simplified approach
         const { data, error } = await supabase
           .from('attendance_logs')
           .select('leave_type, week_of_year, att_date, on_leave')
           .gte('att_date', monthStart)
           .lte('att_date', monthEnd)
-          .or('on_leave.eq.1,on_leave.eq.true') // ✅ Handle both boolean and integer
+          .eq('on_leave', 1) // Filter for on_leave = 1 (smallint)
           .not('leave_type', 'is', null);
         
         if (error) {
