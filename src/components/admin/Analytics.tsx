@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SeasonalAnalytics } from "./charts/SeasonalAnalytics";
 import { PredictiveAnalytics } from "./charts/PredictiveAnalytics";
-import { DepartmentInsights } from "./charts/DepartmentInsights";
-import { EmployeePerformance } from "./charts/EmployeePerformance";
+import { OvertimeUndertimeAnalytics } from "./charts/OvertimeUndertimeAnalytics";
+import { AttendanceComplianceScorecard } from "./charts/AttendanceComplianceScorecard";
 
 export function Analytics() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -105,15 +105,15 @@ export function Analytics() {
             <span className="hidden sm:inline">Predictive Analytics</span>
             <span className="sm:hidden">Predictive</span>
           </TabsTrigger>
-          <TabsTrigger value="department" className="flex items-center gap-2">
+          <TabsTrigger value="overtime" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Department Insights</span>
-            <span className="sm:hidden">Department</span>
+            <span className="hidden sm:inline">Overtime/Undertime</span>
+            <span className="sm:hidden">OT/UT</span>
           </TabsTrigger>
-          <TabsTrigger value="employee" className="flex items-center gap-2">
+          <TabsTrigger value="compliance" className="flex items-center gap-2">
             <User className="h-4 w-4" />
-            <span className="hidden sm:inline">Employee Performance</span>
-            <span className="sm:hidden">Employee</span>
+            <span className="hidden sm:inline">Compliance Scorecard</span>
+            <span className="sm:hidden">Compliance</span>
           </TabsTrigger>
         </TabsList>
 
@@ -126,12 +126,12 @@ export function Analytics() {
             <PredictiveAnalytics selectedDate={selectedDate} dateRange={dateRange} />
           </TabsContent>
 
-          <TabsContent value="department" className="space-y-6 m-0 animate-in fade-in-50 duration-300">
-            <DepartmentInsights selectedDate={selectedDate} dateRange={dateRange} />
+          <TabsContent value="overtime" className="space-y-6 m-0 animate-in fade-in-50 duration-300">
+            <OvertimeUndertimeAnalytics selectedDate={selectedDate} dateRange={dateRange} />
           </TabsContent>
 
-          <TabsContent value="employee" className="space-y-6 m-0 animate-in fade-in-50 duration-300">
-            <EmployeePerformance selectedDate={selectedDate} dateRange={dateRange} />
+          <TabsContent value="compliance" className="space-y-6 m-0 animate-in fade-in-50 duration-300">
+            <AttendanceComplianceScorecard selectedDate={selectedDate} dateRange={dateRange} />
           </TabsContent>
         </div>
       </Tabs>
