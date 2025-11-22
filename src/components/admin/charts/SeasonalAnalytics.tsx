@@ -56,25 +56,63 @@ export function SeasonalAnalytics({ selectedDate, dateRange }: SeasonalAnalytics
 
   return (
     <>
-      {/* Average Minutes Late per Month - MOVED FROM TimeAnalytics */}
+      {/* Average Minutes Late per Month */}
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Average Minutes Late per Month</CardTitle>
+          <CardTitle>Tardiness Trends Across the Year</CardTitle>
           <CardDescription>
-            Identify trends (e.g., rainy season = more lates) - Total, Faculty, Staff
+            Monthly patterns showing seasonal impact on punctuality (Overall, Faculty, Staff)
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={350}>
             <LineChart data={lateMinutesData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis 
+                dataKey="month" 
+                stroke="hsl(var(--foreground))"
+                style={{ fontSize: '12px' }}
+              />
+              <YAxis 
+                stroke="hsl(var(--foreground))"
+                style={{ fontSize: '12px' }}
+                label={{ value: 'Minutes Late', angle: -90, position: 'insideLeft' }}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--background))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px'
+                }}
+              />
               <Legend />
-              <Line type="monotone" dataKey="total" stroke="#f97316" strokeWidth={2} name="Overall Average" />
-              <Line type="monotone" dataKey="faculty" stroke="#16a34a" strokeWidth={2} name="Faculty Average" />
-              <Line type="monotone" dataKey="staff" stroke="#2563eb" strokeWidth={2} name="Staff Average" />
+              <Line 
+                type="monotone" 
+                dataKey="total" 
+                stroke="#f97316" 
+                strokeWidth={3} 
+                name="Overall Average"
+                dot={{ fill: '#f97316', r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="faculty" 
+                stroke="#16a34a" 
+                strokeWidth={2} 
+                name="Faculty Average"
+                dot={{ fill: '#16a34a', r: 3 }}
+                strokeDasharray="5 5"
+              />
+              <Line 
+                type="monotone" 
+                dataKey="staff" 
+                stroke="#2563eb" 
+                strokeWidth={2} 
+                name="Staff Average"
+                dot={{ fill: '#2563eb', r: 3 }}
+                strokeDasharray="5 5"
+              />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
@@ -83,23 +121,41 @@ export function SeasonalAnalytics({ selectedDate, dateRange }: SeasonalAnalytics
       {/* Rainy-Season Absenteeism (Jun-Sep) */}
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Rainy-Season Absenteeism (Jun-Sep)</CardTitle>
-          <CardDescription>Confirm weather impact on attendance</CardDescription>
+          <CardTitle>Rainy Season Impact (Jun-Sep)</CardTitle>
+          <CardDescription>Weather-related absence patterns during monsoon months</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={rainySeasonData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart data={rainySeasonData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis 
+                dataKey="month" 
+                stroke="hsl(var(--foreground))"
+                style={{ fontSize: '12px' }}
+              />
+              <YAxis 
+                stroke="hsl(var(--foreground))"
+                style={{ fontSize: '12px' }}
+                label={{ value: 'Absences', angle: -90, position: 'insideLeft' }}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--background))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px'
+                }}
+              />
               <Legend />
-              <Bar dataKey="absent" fill="hsl(var(--destructive))" name="Absences">
-                {rainySeasonData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={`hsl(var(--destructive))`} opacity={0.6 + (index * 0.1)} />
-                ))}
-              </Bar>
-            </BarChart>
+              <Line 
+                type="monotone" 
+                dataKey="absent" 
+                stroke="hsl(var(--destructive))" 
+                strokeWidth={3}
+                name="Absences"
+                dot={{ fill: 'hsl(var(--destructive))', r: 5 }}
+                activeDot={{ r: 7 }}
+              />
+            </LineChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
@@ -107,20 +163,35 @@ export function SeasonalAnalytics({ selectedDate, dateRange }: SeasonalAnalytics
       {/* Summer Leaves (Mar-May) */}
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Summer Leaves (Mar-May)</CardTitle>
-          <CardDescription>Quantify faculty leaves vs. staff presence</CardDescription>
+          <CardTitle>Summer Break Leave Pattern (Mar-May)</CardTitle>
+          <CardDescription>Faculty vs Staff leave distribution during summer months</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={summerData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="category" />
-              <YAxis />
-              <Tooltip />
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={summerData} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis 
+                type="number"
+                stroke="hsl(var(--foreground))"
+                style={{ fontSize: '12px' }}
+              />
+              <YAxis 
+                type="category"
+                dataKey="category" 
+                stroke="hsl(var(--foreground))"
+                style={{ fontSize: '12px' }}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--background))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px'
+                }}
+              />
               <Legend />
-              <Bar dataKey="leaves" fill="hsl(var(--primary))" name="Leave Requests">
+              <Bar dataKey="leaves" name="Leave Requests" radius={[0, 8, 8, 0]}>
                 <Cell fill="hsl(var(--primary))" />
-                <Cell fill="hsl(var(--success))" />
+                <Cell fill="#16a34a" />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -130,20 +201,50 @@ export function SeasonalAnalytics({ selectedDate, dateRange }: SeasonalAnalytics
       {/* Holiday Season (Nov-Dec) */}
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Holiday Season (Nov-Dec)</CardTitle>
-          <CardDescription>See spike in absences/early time-outs</CardDescription>
+          <CardTitle>Holiday Season Patterns (Nov-Dec)</CardTitle>
+          <CardDescription>Year-end absence and early departure trends</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={holidayData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart data={holidayData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis 
+                dataKey="month" 
+                stroke="hsl(var(--foreground))"
+                style={{ fontSize: '12px' }}
+              />
+              <YAxis 
+                stroke="hsl(var(--foreground))"
+                style={{ fontSize: '12px' }}
+                label={{ value: 'Count', angle: -90, position: 'insideLeft' }}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--background))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px'
+                }}
+              />
               <Legend />
-              <Bar dataKey="absences" fill="hsl(var(--destructive))" name="Absences" />
-              <Bar dataKey="earlyOuts" fill="hsl(var(--warning))" name="Early Time-Outs" />
-            </BarChart>
+              <Line 
+                type="monotone" 
+                dataKey="absences" 
+                stroke="hsl(var(--destructive))" 
+                strokeWidth={3}
+                name="Absences"
+                dot={{ fill: 'hsl(var(--destructive))', r: 5 }}
+                activeDot={{ r: 7 }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="earlyOuts" 
+                stroke="#f59e0b" 
+                strokeWidth={3}
+                name="Early Time-Outs"
+                dot={{ fill: '#f59e0b', r: 5 }}
+                activeDot={{ r: 7 }}
+              />
+            </LineChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
