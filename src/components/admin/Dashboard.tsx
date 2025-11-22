@@ -154,8 +154,9 @@ export function Dashboard() {
           staff_users!inner (
             staff_id,
             name,
-            employee_type,
-            department
+            role,
+            department,
+            employee_type
           )
         `)
         .eq('month', month);
@@ -174,7 +175,7 @@ export function Dashboard() {
       const exportData = logs.map(record => ({
         'Staff ID': record.staff_users.staff_id,
         'Name': record.staff_users.name,
-        'Role': record.staff_users.employee_type || 'N/A',
+        'Role': record.staff_users.role || 'N/A',
         'Department': record.staff_users.department || 'N/A',
         'Date': record.att_date,
         'Time In': formatTime(record.time_in),
