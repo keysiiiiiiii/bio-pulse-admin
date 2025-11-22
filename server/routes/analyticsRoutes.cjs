@@ -946,6 +946,8 @@ router.get('/late-minutes-monthly', async (req, res) => {
     const { start, end } = req.query;
     if (!isDate(start) || !isDate(end)) return res.status(400).json({ error: 'Invalid date range' });
 
+    console.log(`[late-minutes-monthly] Fetching from ${start} to ${end}`);
+
     const { data: staff } = await db.from('staff_users').select('id, department');
     const isFacultyMap = new Map();
     for (const s of (staff || [])) {
@@ -954,17 +956,20 @@ router.get('/late-minutes-monthly', async (req, res) => {
 
     const { data: logs } = await db
       .from('attendance_logs')
-      .select('staff_user_id, att_date, tardiness')
+      .select('staff_user_id, att_date, minute_late')
       .gte('att_date', start).lte('att_date', end)
-      .not('tardiness', 'is', null);
+      .not('minute_late', 'is', null)
+      .gt('minute_late', 0);
+
+    console.log(`[late-minutes-monthly] Found ${(logs || []).length} logs with late minutes`);
 
     const monthlyData = {};
     for (const log of (logs || [])) {
       const month = new Date(log.att_date).toLocaleString('en', { month: 'short' });
       if (!monthlyData[month]) monthlyData[month] = { faculty: [], staff: [] };
       const isFaculty = isFacultyMap.get(String(log.staff_user_id));
-      if (isFaculty) monthlyData[month].faculty.push(log.tardiness);
-      else monthlyData[month].staff.push(log.tardiness);
+      if (isFaculty) monthlyData[month].faculty.push(parseFloat(log.minute_late));
+      else monthlyData[month].staff.push(parseFloat(log.minute_late));
     }
 
     const rows = Object.entries(monthlyData).map(([month, data]) => ({
@@ -975,9 +980,10 @@ router.get('/late-minutes-monthly', async (req, res) => {
         ([...data.faculty, ...data.staff].reduce((a,b)=>a+b,0) / [...data.faculty, ...data.staff].length).toFixed(1) : 0
     }));
 
+    console.log(`[late-minutes-monthly] ✅ Returning ${rows.length} months of data`);
     res.json({ rows });
   } catch (e) {
-    console.error(e);
+    console.error('[late-minutes-monthly] ❌ Error:', e);
     res.status(500).json({ error: e.message || String(e) });
   }
 });
@@ -1002,21 +1008,22 @@ router.get('/dept-late-minutes', async (req, res) => {
 
     const { data: logs } = await db
       .from('attendance_logs')
-      .select('staff_user_id, tardiness')
+      .select('staff_user_id, minute_late')
       .gte('att_date', start).lte('att_date', end)
-      .not('tardiness', 'is', null);
+      .not('minute_late', 'is', null)
+      .gt('minute_late', 0);
 
     const deptData = {};
     for (const log of (logs || [])) {
       const dept = deptOf.get(String(log.staff_user_id));
       if (!dept) continue;
       if (!deptData[dept]) deptData[dept] = [];
-      deptData[dept].push(log.tardiness);
+      deptData[dept].push(parseFloat(log.minute_late));
     }
 
-    const rows = Object.entries(deptData).map(([dept, tardiness]) => ({
+    const rows = Object.entries(deptData).map(([dept, lateMinutes]) => ({
       department: dept,
-      avgLateMinutes: tardiness.length ? (tardiness.reduce((a,b)=>a+b,0) / tardiness.length).toFixed(1) : 0
+      avgLateMinutes: lateMinutes.length ? (lateMinutes.reduce((a,b)=>a+b,0) / lateMinutes.length).toFixed(1) : 0
     }));
 
     res.json({ rows });
@@ -1152,17 +1159,17 @@ router.get('/top-punctual-late', async (req, res) => {
     const { data: staff } = await db.from('staff_users').select('id, name, department');
     const { data: logs } = await db
       .from('attendance_logs')
-      .select('staff_user_id, att_date, tardiness, time_in')
+      .select('staff_user_id, att_date, minute_late, time_in')
       .gte('att_date', start).lte('att_date', end);
 
     const userData = {};
     for (const log of (logs || [])) {
       const sid = String(log.staff_user_id);
-      if (!userData[sid]) userData[sid] = { onTime: 0, late: 0, totalDays: 0, tardiness: [] };
+      if (!userData[sid]) userData[sid] = { onTime: 0, late: 0, totalDays: 0, lateMinutes: [] };
       userData[sid].totalDays++;
-      if (log.tardiness && log.tardiness > 0) {
+      if (log.minute_late && log.minute_late > 0) {
         userData[sid].late++;
-        userData[sid].tardiness.push(log.tardiness);
+        userData[sid].lateMinutes.push(parseFloat(log.minute_late));
       } else if (log.time_in) {
         userData[sid].onTime++;
       }
@@ -1174,7 +1181,7 @@ router.get('/top-punctual-late', async (req, res) => {
         const info = nameOf.get(sid) || { name: 'Unknown', dept: 'Unknown' };
         const onTimeRate = data.totalDays ? ((data.onTime / data.totalDays) * 100).toFixed(1) : 0;
         const lateRate = data.totalDays ? ((data.late / data.totalDays) * 100).toFixed(1) : 0;
-        const avgLate = data.tardiness.length ? Math.floor(data.tardiness.reduce((a,b)=>a+b,0) / data.tardiness.length) : 0;
+        const avgLate = data.lateMinutes.length ? Math.floor(data.lateMinutes.reduce((a,b)=>a+b,0) / data.lateMinutes.length) : 0;
         
         return {
           staffId: sid,
