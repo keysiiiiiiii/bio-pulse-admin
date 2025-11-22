@@ -963,22 +963,30 @@ router.get('/late-minutes-monthly', async (req, res) => {
 
     console.log(`[late-minutes-monthly] Found ${(logs || []).length} logs with late minutes`);
 
+    // Initialize all 12 months
+    const allMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const monthlyData = {};
+    allMonths.forEach(m => {
+      monthlyData[m] = { faculty: [], staff: [] };
+    });
+
     for (const log of (logs || [])) {
       const month = new Date(log.att_date).toLocaleString('en', { month: 'short' });
-      if (!monthlyData[month]) monthlyData[month] = { faculty: [], staff: [] };
       const isFaculty = isFacultyMap.get(String(log.staff_user_id));
       if (isFaculty) monthlyData[month].faculty.push(parseFloat(log.minute_late));
       else monthlyData[month].staff.push(parseFloat(log.minute_late));
     }
 
-    const rows = Object.entries(monthlyData).map(([month, data]) => ({
-      month,
-      faculty: data.faculty.length ? (data.faculty.reduce((a,b)=>a+b,0) / data.faculty.length).toFixed(1) : 0,
-      staff: data.staff.length ? (data.staff.reduce((a,b)=>a+b,0) / data.staff.length).toFixed(1) : 0,
-      total: [...data.faculty, ...data.staff].length ? 
-        ([...data.faculty, ...data.staff].reduce((a,b)=>a+b,0) / [...data.faculty, ...data.staff].length).toFixed(1) : 0
-    }));
+    const rows = allMonths.map(month => {
+      const data = monthlyData[month];
+      return {
+        month,
+        faculty: data.faculty.length ? parseFloat((data.faculty.reduce((a,b)=>a+b,0) / data.faculty.length).toFixed(1)) : 0,
+        staff: data.staff.length ? parseFloat((data.staff.reduce((a,b)=>a+b,0) / data.staff.length).toFixed(1)) : 0,
+        total: [...data.faculty, ...data.staff].length ?
+          parseFloat(([...data.faculty, ...data.staff].reduce((a,b)=>a+b,0) / [...data.faculty, ...data.staff].length).toFixed(1)) : 0
+      };
+    });
 
     console.log(`[late-minutes-monthly] ✅ Returning ${rows.length} months of data`);
     res.json({ rows });
