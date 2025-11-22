@@ -12,7 +12,6 @@ import { toast } from "@/hooks/use-toast";
 import { scheduleApi } from "@/services/api";
 import { ScheduleEditorDialog } from "./ScheduleEditorDialog";
 import { staffApi } from "@/services/api/staffApi";
-import { PersonalWeeklyAttendance } from "./charts/PersonalWeeklyAttendance";
 import { PersonalWeeklyTrends } from "./charts/PersonalWeeklyTrends";
 
 interface PersonnelDetailsProps {
@@ -423,9 +422,6 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
       </Card>
 
       {/* Attendance Analytics */}
-      <PersonalWeeklyAttendance staffUserId={Number(personnel.id)} />
-
-      {/* Personal Weekly Trends */}
       <PersonalWeeklyTrends staffUserId={Number(personnel.id)} />
 
       {/* Set as Dean (Faculty Only) */}
