@@ -756,77 +756,131 @@ router.get('/forecast/14d', async (req, res) => {
 
 // ------------------------------ TOP ABSENTEES (by date range) ------------------------------
 // GET /api/analytics/top-absentees?start=YYYY-MM-DD&end=YYYY-MM-DD&limit=10
+// ------------------------------ TOP ABSENTEES (FULLY FIXED) ------------------------------
 router.get('/top-absentees', async (req, res) => {
   try {
     const { start, end } = req.query;
     const limit = Math.max(1, Math.min(50, Number(req.query.limit || 10)));
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
-      return res.status(400).json({ error: 'Invalid start/end (YYYY-MM-DD)' });
+    
+    // Validate dates
+    if (!start || !end || !/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+      return res.status(400).json({ error: 'Invalid start/end dates (YYYY-MM-DD required)' });
     }
 
-    // 1) staff
+    console.log(`[top-absentees] Fetching data from ${start} to ${end}, limit: ${limit}`);
+
+    // 1) Get all staff
     const { data: staff, error: sErr } = await db
       .from('staff_users')
-      .select('id, name, department');
-    if (sErr) return res.status(500).json({ error: 'DB error (staff_users)' });
+      .select('id, staff_id, name, department');
+    
+    if (sErr) {
+      console.error('[top-absentees] Error fetching staff:', sErr);
+      return res.status(500).json({ error: 'Failed to fetch staff users', details: sErr.message });
+    }
 
-    // 2) logs in range
+    console.log(`[top-absentees] Found ${(staff || []).length} staff members`);
+
+    // 2) Get attendance logs in range
     const { data: logs, error: lErr } = await db
       .from('attendance_logs')
       .select('staff_user_id, att_date, time_in')
-      .gte('att_date', start).lte('att_date', end);
-    if (lErr) return res.status(500).json({ error: 'DB error (attendance_logs)' });
-
-    // 3) approved leaves in range
-    const { data: leaves, error: lvErr } = await db
-      .from('leave_requests')
-      .select('staff_user_id, date, status')
-      .gte('date', start).lte('date', end)
-      .in('status', ['Approved', 'approved']);
-    if (lvErr) return res.status(500).json({ error: 'DB error (leave_requests)' });
-
-    // lookups
-    const presentSet = new Set(
-      (logs || []).filter(r => r.time_in && r.att_date)
-                  .map(r => `${r.staff_user_id}|${r.att_date}`)
-    );
-    const onLeaveSet = new Set(
-      (leaves || []).map(r => `${r.staff_user_id}|${r.date}`)
-    );
-
-    // days in range (use top-level helper)
-    const days = rangeDays(start, end);
-
-    // count absences (not present and not on leave)
-    const absCount = new Map();
-    for (const s of staff || []) {
-      const sid = String(s.id);
-      let cnt = 0;
-      for (const d of days) {
-        const key = `${sid}|${d}`;
-        if (!presentSet.has(key) && !onLeaveSet.has(key)) cnt++;
-      }
-      if (cnt > 0) absCount.set(sid, cnt);
+      .gte('att_date', start)
+      .lte('att_date', end)
+      .not('att_date', 'is', null);
+    
+    if (lErr) {
+      console.error('[top-absentees] Error fetching logs:', lErr);
+      return res.status(500).json({ error: 'Failed to fetch attendance logs', details: lErr.message });
     }
 
-    const info = new Map((staff || []).map(s => [String(s.id), s]));
+    console.log(`[top-absentees] Found ${(logs || []).length} attendance logs`);
+
+    // 3) Get approved leaves in range - FIX: Use lowercase 'approved'
+    const { data: leaves, error: lvErr } = await db
+      .from('leave_requests')
+      .select('staff_user_id, date')
+      .gte('date', start)
+      .lte('date', end)
+      .not('date', 'is', null)
+      .eq('status', 'approved'); // ✅ FIXED: lowercase to match enum
+    
+    if (lvErr) {
+      console.error('[top-absentees] Error fetching leaves:', lvErr);
+      return res.status(500).json({ error: 'Failed to fetch leave requests', details: lvErr.message });
+    }
+
+    console.log(`[top-absentees] Found ${(leaves || []).length} approved leaves`);
+
+    // Build sets for quick lookup
+    const presentSet = new Set(
+      (logs || [])
+        .filter(r => r.time_in && r.att_date)
+        .map(r => `${r.staff_user_id}|${r.att_date}`)
+    );
+
+    const onLeaveSet = new Set(
+      (leaves || [])
+        .filter(r => r.date)
+        .map(r => `${r.staff_user_id}|${r.date}`)
+    );
+
+    // Generate all dates in range
+    const days = rangeDays(start, end);
+    console.log(`[top-absentees] Processing ${days.length} days`);
+
+    // Count absences per staff member
+    const absCount = new Map();
+    
+    for (const s of (staff || [])) {
+      const sid = String(s.id);
+      let cnt = 0;
+      
+      for (const d of days) {
+        const key = `${sid}|${d}`;
+        // Absent if: not present AND not on leave
+        if (!presentSet.has(key) && !onLeaveSet.has(key)) {
+          cnt++;
+        }
+      }
+      
+      if (cnt > 0) {
+        absCount.set(sid, cnt);
+      }
+    }
+
+    console.log(`[top-absentees] Found ${absCount.size} employees with absences`);
+
+    // Build lookup map for staff info
+    const staffInfo = new Map((staff || []).map(s => [String(s.id), s]));
+
+    // Build result
     const out = [...absCount.entries()]
       .map(([sid, cnt]) => {
-        const s = info.get(sid) || {};
+        const s = staffInfo.get(sid) || {};
         return {
+          staff_id: s.staff_id || sid,
           staff_user_id: Number(sid),
           name: s.name || '(Unknown)',
           department: s.department || '(No Department)',
-          absence_count: cnt
+          absent_count: cnt
         };
       })
-      .sort((a, b) => b.absence_count - a.absence_count)
+      .sort((a, b) => b.absent_count - a.absent_count)
       .slice(0, limit);
+
+    console.log(`[top-absentees] ✅ Returning ${out.length} top absentees`);
+    if (out.length > 0) {
+      console.log(`[top-absentees] Top 3:`, out.slice(0, 3));
+    }
 
     res.json(out);
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message || String(e) });
+    console.error('[top-absentees] ❌ Unexpected error:', e);
+    res.status(500).json({ 
+      error: 'Server error', 
+      details: e.message || String(e) 
+    });
   }
 });
 
@@ -1186,6 +1240,117 @@ router.get('/top-punctual-late', async (req, res) => {
   }
 });
 
+
+// ------------------------------ ATTENDANCE TREND (FULLY FIXED) ------------------------------
+router.get('/attendance-trend', async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    
+    // Validate date format
+    if (!isDate(start) || !isDate(end)) {
+      return res.status(400).json({ error: 'Invalid date range. Use YYYY-MM-DD format.' });
+    }
+
+    console.log(`[attendance-trend] Fetching data from ${start} to ${end}`);
+
+    // Get total staff count
+    const { count: totalCount, error: countErr } = await db
+      .from('staff_users')
+      .select('*', { count: 'exact', head: true });
+
+    if (countErr) {
+      console.error('[attendance-trend] Error getting staff count:', countErr);
+      return res.status(500).json({ error: 'Failed to get staff count', details: countErr.message });
+    }
+
+    console.log(`[attendance-trend] Total staff count: ${totalCount}`);
+
+    // Get attendance logs in range
+    const { data: logs, error: lErr } = await db
+      .from('attendance_logs')
+      .select('staff_user_id, att_date, time_in')
+      .gte('att_date', start)
+      .lte('att_date', end)
+      .not('att_date', 'is', null);
+
+    if (lErr) {
+      console.error('[attendance-trend] Error fetching logs:', lErr);
+      return res.status(500).json({ error: 'Failed to fetch attendance logs', details: lErr.message });
+    }
+
+    console.log(`[attendance-trend] Fetched ${(logs || []).length} attendance logs`);
+
+    // Get approved leaves in range - FIX: Use lowercase 'approved' to match enum
+    const { data: leaves, error: lvErr } = await db
+      .from('leave_requests')
+      .select('staff_user_id, date')
+      .gte('date', start)
+      .lte('date', end)
+      .not('date', 'is', null)
+      .eq('status', 'approved'); // ✅ FIXED: lowercase to match enum
+
+    if (lvErr) {
+      console.error('[attendance-trend] Error fetching leaves:', lvErr);
+      return res.status(500).json({ error: 'Failed to fetch leave requests', details: lvErr.message });
+    }
+
+    console.log(`[attendance-trend] Fetched ${(leaves || []).length} approved leaves`);
+
+    // Generate all dates in range
+    const days = rangeDays(start, end);
+    console.log(`[attendance-trend] Processing ${days.length} days`);
+
+    // Map: date -> Set of staff_user_ids who were present
+    const byDay = Object.fromEntries(days.map(d => [d, new Set()]));
+    
+    // Map: date -> Set of staff_user_ids who were on leave
+    const leaveByDay = Object.fromEntries(days.map(d => [d, new Set()]));
+
+    // Count present employees per day
+    for (const r of (logs || [])) {
+      if (isPresentRow(r) && r.att_date && byDay[r.att_date]) {
+        byDay[r.att_date].add(r.staff_user_id);
+      }
+    }
+
+    // Count employees on leave per day
+    for (const r of (leaves || [])) {
+      if (r.date && leaveByDay[r.date]) {
+        leaveByDay[r.date].add(r.staff_user_id);
+      }
+    }
+
+    // Build response
+    const rows = days.map(d => {
+      const present = byDay[d].size;
+      const on_leave = leaveByDay[d].size;
+      const total = totalCount || 0;
+      const absent = Math.max(0, total - present - on_leave);
+      const present_rate = total > 0 ? +((present / total) * 100).toFixed(1) : 0;
+
+      return { 
+        date: d, 
+        present, 
+        absent, 
+        on_leave, 
+        present_rate 
+      };
+    });
+
+    console.log(`[attendance-trend] ✅ Returning ${rows.length} rows`);
+    if (rows.length > 0) {
+      console.log(`[attendance-trend] Sample:`, rows.slice(0, 2));
+    }
+
+    res.json(rows);
+  } catch (e) {
+    console.error('[attendance-trend] ❌ Unexpected error:', e);
+    res.status(500).json({ 
+      error: 'Server error', 
+      details: e.message || String(e) 
+    });
+  }
+});
 module.exports = router;
 
 

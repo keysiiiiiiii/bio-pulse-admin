@@ -6,8 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect } from "react";
 import { analyticsApi } from "@/services/api/analyticsApi";
 import { attendanceApi } from "@/services/api/attendanceApi";
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
-import { Award, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
+import { format, startOfMonth, endOfMonth, subMonths, eachDayOfInterval } from "date-fns";
+import { Award, TrendingUp, TrendingDown, AlertTriangle, Loader2 } from "lucide-react";
 
 interface AttendanceComplianceProps {
   selectedDate?: Date;
@@ -55,11 +55,25 @@ export function AttendanceComplianceScorecard({ selectedDate, dateRange }: Atten
       const prevStart = format(startOfMonth(subMonths(today, 1)), 'yyyy-MM-dd');
       const prevEnd = format(endOfMonth(subMonths(today, 1)), 'yyyy-MM-dd');
 
-      // Fetch attendance trends for both periods
-      const [currentTrend, prevTrend] = await Promise.all([
-        analyticsApi.getAttendanceTrend(start, end),
-        analyticsApi.getAttendanceTrend(prevStart, prevEnd)
-      ]);
+      console.log('📊 Fetching compliance data:', { start, end, prevStart, prevEnd, viewType });
+
+      // Fetch attendance trends for both periods with error handling
+      let currentTrend, prevTrend;
+      try {
+        currentTrend = await analyticsApi.getAttendanceTrend(start, end);
+        console.log('✅ Current trend:', currentTrend);
+      } catch (error) {
+        console.error('❌ Error fetching current trend:', error);
+        currentTrend = [];
+      }
+
+      try {
+        prevTrend = await analyticsApi.getAttendanceTrend(prevStart, prevEnd);
+        console.log('✅ Previous trend:', prevTrend);
+      } catch (error) {
+        console.error('❌ Error fetching previous trend:', error);
+        prevTrend = [];
+      }
 
       // Calculate overall trends
       const currentTotal = currentTrend.reduce((sum, day) => sum + day.present + day.absent, 0);
@@ -81,6 +95,7 @@ export function AttendanceComplianceScorecard({ selectedDate, dateRange }: Atten
 
       // Get top absentees for risk analysis
       const absentees = await analyticsApi.getTopAbsentees(start, end, 50);
+      console.log('✅ Top absentees:', absentees);
 
       // Process department compliance data
       const deptMap = new Map<string, {
@@ -91,20 +106,28 @@ export function AttendanceComplianceScorecard({ selectedDate, dateRange }: Atten
         allEmployees: Set<string>;
       }>();
 
-      // Fetch attendance logs for the period
-      const startDate = new Date(start);
-      const endDate = new Date(end);
-      const dates: string[] = [];
-      
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        dates.push(format(d, 'yyyy-MM-dd'));
-      }
+      // Get all dates in range
+      const dates = eachDayOfInterval({
+        start: new Date(start),
+        end: new Date(end)
+      }).map(date => format(date, 'yyyy-MM-dd'));
+
+      console.log(`📅 Processing ${dates.length} days of data`);
 
       // Aggregate data by department
+      let processedDays = 0;
       for (const date of dates) {
         try {
           const logs = await attendanceApi.getLogs(date);
-          const filteredLogs = logs.filter(log => log.role === viewType);
+          
+          // Filter by role (faculty/staff)
+          const filteredLogs = logs.filter(log => {
+            // Match role to viewType
+            const role = (log.role || '').toLowerCase();
+            return viewType === 'faculty' ? role === 'faculty' : role === 'staff';
+          });
+
+          console.log(`📋 Date ${date}: ${filteredLogs.length} ${viewType} logs`);
 
           filteredLogs.forEach(log => {
             const dept = log.department || 'Unknown';
@@ -122,37 +145,49 @@ export function AttendanceComplianceScorecard({ selectedDate, dateRange }: Atten
             deptData.totalDays++;
             deptData.allEmployees.add(log.staff_id);
 
-            if (log.status === 'Present' || log.status === 'Late') {
+            const status = (log.status || '').toLowerCase();
+
+            // Count present days (Present or Late)
+            if (status === 'present' || status === 'late') {
               deptData.presentDays++;
-              if (log.status === 'Present' && !log.minute_late) {
+              
+              // Perfect attendance: present and not late
+              if (status === 'present' && (!log.minute_late || log.minute_late === 0)) {
                 deptData.perfectEmployees.add(log.staff_id);
               }
             }
 
-            if (log.status === 'Late' || (log.minute_late && log.minute_late > 0)) {
+            // Count late days
+            if (status === 'late' || (log.minute_late && log.minute_late > 0)) {
               deptData.lateDays++;
             }
           });
+
+          processedDays++;
         } catch (error) {
-          console.error(`Failed to fetch logs for ${date}:`, error);
+          console.error(`❌ Failed to fetch logs for ${date}:`, error);
         }
       }
+
+      console.log(`✅ Processed ${processedDays} days successfully`);
 
       // Convert to department compliance array
       const deptCompliance: DepartmentCompliance[] = Array.from(deptMap.entries()).map(([dept, data]) => {
         const attendanceRate = data.totalDays > 0 ? (data.presentDays / data.totalDays) * 100 : 0;
         const punctualityRate = data.presentDays > 0 ? ((data.presentDays - data.lateDays) / data.presentDays) * 100 : 0;
-        const riskCount = data.allEmployees.size - data.perfectEmployees.size;
+        const riskCount = Math.max(0, data.allEmployees.size - data.perfectEmployees.size);
 
         return {
           department: dept,
-          attendanceRate,
-          punctualityRate,
+          attendanceRate: Math.round(attendanceRate * 10) / 10,
+          punctualityRate: Math.round(punctualityRate * 10) / 10,
           perfectAttendanceCount: data.perfectEmployees.size,
           riskCount,
-          trend: 0 // Will be calculated if we have historical data
+          trend: 0
         };
       });
+
+      console.log('📊 Department compliance data:', deptCompliance);
 
       setDepartmentData(deptCompliance.sort((a, b) => b.attendanceRate - a.attendanceRate));
 
@@ -172,18 +207,20 @@ export function AttendanceComplianceScorecard({ selectedDate, dateRange }: Atten
             staff_id: emp.staff_id,
             name: emp.name,
             department: emp.department,
-            attendanceRate,
-            lateCount: 0, // Would need additional API
+            attendanceRate: Math.round(attendanceRate * 10) / 10,
+            lateCount: 0,
             status
           };
         })
         .filter(emp => emp.status === 'critical' || emp.status === 'warning')
         .slice(0, 15);
 
+      console.log('⚠️ Risk employees:', risks);
+
       setRiskEmployees(risks);
 
     } catch (error) {
-      console.error('Failed to fetch compliance data:', error);
+      console.error('❌ Failed to fetch compliance data:', error);
     } finally {
       setLoading(false);
     }
@@ -213,6 +250,15 @@ export function AttendanceComplianceScorecard({ selectedDate, dateRange }: Atten
   };
 
   const trendChange = currentMonthTrend.rate - previousMonthTrend.rate;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-muted-foreground">Loading compliance data...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -289,8 +335,8 @@ export function AttendanceComplianceScorecard({ selectedDate, dateRange }: Atten
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loading ? (
-                <p className="text-center text-muted-foreground py-8">Loading compliance data...</p>
+              {departmentData.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No data available for the selected period</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -352,9 +398,7 @@ export function AttendanceComplianceScorecard({ selectedDate, dateRange }: Atten
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loading ? (
-                <p className="text-center text-muted-foreground py-8">Loading risk data...</p>
-              ) : riskEmployees.length === 0 ? (
+              {riskEmployees.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
                   ✓ No employees at risk - all within compliance thresholds
                 </p>
