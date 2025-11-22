@@ -5,10 +5,15 @@ export interface AttendanceLog {
   name: string;
   department: string;
   role: string;
+  employee_type: string; // ✅ ADD THIS
   time_in: string | null;
   time_out: string | null;
   type: string;
   status: string;
+  minute_late?: number;
+  early_minutes?: number;
+  on_leave?: boolean;
+  leave_type?: string;
 }
 
 export interface AttendanceStats {

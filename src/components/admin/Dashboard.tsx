@@ -19,6 +19,19 @@ import * as XLSX from 'xlsx';
 import { attendanceApi } from '@/services/api';
 import { supabase } from '@/lib/supabase';
 
+// ✅ FIXED: College whitelist for faculty identification (consistent across all components)
+const COLLEGE_WHITELIST = new Set([
+  'CED - College of Education',
+  'CCS - College of Computing Studies',
+  'CCJ - College of Criminal Justice',
+  'CBPM - College of Business and Public Management',
+  'CAS - College of Arts and Sciences',
+  'CHS - College of Health Sciences',
+  'CL - College of Law',
+  'Gen Ed - General Education',
+  'NSTP - National Service Training Program'
+]);
+
 // Helper to format time from database
 const formatTime = (timeStr: string | null): string => {
   if (!timeStr) return 'N/A';
@@ -98,6 +111,7 @@ export function Dashboard() {
         'Staff ID': record.staff_id,
         'Name': record.name,
         'Role': record.role || 'N/A',
+        'Employee Type': record.employee_type || 'N/A',
         'Department': record.department || 'N/A',
         'Date': record.att_date || format(selectedDate, 'yyyy-MM-dd'),
         'Time In': formatTime(record.time_in),
@@ -155,8 +169,8 @@ export function Dashboard() {
             staff_id,
             name,
             role,
-            department,
-            employee_type
+            employee_type,
+            department
           )
         `)
         .eq('month', month);
@@ -176,6 +190,7 @@ export function Dashboard() {
         'Staff ID': record.staff_users.staff_id,
         'Name': record.staff_users.name,
         'Role': record.staff_users.role || 'N/A',
+        'Employee Type': record.staff_users.employee_type || 'N/A',
         'Department': record.staff_users.department || 'N/A',
         'Date': record.att_date,
         'Time In': formatTime(record.time_in),
@@ -333,7 +348,7 @@ export function Dashboard() {
         </Card>
       </div>
 
-     {/* Daily Attendance Table */}
+      {/* Daily Attendance Table */}
       {selectedDate && (
         <Card className="shadow-md">
           <CardHeader>
@@ -402,8 +417,31 @@ export function Dashboard() {
                       dailyAttendance
                         .filter(record => {
                           if (attendanceFilter === "all") return true;
-                          if (attendanceFilter === "faculty") return record.role?.toLowerCase() === "faculty";
-                          if (attendanceFilter === "staff") return record.role?.toLowerCase() === "staff";
+
+                          // ✅ FIXED: Use department to determine faculty vs staff (consistent with TardinessChart)
+                          const dept = (record.department || '').trim();
+                          const isDeptCollege = COLLEGE_WHITELIST.has(dept);
+
+                          console.log('Filtering daily attendance record:', {
+                            staff_id: record.staff_id,
+                            name: record.name,
+                            department: dept,
+                            employee_type: record.employee_type,
+                            isDeptCollege,
+                            filter: attendanceFilter,
+                            included: attendanceFilter === 'faculty' ? isDeptCollege : !isDeptCollege
+                          });
+
+                          if (attendanceFilter === "faculty") {
+                            // Faculty = department is in college whitelist
+                            return isDeptCollege;
+                          }
+
+                          if (attendanceFilter === "staff") {
+                            // Staff = department is NOT in college whitelist
+                            return !isDeptCollege;
+                          }
+
                           return true;
                         })
                         .map((record, index) => (
@@ -415,12 +453,11 @@ export function Dashboard() {
                             <TableCell>{formatTime(record.time_in)}</TableCell>
                             <TableCell>{formatTime(record.time_out)}</TableCell>
                             <TableCell>
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                record.on_leave ? 'bg-info/10 text-info' :
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${record.on_leave ? 'bg-info/10 text-info' :
                                 record.status?.toLowerCase() === 'present' ? 'bg-success/10 text-success' :
-                                record.status?.toLowerCase() === 'late' ? 'bg-warning/10 text-warning' :
-                                'bg-destructive/10 text-destructive'
-                              }`}>
+                                  record.status?.toLowerCase() === 'late' ? 'bg-warning/10 text-warning' :
+                                    'bg-destructive/10 text-destructive'
+                                }`}>
                                 {record.on_leave ? 'On Leave' : (record.status || 'N/A')}
                               </span>
                             </TableCell>

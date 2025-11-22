@@ -47,6 +47,7 @@ const DEPARTMENT_OPTIONS = [
   'Registrar'
 ];
 
+// ✅ CORRECT: These match employee_type values in staff_users table
 const STATUS_OPTIONS = [
   'Regular Admin',
   'Regular Faculty',
@@ -91,6 +92,8 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
         }
       }
 
+      console.log('All logs fetched:', allLogs);
+
       // Group by staff_id
       const staffMap = new Map<string, any>();
       allLogs.forEach(log => {
@@ -101,7 +104,8 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
             name: log.name,
             department: log.department,
             college: log.college || log.department,
-            status: log.role || 'Staff',
+            // ✅ FIXED: Use employee_type instead of role
+            status: log.employee_type || 'Staff',
             totalDays: 0,
             onTimeDays: 0,
             lateDays: 0,
@@ -122,12 +126,24 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
         }
       });
 
+      console.log('Staff map:', staffMap);
+
       // Calculate rates and filter
       let employeeList: EmployeeAnalytics[] = Array.from(staffMap.values())
         .filter(staff => {
-          if (filterStatus !== "all" && staff.status !== filterStatus) return false;
-          if (filterDepartment !== "all" && staff.department !== filterDepartment) return false;
-          if (filterCollege !== "all" && staff.college !== filterCollege) return false;
+          // ✅ FIXED: Filter by employee_type (status field now contains employee_type)
+          if (filterStatus !== "all" && staff.status !== filterStatus) {
+            console.log(`Filtering out ${staff.name}: status ${staff.status} !== ${filterStatus}`);
+            return false;
+          }
+          if (filterDepartment !== "all" && staff.department !== filterDepartment) {
+            console.log(`Filtering out ${staff.name}: department ${staff.department} !== ${filterDepartment}`);
+            return false;
+          }
+          if (filterCollege !== "all" && staff.college !== filterCollege) {
+            console.log(`Filtering out ${staff.name}: college ${staff.college} !== ${filterCollege}`);
+            return false;
+          }
           return true;
         })
         .map(staff => ({
@@ -143,6 +159,8 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
           absentCount: staff.absentDays,
         }));
 
+      console.log('Employee list before sorting:', employeeList);
+
       // Sort based on selected criteria
       if (sortBy === "late") {
         employeeList.sort((a, b) => b.lateCount - a.lateCount);
@@ -157,6 +175,8 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
         ...emp,
         rank: idx + 1,
       }));
+
+      console.log('Final employee list:', employeeList);
 
       setEmployees(employeeList);
 

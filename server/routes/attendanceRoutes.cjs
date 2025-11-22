@@ -37,24 +37,24 @@ function shapeRow(r) {
   const su = r.staff_users || {};
   const type = r.method || 'biometric';
   
-  // Status is now directly from database (calculated by trigger)
   let status = r.status || 'Unknown';
   
   // Extract early minutes from interval if exists
   let early_minutes = 0;
   if (r.early_time_in) {
-    // early_time_in is an interval, extract minutes
     const match = String(r.early_time_in).match(/(\d+):(\d+):(\d+)/);
     if (match) {
       early_minutes = parseInt(match[1]) * 60 + parseInt(match[2]);
     }
   }
 
+  // ✅ CORRECT: role comes from staff_users, NOT attendance_logs
   return {
     staff_id: su.staff_id,
     name: su.name,
     department: su.department,
-    role: su.employee_type,
+    role: su.role || 'Unknown',                   // ← from staff_users
+    employee_type: su.employee_type || 'Unknown', // ← from staff_users
     time_in: r.time_in,
     time_out: r.time_out,
     type,
@@ -121,7 +121,6 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
   if (selErr) throw selErr;
 
   if (!found || !found.length) {
-    // Create new - trigger will calculate minute_late, early_time_in, status
     if (out) {
       const { error: insErr } = await db.from('attendance_logs').insert({
         staff_user_id,
@@ -143,7 +142,6 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
     }
   }
 
-  // Update existing - trigger will recalculate everything
   const row = found[0];
   if (out) {
     if (!row.time_out || new Date(tsISO) > new Date(row.time_out)) {
@@ -156,7 +154,6 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
     }
     return 'out(skip)';
   } else {
-    // IN: keep earliest time_in
     const newIn = !row.time_in || new Date(tsISO) < new Date(row.time_in) ? tsISO : row.time_in;
     const { error: updErr } = await db
       .from('attendance_logs')
@@ -171,7 +168,6 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
 // ROUTES
 // ------------------------------------------------------------------------------------
 
-// (1) MOBILE CHECK-IN (disabled)
 router.post('/mobile', async (_req, res) => {
   return res.status(410).json({
     error: 'Mobile attendance disabled',
@@ -179,7 +175,6 @@ router.post('/mobile', async (_req, res) => {
   });
 });
 
-// (2) BIOMETRIC IN
 router.post('/biometric', async (req, res) => {
   try {
     const employeeId = req.body?.employeeId || req.body?.staff_id;
@@ -195,11 +190,7 @@ router.post('/biometric', async (req, res) => {
     try {
       await db.from('account_activity').insert([{
         action: 'attendance_time_in',
-        details: {
-          time_in: tsISO,
-          method: 'biometric',
-          result: result
-        },
+        details: { time_in: tsISO, method: 'biometric', result: result },
         actor_staff_id: employeeId,
         actor_role: 'Staff',
         staff_id: employeeId,
@@ -216,7 +207,6 @@ router.post('/biometric', async (req, res) => {
   }
 });
 
-// (3) BIOMETRIC OUT
 router.post('/biometric/out', async (req, res) => {
   try {
     const employeeId = req.body?.employeeId || req.body?.staff_id;
@@ -232,11 +222,7 @@ router.post('/biometric/out', async (req, res) => {
     try {
       await db.from('account_activity').insert([{
         action: 'attendance_time_out',
-        details: {
-          time_out: tsISO,
-          method: 'biometric',
-          result: result
-        },
+        details: { time_out: tsISO, method: 'biometric', result: result },
         actor_staff_id: employeeId,
         actor_role: 'Staff',
         staff_id: employeeId,
@@ -253,7 +239,7 @@ router.post('/biometric/out', async (req, res) => {
   }
 });
 
-// (4) TODAY
+// ✅ FIXED: role is in staff_users, NOT attendance_logs
 router.get('/today', async (req, res) => {
   try {
     const date = todayPH();
@@ -277,6 +263,7 @@ router.get('/today', async (req, res) => {
           id,
           staff_id,
           name,
+          role,
           employee_type,
           department
         )
@@ -297,7 +284,6 @@ router.get('/today', async (req, res) => {
   }
 });
 
-// (5) BY DATE
 router.get('/date/:selectedDate', async (req, res) => {
   try {
     const date = normalizeYMD(req.params.selectedDate);
@@ -321,6 +307,7 @@ router.get('/date/:selectedDate', async (req, res) => {
           id,
           staff_id,
           name,
+          role,
           employee_type,
           department
         )
@@ -344,17 +331,14 @@ router.get('/date/:selectedDate', async (req, res) => {
   }
 });
 
-// (6) STATS – Daily attendance statistics
 router.get('/stats', async (req, res) => {
   try {
     const date = normalizeYMD(req.query.date || todayPH());
 
-    // Get total staff count
     const { count: totalCount } = await db
       .from('staff_users')
       .select('*', { count: 'exact', head: true });
 
-    // Get attendance logs for the date
     const { data: logs, error } = await db
       .from('attendance_logs')
       .select('staff_user_id, time_in, status, on_leave')
@@ -362,25 +346,23 @@ router.get('/stats', async (req, res) => {
 
     if (error) throw error;
 
-    // Count by status using database-calculated status
     let presentCount = 0;
     let lateCount = 0;
     let onLeaveCount = 0;
-    
+
     for (const log of (logs || [])) {
       const status = (log.status || '').toLowerCase();
-      
+
       if (log.on_leave === 1 || log.on_leave === true || status === 'on leave') {
         onLeaveCount++;
       } else if (status === 'late') {
         lateCount++;
-        presentCount++; // Late is a subset of present
+        presentCount++;
       } else if (status === 'present') {
         presentCount++;
       }
     }
-    
-    // Absent = Total - Present (including late) - On Leave
+
     const absentCount = Math.max(0, (totalCount || 0) - presentCount - onLeaveCount);
 
     return res.json({
@@ -396,7 +378,6 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// (7) LOGS - Get attendance logs for a specific date
 router.get('/logs', async (req, res) => {
   try {
     const date = normalizeYMD(req.query.date || todayPH());
@@ -419,6 +400,7 @@ router.get('/logs', async (req, res) => {
           id,
           staff_id,
           name,
+          role,
           employee_type,
           department
         )
@@ -436,7 +418,6 @@ router.get('/logs', async (req, res) => {
   }
 });
 
-// (8) INCOMPLETE
 router.get('/incomplete', async (req, res) => {
   try {
     const date = todayPH();
@@ -460,6 +441,7 @@ router.get('/incomplete', async (req, res) => {
           id,
           staff_id,
           name,
+          role,
           employee_type,
           department
         )
@@ -483,12 +465,11 @@ router.get('/incomplete', async (req, res) => {
   }
 });
 
-// (9) RANGE
 router.get('/range', async (req, res) => {
   try {
     const start = normalizeYMD(String(req.query.start || '').trim());
-    const end   = normalizeYMD(String(req.query.end   || '').trim());
-    const suid  = await getSuidFromQuery(req);
+    const end = normalizeYMD(String(req.query.end || '').trim());
+    const suid = await getSuidFromQuery(req);
     if (!suid) return res.status(400).json({ error: 'staff_user_id or staff_id required' });
 
     const { data, error } = await db
@@ -508,7 +489,6 @@ router.get('/range', async (req, res) => {
   }
 });
 
-// (10) BY MONTH
 router.get('/by-month', async (req, res) => {
   try {
     const y = parseInt(req.query.year, 10);
@@ -540,7 +520,6 @@ router.get('/by-month', async (req, res) => {
     if (error) throw error;
 
     return res.json(data || []);
-
   } catch (e) {
     console.error('[by-month FIXED] error:', e.message || e);
     res.status(500).json({ error: 'Server error' });

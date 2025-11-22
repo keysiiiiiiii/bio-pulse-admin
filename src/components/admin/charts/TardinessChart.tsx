@@ -20,15 +20,16 @@ interface TardinessChartProps {
   selectedMonth: Date;
 }
 
-// ✅ College whitelist for faculty identification
+// ✅ FIXED: Added missing colleges to faculty whitelist
 const COLLEGE_WHITELIST = new Set([
   'CED - College of Education',
-  'CCS - College of Computing Science',
+  'CCS - College of Computing Studies',
   'CCJ - College of Criminal Justice',
-  'CBA - College of Business Administration',
+  'CBPM - College of Business and Public Management',  // ✅ ADDED
   'CAS - College of Arts and Sciences',
   'CHS - College of Health Sciences',
-  'COL - College of Law',
+  'CL - College of Law',  // ✅ ADDED (alternative name)
+  'Gen Ed - General Education',  // ✅ ADDED
   'NSTP - National Service Training Program'
 ]);
 
@@ -49,16 +50,16 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
       try {
         const year = selectedMonth.getFullYear();
         const month = selectedMonth.getMonth() + 1;
-        
+
         const firstDay = new Date(year, month - 1, 1);
         const lastDay = new Date(year, month, 0);
-        
+
         const monthStart = format(firstDay, 'yyyy-MM-dd');
         const monthEnd = format(lastDay, 'yyyy-MM-dd');
-        
+
         console.log('Fetching tardiness data for:', { monthStart, monthEnd, viewType });
-        
-        // ✅ FIXED: Query with role from attendance_logs
+
+        // Query tardiness data
         const { data: logs, error } = await supabase
           .from('attendance_logs')
           .select(`
@@ -66,97 +67,110 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
             minute_late,
             att_date,
             attendance_status,
-            role,
             staff_users!inner (
+              employee_type,
               department
             )
           `)
           .gte('att_date', monthStart)
           .lte('att_date', monthEnd)
-          .eq('attendance_status', 'late') // ✅ Only get late records
+          .eq('attendance_status', 'late')
           .gt('minute_late', 0);
-        
+
         if (error) {
           console.error('Supabase error:', error);
           throw error;
         }
-        
+
         console.log('Fetched tardiness logs:', logs);
-        
+
         if (!logs || logs.length === 0) {
           console.log('No tardiness data found');
           setData([]);
           return;
         }
-        
+
         // Normalize staff_users
         const normalizedLogs = logs.map(log => ({
           ...log,
           staff_user: Array.isArray(log.staff_users) ? log.staff_users[0] : log.staff_users,
         }));
-        
-        // ✅ FIXED: Filter by role from attendance_logs
+
+        // Filter by department (college whitelist)
         const filteredLogs = normalizedLogs.filter(log => {
-          const role = (log.role || '').toLowerCase();
+          const dept = (log.staff_user?.department || '').trim();
           
+          // Check if department is in college whitelist
+          const deptIsCollege = COLLEGE_WHITELIST.has(dept);
+          
+          console.log('Filtering tardiness log:', {
+            dept,
+            employee_type: log.staff_user?.employee_type,
+            deptIsCollege,
+            viewType,
+            included: viewType === 'faculty' ? deptIsCollege : !deptIsCollege
+          });
+
           if (viewType === 'faculty') {
-            return role === 'faculty';
+            // Faculty = department is in college whitelist
+            return deptIsCollege;
           } else {
-            return role === 'staff';
+            // Staff = department is NOT in college whitelist
+            return !deptIsCollege;
           }
         });
-        
-        console.log('Filtered logs by role:', filteredLogs);
-        
+
+        console.log('Filtered logs by department:', filteredLogs);
+        console.log(`View type: ${viewType}, Filtered count: ${filteredLogs.length}`);
+
         if (filteredLogs.length === 0) {
           setData([]);
           return;
         }
-        
+
         // Get unique weeks
         const weeksInData = [...new Set(filteredLogs.map(d => d.week_of_year))].filter(w => w != null).sort((a, b) => a - b);
-        
+
         // Get unique departments/colleges - filter based on viewType
         const uniqueDepts = [...new Set(
           filteredLogs
             .map(log => log.staff_user?.department)
             .filter(dept => {
+              if (!dept) return false;
               if (viewType === 'faculty') {
-                // Only show college departments for faculty
                 return COLLEGE_WHITELIST.has(dept);
               } else {
-                // Only show non-college departments for staff
                 return !COLLEGE_WHITELIST.has(dept);
               }
             })
         )].sort();
-        
+
         console.log('Weeks:', weeksInData);
-        console.log('Departments/Colleges:', uniqueDepts);
-        
+        console.log(`${viewType === 'faculty' ? 'Colleges' : 'Departments'}:`, uniqueDepts);
+
         if (weeksInData.length === 0) {
           setData([]);
           return;
         }
-        
+
         // Transform data: Per week, total minutes late per department/college
         const transformedData = weeksInData.map(week => {
           const weekData: any = { week: `Week ${week}` };
-          
+
           uniqueDepts.forEach(dept => {
             const totalMinutes = filteredLogs
-              .filter(log => 
-                log.week_of_year === week && 
+              .filter(log =>
+                log.week_of_year === week &&
                 log.staff_user?.department === dept
               )
               .reduce((sum, log) => sum + (log.minute_late || 0), 0);
-            
+
             weekData[dept] = totalMinutes;
           });
-          
+
           return weekData;
         });
-        
+
         console.log('Transformed tardiness data:', transformedData);
         setData(transformedData);
       } catch (error) {
