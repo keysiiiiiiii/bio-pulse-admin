@@ -28,6 +28,9 @@ export const attendanceApi = {
   getStats: (date: string) =>
     apiRequest<AttendanceStats>(`/attendance/stats?date=${date}`),
 
+  getByMonth: (staff_user_id: number, month: number, year: number) =>
+    apiRequest<AttendanceLog[]>(`/attendance/by-month?staff_user_id=${staff_user_id}&month=${month}&year=${year}`),
+
   manualCheckIn: (data: {
     staff_id: string;
     date: string;
