@@ -1092,48 +1092,6 @@ router.get('/overtime-by-employee-type', async (req, res) => {
   }
 });
 
-// GET /api/analytics/ot-ut-by-type?start=YYYY-MM-DD&end=YYYY-MM-DD&type=Job%20Order
-router.get('/ot-ut-by-type', async (req, res) => {
-  try {
-    const { start, end, type } = req.query;
-    if (!isDate(start) || !isDate(end)) return res.status(400).json({ error: 'Invalid date range' });
-
-    const { data: staff } = await db
-      .from('staff_users')
-      .select('id, name, employee_type')
-      .eq('employee_type', type);
-
-    const staffIds = staff.map(s => s.id);
-    const { data: logs } = await db
-      .from('attendance_logs')
-      .select('staff_user_id, overtime, undertime')
-      .in('staff_user_id', staffIds)
-      .gte('att_date', start).lte('att_date', end);
-
-    const userData = {};
-    for (const log of (logs || [])) {
-      const sid = String(log.staff_user_id);
-      if (!userData[sid]) userData[sid] = { totalOT: 0, totalUT: 0 };
-      userData[sid].totalOT += log.overtime || 0;
-      userData[sid].totalUT += log.undertime || 0;
-    }
-
-    const nameOf = new Map(staff.map(s => [String(s.id), s.name]));
-    const rows = Object.entries(userData).map(([sid, data]) => ({
-      staffId: sid,
-      name: nameOf.get(sid) || 'Unknown',
-      totalOT: (data.totalOT / 60).toFixed(1),
-      totalUT: (data.totalUT / 60).toFixed(1),
-      trend: data.totalOT > data.totalUT * 2 ? 'frequent_ot' : 
-             data.totalUT > data.totalOT * 2 ? 'frequent_ut' : 'balanced'
-    }));
-
-    res.json({ rows });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message || String(e) });
-  }
-});
 
 // ------------------------------ SEASONAL ANALYTICS ------------------------------
 // GET /api/analytics/seasonal-absences?year=2025&season=rainy|summer|holiday
@@ -1351,7 +1309,144 @@ router.get('/attendance-trend', async (req, res) => {
     });
   }
 });
+
+// ✅ FINAL VERSION: OT/UT Analytics using overtime_hours + undertime_hours columns
+
+router.get('/ot-ut-by-type', async (req, res) => {
+  try {
+    const { start, end, type } = req.query;
+    
+    // Validate dates
+    if (!isDate(start) || !isDate(end)) {
+      return res.status(400).json({ error: 'Invalid date range' });
+    }
+    
+    if (!type) {
+      return res.status(400).json({ error: 'employee_type is required' });
+    }
+
+    console.log(`[ot-ut-by-type] Fetching OT/UT for ${type} from ${start} to ${end}`);
+
+    // 1) Get staff of this employee_type
+    const { data: staff, error: sErr } = await db
+      .from('staff_users')
+      .select('id, staff_id, name, employee_type')
+      .eq('employee_type', type);
+
+    if (sErr) {
+      console.error('[ot-ut-by-type] Error fetching staff:', sErr);
+      return res.status(500).json({ error: 'Failed to fetch staff', details: sErr.message });
+    }
+
+    if (!staff || staff.length === 0) {
+      console.log(`[ot-ut-by-type] No staff found for type: ${type}`);
+      return res.json({ rows: [] });
+    }
+
+    console.log(`[ot-ut-by-type] Found ${staff.length} ${type} employees`);
+
+    const staffIds = staff.map(s => s.id);
+    const staffMap = new Map(staff.map(s => [s.id, s]));
+
+    // 2) Get attendance logs with OT/UT columns
+    // ✅ CORRECT: overtime_hours and undertime_hours (with _hours suffix)
+    const { data: logs, error: lErr } = await db
+      .from('attendance_logs')
+      .select('staff_user_id, att_date, overtime_hours, undertime_hours, worked_hours')
+      .in('staff_user_id', staffIds)
+      .gte('att_date', start)
+      .lte('att_date', end);
+
+    if (lErr) {
+      console.error('[ot-ut-by-type] Error fetching logs:', lErr);
+      return res.status(500).json({ error: 'Failed to fetch attendance logs', details: lErr.message });
+    }
+
+    console.log(`[ot-ut-by-type] Found ${(logs || []).length} attendance logs`);
+
+    // 3) Calculate totals per employee
+    const userData = new Map();
+
+    for (const log of (logs || [])) {
+      const staffId = log.staff_user_id;
+      
+      if (!userData.has(staffId)) {
+        userData.set(staffId, {
+          totalOT: 0,
+          totalUT: 0,
+          daysCount: 0
+        });
+      }
+
+      const data = userData.get(staffId);
+      
+      // Only count days with actual work
+      if (log.worked_hours && log.worked_hours > 0) {
+        data.daysCount++;
+      }
+
+      // Sum overtime and undertime hours
+      data.totalOT += parseFloat(log.overtime_hours) || 0;
+      data.totalUT += parseFloat(log.undertime_hours) || 0;
+    }
+
+    console.log(`[ot-ut-by-type] Processed ${userData.size} employees with attendance data`);
+
+    // 4) Build response
+    const rows = [];
+    for (const [staffId, data] of userData.entries()) {
+      const staffInfo = staffMap.get(staffId);
+      if (!staffInfo) continue;
+
+      // ✅ Filter: Only show employees with OT or UT
+      if (data.totalOT === 0 && data.totalUT === 0) continue;
+
+      // Determine trend
+      let trend = 'balanced';
+      if (data.totalOT > data.totalUT + 2) {
+        trend = 'frequent_ot';
+      } else if (data.totalUT > data.totalOT + 2) {
+        trend = 'frequent_ut';
+      }
+
+      rows.push({
+        staffId: staffInfo.staff_id,
+        name: staffInfo.name,
+        totalOT: data.totalOT.toFixed(1),
+        totalUT: data.totalUT.toFixed(1),
+        trend: trend,
+        daysWorked: data.daysCount
+      });
+    }
+
+    // Sort by total hours (OT + UT) descending
+    rows.sort((a, b) => {
+      const totalA = parseFloat(a.totalOT) + parseFloat(a.totalUT);
+      const totalB = parseFloat(b.totalOT) + parseFloat(b.totalUT);
+      return totalB - totalA;
+    });
+
+    console.log(`[ot-ut-by-type] ✅ Returning ${rows.length} employees with OT/UT data`);
+    
+    if (rows.length > 0) {
+      console.log('[ot-ut-by-type] Top 3 by total OT+UT:', rows.slice(0, 3).map(r => ({
+        name: r.name,
+        OT: r.totalOT,
+        UT: r.totalUT,
+        trend: r.trend
+      })));
+    } else {
+      console.log('[ot-ut-by-type] ⚠️ No employees with OT/UT data found');
+    }
+
+    res.json({ rows });
+
+  } catch (e) {
+    console.error('[ot-ut-by-type] ❌ Unexpected error:', e);
+    res.status(500).json({ 
+      error: 'Server error', 
+      details: e.message || String(e) 
+    });
+  }
+});
 module.exports = router;
-
-
-
