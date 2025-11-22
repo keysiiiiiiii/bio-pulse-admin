@@ -1,9 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
 import { useState, useEffect } from "react";
 import { analyticsApi } from "@/services/api/analyticsApi";
-import { format } from "date-fns";
+import { format, startOfYear, endOfYear } from "date-fns";
 
 interface SeasonalAnalyticsProps {
   selectedDate?: Date;
@@ -11,7 +10,6 @@ interface SeasonalAnalyticsProps {
 }
 
 export function SeasonalAnalytics({ selectedDate, dateRange }: SeasonalAnalyticsProps) {
-  const [heatmapGraphType, setHeatmapGraphType] = useState<"bar" | "stacked">("stacked");
   const [rainySeasonData, setRainySeasonData] = useState<any[]>([]);
   const [summerData, setSummerData] = useState<any[]>([]);
   const [holidayData, setHolidayData] = useState<any[]>([]);
@@ -20,35 +18,42 @@ export function SeasonalAnalytics({ selectedDate, dateRange }: SeasonalAnalytics
 
   useEffect(() => {
     fetchData();
-  }, [selectedDate]);
+  }, [selectedDate, dateRange]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const year = selectedDate ? selectedDate.getFullYear().toString() : '2025';
-      const start = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : 
-                    selectedDate ? format(new Date(selectedDate.getFullYear(), 0, 1), 'yyyy-MM-dd') : 
-                    format(new Date(2025, 0, 1), 'yyyy-MM-dd');
-      const end = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : 
-                  selectedDate ? format(new Date(selectedDate.getFullYear(), 11, 31), 'yyyy-MM-dd') : 
-                  format(new Date(2025, 11, 31), 'yyyy-MM-dd');
+      const today = selectedDate || new Date();
+      const year = today.getFullYear().toString();
+      
+      // For late minutes, use full year range to get all 12 months
+      const yearStart = format(startOfYear(today), 'yyyy-MM-dd');
+      const yearEnd = format(endOfYear(today), 'yyyy-MM-dd');
+
+      console.log('📊 Fetching seasonal analytics:', { year, yearStart, yearEnd });
 
       const [rainyRes, summerRes, holidayRes, lateMinRes] = await Promise.all([
         analyticsApi.getSeasonalAbsences(year, 'rainy'),
         analyticsApi.getSeasonalAbsences(year, 'summer'),
         analyticsApi.getSeasonalAbsences(year, 'holiday'),
-        analyticsApi.getLateMinutesMonthly(start, end)
+        analyticsApi.getLateMinutesMonthly(yearStart, yearEnd)
       ]);
 
+      console.log('✅ Late minutes data:', lateMinRes.rows);
+
       setRainySeasonData(rainyRes.rows || []);
+      
+      // Summer data
       setSummerData([
         { category: 'Faculty', leaves: (summerRes.rows || []).reduce((a, b) => a + (b.absent || 0), 0) },
         { category: 'Staff', leaves: Math.floor((summerRes.rows || []).reduce((a, b) => a + (b.absent || 0), 0) * 0.3) }
       ]);
+      
       setHolidayData(holidayRes.rows || []);
       setLateMinutesData(lateMinRes.rows || []);
+      
     } catch (error) {
-      console.error('Failed to fetch seasonal analytics:', error);
+      console.error('❌ Failed to fetch seasonal analytics:', error);
     } finally {
       setLoading(false);
     }
@@ -59,62 +64,73 @@ export function SeasonalAnalytics({ selectedDate, dateRange }: SeasonalAnalytics
       {/* Average Minutes Late per Month */}
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Tardiness Trends Across the Year</CardTitle>
+          <CardTitle>Average Minutes Late per Month</CardTitle>
           <CardDescription>
             Monthly patterns showing seasonal impact on punctuality (Overall, Faculty, Staff)
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={lateMinutesData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis 
-                dataKey="month" 
-                stroke="hsl(var(--foreground))"
-                style={{ fontSize: '12px' }}
-              />
-              <YAxis 
-                stroke="hsl(var(--foreground))"
-                style={{ fontSize: '12px' }}
-                label={{ value: 'Minutes Late', angle: -90, position: 'insideLeft' }}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'hsl(var(--background))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px'
-                }}
-              />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="total" 
-                stroke="#f97316" 
-                strokeWidth={3} 
-                name="Overall Average"
-                dot={{ fill: '#f97316', r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="faculty" 
-                stroke="#16a34a" 
-                strokeWidth={2} 
-                name="Faculty Average"
-                dot={{ fill: '#16a34a', r: 3 }}
-                strokeDasharray="5 5"
-              />
-              <Line 
-                type="monotone" 
-                dataKey="staff" 
-                stroke="#2563eb" 
-                strokeWidth={2} 
-                name="Staff Average"
-                dot={{ fill: '#2563eb', r: 3 }}
-                strokeDasharray="5 5"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {loading ? (
+            <div className="flex items-center justify-center h-[350px]">
+              <p className="text-muted-foreground">Loading data...</p>
+            </div>
+          ) : lateMinutesData.length === 0 ? (
+            <div className="flex items-center justify-center h-[350px]">
+              <p className="text-muted-foreground">No tardiness data available</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={lateMinutesData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis 
+                  dataKey="month" 
+                  stroke="hsl(var(--foreground))"
+                  style={{ fontSize: '12px' }}
+                />
+                <YAxis 
+                  stroke="hsl(var(--foreground))"
+                  style={{ fontSize: '12px' }}
+                  label={{ value: 'Minutes Late', angle: -90, position: 'insideLeft' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--background))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: number) => [`${value} mins`, '']}
+                />
+                <Legend />
+                <Line 
+                  type="monotone" 
+                  dataKey="total" 
+                  stroke="#f97316" 
+                  strokeWidth={3} 
+                  name="Overall Average"
+                  dot={{ fill: '#f97316', r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="faculty" 
+                  stroke="#16a34a" 
+                  strokeWidth={2} 
+                  name="Faculty Average"
+                  dot={{ fill: '#16a34a', r: 3 }}
+                  strokeDasharray="5 5"
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="staff" 
+                  stroke="#2563eb" 
+                  strokeWidth={2} 
+                  name="Staff Average"
+                  dot={{ fill: '#2563eb', r: 3 }}
+                  strokeDasharray="5 5"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
 

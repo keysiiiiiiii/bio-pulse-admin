@@ -944,58 +944,192 @@ router.get('/avg-time-per-dept', async (req, res) => {
 router.get('/late-minutes-monthly', async (req, res) => {
   try {
     const { start, end } = req.query;
-    if (!isDate(start) || !isDate(end)) return res.status(400).json({ error: 'Invalid date range' });
+    if (!isDate(start) || !isDate(end)) {
+      return res.status(400).json({ error: 'Invalid date range' });
+    }
 
-    console.log(`[late-minutes-monthly] Fetching from ${start} to ${end}`);
+    console.log(`\n========================================`);
+    console.log(`[late-minutes-monthly] 📊 START`);
+    console.log(`[late-minutes-monthly] Date range: ${start} to ${end}`);
 
-    const { data: staff } = await db.from('staff_users').select('id, department');
+    // Get staff and determine faculty/staff mapping
+    const { data: staff, error: staffErr } = await db
+      .from('staff_users')
+      .select('id, department');
+    
+    if (staffErr) {
+      console.error(`[late-minutes-monthly] ❌ Staff Error:`, staffErr);
+      return res.status(500).json({ error: 'DB error', details: staffErr.message });
+    }
+
     const isFacultyMap = new Map();
     for (const s of (staff || [])) {
       isFacultyMap.set(String(s.id), COLLEGE_WHITELIST.has(normDept(s.department)));
     }
+    console.log(`[late-minutes-monthly] ✅ Loaded ${staff?.length || 0} staff members`);
 
-    const { data: logs } = await db
-      .from('attendance_logs')
-      .select('staff_user_id, att_date, minute_late')
-      .gte('att_date', start).lte('att_date', end)
-      .not('minute_late', 'is', null)
-      .gt('minute_late', 0);
+    // 🔥 CRITICAL FIX: Fetch ALL data by removing limit and using range() for pagination
+    console.log(`[late-minutes-monthly] 🔍 Fetching ALL data from Supabase...`);
+    
+    // Method 1: Try fetching with a very high range
+    let allLogs = [];
+    let from = 0;
+    const batchSize = 1000;
+    let hasMore = true;
 
-    console.log(`[late-minutes-monthly] Found ${(logs || []).length} logs with late minutes`);
+    while (hasMore) {
+      console.log(`[late-minutes-monthly] 📦 Fetching batch from ${from} to ${from + batchSize - 1}...`);
+      
+      const { data: logs, error: logErr, count } = await db
+        .from('attendance_logs')
+        .select('staff_user_id, att_date, minute_late, status', { count: 'exact' })
+        .gte('att_date', start)
+        .lte('att_date', end)
+        .not('minute_late', 'is', null)
+        .order('att_date', { ascending: true })
+        .range(from, from + batchSize - 1);
 
-    // Initialize all 12 months
+      if (logErr) {
+        console.error(`[late-minutes-monthly] ❌ DB Error:`, logErr);
+        return res.status(500).json({ error: 'DB error', details: logErr.message });
+      }
+
+      if (from === 0) {
+        console.log(`[late-minutes-monthly] 📊 Total count in database: ${count}`);
+      }
+
+      const batchLength = (logs || []).length;
+      console.log(`[late-minutes-monthly] ✅ Fetched ${batchLength} logs in this batch`);
+      
+      allLogs = allLogs.concat(logs || []);
+      
+      // Check if we got fewer than batchSize rows (means we're done)
+      if (batchLength < batchSize) {
+        hasMore = false;
+      } else {
+        from += batchSize;
+      }
+    }
+
+    console.log(`[late-minutes-monthly] 🎉 TOTAL FETCHED: ${allLogs.length} logs`);
+
+    // 🔍 Check date distribution of ALL logs
+    if (allLogs.length > 0) {
+      const dateDistribution = {};
+      allLogs.forEach(log => {
+        const month = new Date(log.att_date).toLocaleString('en', { month: 'short' });
+        dateDistribution[month] = (dateDistribution[month] || 0) + 1;
+      });
+      console.log(`[late-minutes-monthly] 📅 Date distribution of ALL logs:`, dateDistribution);
+      
+      // Sample first 5 logs
+      console.log(`[late-minutes-monthly] 🔍 Sample logs (first 5):`);
+      allLogs.slice(0, 5).forEach((log, i) => {
+        const ml = log.minute_late;
+        const month = new Date(log.att_date).toLocaleString('en', { month: 'short' });
+        console.log(`  ${i+1}. ${month} ${log.att_date}, Staff: ${log.staff_user_id}, minute_late: ${ml} (${typeof ml})`);
+      });
+
+      // Sample LAST 5 logs
+      console.log(`[late-minutes-monthly] 🔍 Sample LAST logs (last 5):`);
+      allLogs.slice(-5).forEach((log, i) => {
+        const ml = log.minute_late;
+        const month = new Date(log.att_date).toLocaleString('en', { month: 'short' });
+        console.log(`  ${allLogs.length - 5 + i + 1}. ${month} ${log.att_date}, Staff: ${log.staff_user_id}, minute_late: ${ml}`);
+      });
+    }
+    
+    // Filter logs with actual late minutes (> 0) in JavaScript
+    const lateLogs = allLogs.filter(log => {
+      const minuteLate = parseFloat(log.minute_late);
+      const isLate = !isNaN(minuteLate) && minuteLate > 0;
+      return isLate;
+    });
+    
+    console.log(`[late-minutes-monthly] ✅ Filtered to ${lateLogs.length} logs with minute_late > 0`);
+
+    // 🔍 Check date distribution of LATE logs
+    if (lateLogs.length > 0) {
+      const lateDistribution = {};
+      lateLogs.forEach(log => {
+        const month = new Date(log.att_date).toLocaleString('en', { month: 'short' });
+        lateDistribution[month] = (lateDistribution[month] || 0) + 1;
+      });
+      console.log(`[late-minutes-monthly] 📅 Date distribution of LATE logs:`, lateDistribution);
+    } else {
+      console.log(`[late-minutes-monthly] ⚠️ NO LATE LOGS FOUND!`);
+    }
+
+    // Initialize ALL 12 months
     const allMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const monthlyData = {};
     allMonths.forEach(m => {
       monthlyData[m] = { faculty: [], staff: [] };
     });
 
-    for (const log of (logs || [])) {
+    // Group late minutes by month
+    console.log(`[late-minutes-monthly] 📊 Grouping late minutes by month...`);
+    for (const log of lateLogs) {
       const month = new Date(log.att_date).toLocaleString('en', { month: 'short' });
       const isFaculty = isFacultyMap.get(String(log.staff_user_id));
-      if (isFaculty) monthlyData[month].faculty.push(parseFloat(log.minute_late));
-      else monthlyData[month].staff.push(parseFloat(log.minute_late));
+      const minuteLate = parseFloat(log.minute_late);
+      
+      if (!isNaN(minuteLate) && minuteLate > 0) {
+        if (isFaculty) {
+          monthlyData[month].faculty.push(minuteLate);
+        } else {
+          monthlyData[month].staff.push(minuteLate);
+        }
+      }
     }
 
+    // Show distribution
+    console.log(`[late-minutes-monthly] 📊 Late minutes distribution by month:`);
+    allMonths.forEach(month => {
+      const data = monthlyData[month];
+      const total = data.faculty.length + data.staff.length;
+      if (total > 0) {
+        console.log(`  ${month}: Faculty=${data.faculty.length} records, Staff=${data.staff.length} records, Total=${total}`);
+      }
+    });
+
+    // Calculate averages for ALL 12 months
     const rows = allMonths.map(month => {
       const data = monthlyData[month];
+      const facultyAvg = data.faculty.length > 0 
+        ? parseFloat((data.faculty.reduce((a,b) => a+b, 0) / data.faculty.length).toFixed(1)) 
+        : 0;
+      const staffAvg = data.staff.length > 0 
+        ? parseFloat((data.staff.reduce((a,b) => a+b, 0) / data.staff.length).toFixed(1)) 
+        : 0;
+      const allValues = [...data.faculty, ...data.staff];
+      const totalAvg = allValues.length > 0
+        ? parseFloat((allValues.reduce((a,b) => a+b, 0) / allValues.length).toFixed(1))
+        : 0;
+
       return {
         month,
-        faculty: data.faculty.length ? parseFloat((data.faculty.reduce((a,b)=>a+b,0) / data.faculty.length).toFixed(1)) : 0,
-        staff: data.staff.length ? parseFloat((data.staff.reduce((a,b)=>a+b,0) / data.staff.length).toFixed(1)) : 0,
-        total: [...data.faculty, ...data.staff].length ?
-          parseFloat(([...data.faculty, ...data.staff].reduce((a,b)=>a+b,0) / [...data.faculty, ...data.staff].length).toFixed(1)) : 0
+        faculty: facultyAvg,
+        staff: staffAvg,
+        total: totalAvg
       };
     });
 
-    console.log(`[late-minutes-monthly] ✅ Returning ${rows.length} months of data`);
+    console.log(`[late-minutes-monthly] ✅ Final result:`);
+    rows.forEach(r => {
+      if (r.total > 0) {
+        console.log(`  ${r.month}: Faculty=${r.faculty}, Staff=${r.staff}, Total=${r.total}`);
+      }
+    });
+    console.log(`[late-minutes-monthly] 🎉 SUCCESS! Returning data for ALL months`);
+    console.log(`[late-minutes-monthly] ========================================\n`);
+
     res.json({ rows });
   } catch (e) {
     console.error('[late-minutes-monthly] ❌ Error:', e);
     res.status(500).json({ error: e.message || String(e) });
   }
 });
-
 // GET /api/analytics/dept-late-minutes?start=YYYY-MM-DD&end=YYYY-MM-DD&type=faculty|staff
 router.get('/dept-late-minutes', async (req, res) => {
   try {
