@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { scheduleApi, attendanceApi } from "@/services/api";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, getDate } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, getDate, startOfWeek, endOfWeek } from "date-fns";
 
 interface PersonalWeeklyTrendsProps {
   staffUserId: number;
@@ -23,6 +23,9 @@ const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export function PersonalWeeklyTrends({ staffUserId, selectedDate }: PersonalWeeklyTrendsProps) {
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [weekData, setWeekData] = useState<WeekData[]>([]);
+  const [weeklyRate, setWeeklyRate] = useState(0);
+  const [monthlyRate, setMonthlyRate] = useState(0);
+  const [tardinessCount, setTardinessCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -60,6 +63,13 @@ export function PersonalWeeklyTrends({ staffUserId, selectedDate }: PersonalWeek
         5: { Sun: 0, Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0 },
       };
 
+      // Track for weekly/monthly calculations
+      let presentThisWeek = 0;
+      let scheduledThisWeek = 0;
+      const today = new Date();
+      const weekStart = startOfWeek(today, { weekStartsOn: 0 });
+      const weekEnd = endOfWeek(today, { weekStartsOn: 0 });
+
       // Fetch attendance for each day
       for (const day of allDays) {
         const dayOfWeek = getDay(day);
@@ -81,6 +91,14 @@ export function PersonalWeeklyTrends({ staffUserId, selectedDate }: PersonalWeek
           // Count as 1 if present, 0 if absent
           if (userLog?.time_in) {
             weeks[weekNumber][dayName] += 1;
+          }
+
+          // Calculate for this week
+          if (day >= weekStart && day <= weekEnd) {
+            scheduledThisWeek++;
+            if (userLog?.time_in) {
+              presentThisWeek++;
+            }
           }
         } catch (error) {
           console.error(`Failed to fetch logs for ${dateStr}:`, error);
@@ -113,6 +131,28 @@ export function PersonalWeeklyTrends({ staffUserId, selectedDate }: PersonalWeek
       });
 
       setWeekData(chartData);
+
+      // Calculate weekly rate
+      const weekRate = scheduledThisWeek > 0 ? (presentThisWeek / scheduledThisWeek) * 100 : 0;
+      setWeeklyRate(Math.round(weekRate));
+
+      // Calculate monthly rate and tardiness
+      const monthlyLogs = await attendanceApi.getByMonth(
+        staffUserId,
+        date.getMonth() + 1,
+        date.getFullYear()
+      );
+
+      const scheduledDaysCount = scheduledDays.length * 4; // Approx 4 weeks
+      const presentDays = monthlyLogs.filter((log: any) => log.time_in).length;
+      const monthRate = scheduledDaysCount > 0 ? (presentDays / scheduledDaysCount) * 100 : 0;
+      setMonthlyRate(Math.round(monthRate));
+
+      const lateCount = monthlyLogs.filter((log: any) => 
+        log.attendance_status === 'late' || log.status === 'Late'
+      ).length;
+      setTardinessCount(lateCount);
+
     } catch (error) {
       console.error('Failed to fetch personal weekly trends:', error);
     } finally {
@@ -181,6 +221,21 @@ export function PersonalWeeklyTrends({ staffUserId, selectedDate }: PersonalWeek
             )}
           </LineChart>
         </ResponsiveContainer>
+        
+        <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-sm text-muted-foreground">Weekly Rate</p>
+            <p className="text-xl font-bold text-success">{weeklyRate}%</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Monthly Rate</p>
+            <p className="text-xl font-bold text-success">{monthlyRate}%</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Tardiness Count</p>
+            <p className="text-xl font-bold text-warning">{tardinessCount}</p>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
