@@ -42,25 +42,21 @@ export function PredictiveAnalytics({ selectedDate, dateRange }: PredictiveAnaly
   };
 
   return (
-    <>
-      {/* High-Risk Employees Placeholder */}
-      <Card className="shadow-md border-destructive/50">
+    <div className="space-y-6">
+      {/* Empty - Ready for SARIMA model integration */}
+      <Card className="shadow-md">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" />
-            High-Risk Employee Identification
-          </CardTitle>
+          <CardTitle>Predictive Analytics</CardTitle>
           <CardDescription>
-            Advanced pattern recognition for attendance risk prediction coming soon
+            SARIMA time-series forecasting model for attendance prediction
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            This feature will use machine learning to identify employees with declining attendance patterns
-            and predict future attendance issues based on historical data.
+          <p className="text-sm text-muted-foreground text-center py-8">
+            Ready for SARIMA model integration
           </p>
         </CardContent>
       </Card>
-    </>
+    </div>
   );
 }
