@@ -7,12 +7,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { UserCheck, Calendar, TrendingUp, Shield, Clock } from "lucide-react";
+import { UserCheck, Calendar, Shield, Clock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { scheduleApi } from "@/services/api";
 import { ScheduleEditorDialog } from "./ScheduleEditorDialog";
 import { staffApi } from "@/services/api/staffApi";
+import { PersonalWeeklyAttendance } from "./charts/PersonalWeeklyAttendance";
+import { PersonalWeeklyTrends } from "./charts/PersonalWeeklyTrends";
 
 interface PersonnelDetailsProps {
   personnel: {
@@ -27,14 +28,6 @@ interface PersonnelDetailsProps {
   };
   onScheduleUpdate?: () => void;
 }
-
-const attendanceData = [
-  { day: "Mon", status: 100 },
-  { day: "Tue", status: 100 },
-  { day: "Wed", status: 80 },
-  { day: "Thu", status: 100 },
-  { day: "Fri", status: 100 },
-];
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -430,39 +423,10 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
       </Card>
 
       {/* Attendance Analytics */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-success" />
-            Weekly Attendance Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={attendanceData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="status" stroke="hsl(var(--success))" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-          <div className="mt-4 grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-sm text-muted-foreground">Weekly Rate</p>
-              <p className="text-xl font-bold text-success">96%</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Monthly Rate</p>
-              <p className="text-xl font-bold text-success">94%</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Tardiness Count</p>
-              <p className="text-xl font-bold text-warning">3</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <PersonalWeeklyAttendance staffUserId={Number(personnel.id)} />
+
+      {/* Personal Weekly Trends */}
+      <PersonalWeeklyTrends staffUserId={Number(personnel.id)} />
 
       {/* Set as Dean (Faculty Only) */}
       {personnel.role === "Faculty" && (
