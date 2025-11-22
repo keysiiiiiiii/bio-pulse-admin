@@ -58,7 +58,7 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
         
         console.log('Fetching tardiness data for:', { monthStart, monthEnd, viewType });
         
-        // ✅ FIXED: Query with proper status filter
+        // ✅ FIXED: Query with role from attendance_logs
         const { data: logs, error } = await supabase
           .from('attendance_logs')
           .select(`
@@ -66,8 +66,8 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
             minute_late,
             att_date,
             attendance_status,
+            role,
             staff_users!inner (
-              employee_type,
               department
             )
           `)
@@ -95,15 +95,14 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
           staff_user: Array.isArray(log.staff_users) ? log.staff_users[0] : log.staff_users,
         }));
         
-        // ✅ FIXED: Filter by college whitelist (faculty) or non-whitelist (staff)
+        // ✅ FIXED: Filter by role from attendance_logs
         const filteredLogs = normalizedLogs.filter(log => {
-          const dept = (log.staff_user?.department || '').trim();
-          const isFaculty = COLLEGE_WHITELIST.has(dept);
+          const role = (log.role || '').toLowerCase();
           
           if (viewType === 'faculty') {
-            return isFaculty;
+            return role === 'faculty';
           } else {
-            return !isFaculty; // Staff = not in college whitelist
+            return role === 'staff';
           }
         });
         
@@ -117,11 +116,19 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
         // Get unique weeks
         const weeksInData = [...new Set(filteredLogs.map(d => d.week_of_year))].filter(w => w != null).sort((a, b) => a - b);
         
-        // Get unique departments/colleges
+        // Get unique departments/colleges - filter based on viewType
         const uniqueDepts = [...new Set(
           filteredLogs
             .map(log => log.staff_user?.department)
-            .filter(Boolean)
+            .filter(dept => {
+              if (viewType === 'faculty') {
+                // Only show college departments for faculty
+                return COLLEGE_WHITELIST.has(dept);
+              } else {
+                // Only show non-college departments for staff
+                return !COLLEGE_WHITELIST.has(dept);
+              }
+            })
         )].sort();
         
         console.log('Weeks:', weeksInData);
