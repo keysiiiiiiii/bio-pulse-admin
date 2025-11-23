@@ -56,6 +56,16 @@ const roles = [
   'Vice President',
 ];
 
+// ✅ NEW: Employee Type options
+const employeeTypes = [
+  'Job Order',
+  'Regular Admin',
+  'Regular Faculty',
+  'Part-Time Faculty',
+  'Contract of Service',
+  'Full-time',
+];
+
 // Accept full Staff ID (no prefix - use AS IS)
 const schema = z.object({
   staff_id: z.string()
@@ -67,6 +77,7 @@ const schema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   role: z.string().min(1, 'Role is required'),
   department: z.string().min(1, 'Department is required'),
+  employee_type: z.string().min(1, 'Employee type is required'), // ✅ NEW
   contact_number: z.string().optional(),
 });
 
@@ -96,6 +107,7 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
     defaultValues: {
       staff_id: '',
       password: 'default123',
+      employee_type: '', // ✅ NEW
     },
   });
 
@@ -134,7 +146,28 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
     return rawText; // Return as-is if no match
   };
 
-  // AI Scan Handler - FIXED
+  // ✅ NEW: Helper to normalize employee type from AI
+  const normalizeEmployeeType = (rawText: string): string => {
+    const text = rawText.toLowerCase().trim();
+    
+    if (text.includes('job') && text.includes('order')) return 'Job Order';
+    if (text.includes('regular') && text.includes('admin')) return 'Regular Admin';
+    if (text.includes('regular') && text.includes('faculty')) return 'Regular Faculty';
+    if (text.includes('part') && text.includes('time')) return 'Part-Time Faculty';
+    if (text.includes('contract') && text.includes('service')) return 'Contract of Service';
+    if (text.includes('full') && text.includes('time')) return 'Full-time';
+    
+    // If no match, return the first matching word
+    if (text.includes('regular')) return 'Regular Faculty';
+    if (text.includes('part')) return 'Part-Time Faculty';
+    if (text.includes('contract')) return 'Contract of Service';
+    if (text.includes('job')) return 'Job Order';
+    if (text.includes('full')) return 'Full-time';
+    
+    return rawText; // Return as-is if no match
+  };
+
+  // AI Scan Handler - UPDATED
   const handleAiScan = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -226,6 +259,14 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
         setValue('department', normalized);
       }
 
+      // ✅ NEW: Set employee type from AI (check both 'employee_type' and 'status')
+      const employeeTypeRaw = data.employee_type || data.status || '';
+      if (employeeTypeRaw) {
+        const normalized = normalizeEmployeeType(employeeTypeRaw);
+        console.log('Setting employee_type:', normalized, '(from:', employeeTypeRaw, ')');
+        setValue('employee_type', normalized);
+      }
+
       toast({
         title: '✅ Scan Complete!',
         description: 'Form fields have been populated. Please verify the information.',
@@ -250,7 +291,7 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
       console.log('📝 Creating account with data:', data);
 
       // Map role to employee_type and prepare department
-      let employee_type = data.role;
+      let employee_type = data.employee_type; // ✅ Use the selected employee_type
       let department = data.department;
 
       // For Faculty, use the full college name
@@ -267,7 +308,7 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
         email: data.email,
         password: data.password,
         role: data.role,
-        employee_type: employee_type,
+        employee_type: employee_type, // ✅ Send the selected employee type
         department: department,
         contact_number: data.contact_number || null,
       };
@@ -311,7 +352,7 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        {/* AI SCAN UPLOAD - FIXED */}
+        {/* AI SCAN UPLOAD */}
         <div className="space-y-2 border-b pb-4 bg-muted/50 p-4 rounded-lg">
           <Label htmlFor="ai-scan" className="text-base font-semibold flex items-center gap-2">
             <Upload className="h-5 w-5" />
@@ -445,6 +486,38 @@ export function CreateAccountDialog({ open, onOpenChange, onSuccess }: Props) {
             />
             {errors.role && (
               <p className="text-sm text-destructive">{errors.role.message}</p>
+            )}
+          </div>
+
+          {/* ✅ NEW: Employee Type */}
+          <div className="space-y-2">
+            <Label htmlFor="employee_type">
+              Employee Type <span className="text-destructive">*</span>
+            </Label>
+            <Controller
+              name="employee_type"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  onValueChange={field.onChange}
+                  value={field.value}
+                  disabled={isSubmitting || isScanning}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select employee type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employeeTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.employee_type && (
+              <p className="text-sm text-destructive">{errors.employee_type.message}</p>
             )}
           </div>
 

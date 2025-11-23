@@ -679,14 +679,17 @@ router.post('/mobile/register', async (req, res) => {
 });
 
 /* =================
-   LLM Integration
+   LLM Integration - UPDATED TO INCLUDE EMPLOYEE_TYPE
    ================= */
+
 // POST /llm/parse-form
 // This endpoint accepts an image and uses Groq's multimodal model to extract
-// structured information required for the “Create Account” form. It requires
+// structured information required for the "Create Account" form. It requires
 // authentication and is restricted to roles that can create accounts. It
 // expects a single file field named `image`. The response will be a JSON
-// object with keys: name, email, faculty_number, department, phone, status.
+// object with keys: name, email, faculty_number, department, phone, status, 
+// role, and employee_type.
+
 router.post(
   '/llm/parse-form',
   verifyToken,
@@ -699,16 +702,13 @@ router.post(
       if (!file) {
         return res.status(400).json({ message: 'image file required' });
       }
+
       // Convert the image buffer to a base64 data URI
       const mime = file.mimetype || 'image/png';
       const base64 = file.buffer.toString('base64');
       const dataUri = `data:${mime};base64,${base64}`;
 
-      // Prepare the messages for the Groq API. We instruct the model to
-      // extract the required fields. If any field is missing in the image,
-      // the model should provide an empty string for that field. The
-      // response_format is set to json_object so that the model returns
-      // a strict JSON object instead of free-form text.
+      // ✅ UPDATED: Enhanced prompt to extract employee_type
       const messages = [
         {
           role: 'user',
@@ -718,7 +718,17 @@ router.post(
               text:
                 'The following image contains text describing a university staff or faculty member. ' +
                 'Extract the following fields and output them as a JSON object with these exact keys: ' +
-                'name, email, faculty_number, department, phone, status, role. ' +   // <— added role
+                'name, email, faculty_number, department, phone, status, role, employee_type. ' +
+                '\n\n' +
+                'For the "employee_type" field, look for any of these terms in the document:\n' +
+                '- "Job Order" or "JO"\n' +
+                '- "Regular Admin" or "Regular Administrative"\n' +
+                '- "Regular Faculty" or "Permanent Faculty"\n' +
+                '- "Part-Time Faculty" or "Part Time" or "Adjunct"\n' +
+                '- "Contract of Service" or "COS" or "Contractual"\n' +
+                '- "Full-time" or "Full Time"\n' +
+                '\n' +
+                'If you find any of these employment status indicators, extract it to the employee_type field. ' +
                 'If a field is not present, set its value to an empty string. Do not include any additional keys.',
             },
             { type: 'image_url', image_url: { url: dataUri } }
@@ -726,15 +736,14 @@ router.post(
         }
       ];
 
-      // Call the Groq chat completion endpoint. We use a multimodal model that
-      // supports both images and JSON responses. The API key is read from
-      // environment variables. Adjust the max_completion_tokens if needed.
+      // Call the Groq chat completion endpoint
       const groqReqBody = {
         model: 'meta-llama/llama-4-scout-17b-16e-instruct',
         messages: messages,
         max_completion_tokens: 512,
         response_format: { type: 'json_object' },
       };
+
       const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -746,17 +755,35 @@ router.post(
 
       if (!groqRes.ok) {
         const text = await groqRes.text().catch(() => '');
-        return res.status(500).json({ message: 'LLM request failed', status: groqRes.status, body: text });
+        return res.status(500).json({
+          message: 'LLM request failed',
+          status: groqRes.status,
+          body: text
+        });
       }
+
       const groqJson = await groqRes.json();
+
       // The Groq API returns choices array with messages. Extract the content.
       const content = groqJson?.choices?.[0]?.message?.content;
       if (!content) {
-        return res.status(500).json({ message: 'Invalid LLM response', response: groqJson });
+        return res.status(500).json({
+          message: 'Invalid LLM response',
+          response: groqJson
+        });
       }
+
       let parsed;
-      try { parsed = JSON.parse(content); }
-      catch { return res.status(500).json({ message: 'Failed to parse JSON from LLM', raw: content }); }
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        return res.status(500).json({
+          message: 'Failed to parse JSON from LLM',
+          raw: content
+        });
+      }
+
+      // ✅ UPDATED: Include employee_type in the response
       const out = {
         name: parsed.name ?? '',
         email: parsed.email ?? '',
@@ -764,12 +791,20 @@ router.post(
         department: parsed.department ?? '',
         phone: parsed.phone ?? '',
         status: parsed.status ?? '',
-        role: parsed.role ?? ''
+        role: parsed.role ?? '',
+        employee_type: parsed.employee_type ?? '' // ✅ NEW: Return employee_type
       };
+
+      console.log('✅ Groq AI extracted data:', out);
+
       return res.json(out);
+
     } catch (e) {
-      console.error('LLM parse error:', e);
-      return res.status(500).json({ message: 'Unexpected server error', error: e.message || e.toString() });
+      console.error('❌ LLM parse error:', e);
+      return res.status(500).json({
+        message: 'Unexpected server error',
+        error: e.message || e.toString()
+      });
     }
   },
 );
@@ -916,7 +951,7 @@ async function checkAndResetYearlyCredits(staff_user_id) {
 router.get('/leave/me', verifyToken, async (req, res) => {
   try {
     console.log('🔵 GET /leave/me called');
-    
+
     const staffId = req.user?.sid;
     if (!staffId) {
       return res.status(400).json({ message: 'No staff_id in token' });
@@ -1100,7 +1135,7 @@ router.post('/leave/add-monthly-credits',
   async (req, res) => {
     try {
       const { staff_id, hr_password } = req.body || {};
-      
+
       if (!staff_id || !hr_password) {
         return res.status(400).json({ error: 'Missing staff_id or hr_password' });
       }
@@ -1143,18 +1178,18 @@ router.post('/leave/add-monthly-credits',
       await logActivity({
         staff_id,
         action: 'leave_credits_monthly_add',
-        details: { 
-          previous: currentCredits, 
-          added: 2.5, 
-          new_balance: newCredits 
+        details: {
+          previous: currentCredits,
+          added: 2.5,
+          new_balance: newCredits
         },
         actor: req.user || {}
       });
 
-      return res.json({ 
-        message: 'Monthly credits added', 
+      return res.json({
+        message: 'Monthly credits added',
         previous: currentCredits,
-        new_balance: newCredits 
+        new_balance: newCredits
       });
 
     } catch (e) {
