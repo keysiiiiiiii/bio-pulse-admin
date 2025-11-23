@@ -87,6 +87,78 @@ export interface TopPunctualLate {
   avgLate?: string;
 }
 
+
+// =============================================================================
+// ADD THESE INTERFACES AND METHODS TO YOUR analyticsApi.ts
+// =============================================================================
+
+// ML-specific interfaces
+export interface MLHealthResponse {
+  status: string;
+  model_trained: boolean;
+  last_trained: string | null;
+  prophet_available: boolean;
+  error?: string;
+}
+
+export interface FeatureImportance {
+  feature: string;
+  coefficient: number;
+  impact: string;
+}
+
+export interface MLTrainResponse {
+  success: boolean;
+  message: string;
+  metrics: {
+    train_accuracy: number;
+    test_accuracy: number;
+    total_records: number;
+    unique_employees: number;
+  };
+  feature_importance: FeatureImportance[];
+  error?: string;
+}
+
+export interface EmployeeRisk {
+  staff_user_id: number;
+  staff_id: string;
+  name: string;
+  role: string;
+  department: string;
+  risk_score: number;
+  avg_late_30d: number;
+  total_ot_90d: number;
+  absence_count_60d: number;
+  recommendation: string;
+}
+
+export interface MLPredictResponse {
+  success: boolean;
+  high_risk_count: number;
+  medium_risk_count: number;
+  low_risk_count: number;
+  employees: EmployeeRisk[];
+  error?: string;
+}
+
+export interface ForecastPoint {
+  week_starting: string;
+  predicted_rate: number;
+  lower_bound: number;
+  upper_bound: number;
+}
+
+export interface MLForecastResponse {
+  success: boolean;
+  forecast: ForecastPoint[];
+  historical: Array<{
+    week_starting: string;
+    predicted_rate: number;
+  }>;
+  historical_avg: number;
+}
+
 export const analyticsApi = {
   // GET /api/analytics/daily?date=YYYY-MM-DD
   getDailyKPIs: (date: string) =>
@@ -131,4 +203,34 @@ export const analyticsApi = {
   // Predictive Analytics
   getTopPunctualLate: (start: string, end: string, type: 'punctual' | 'late', limit = 10) =>
     apiRequest<{ rows: TopPunctualLate[] }>(`/analytics/top-punctual-late?start=${start}&end=${end}&type=${type}&limit=${limit}`),
+
+  // ==================== ML ENDPOINTS ====================
+
+  // Check ML service health
+  checkMLHealth: () =>
+    apiRequest<MLHealthResponse>('/analytics/ml/health'),
+
+  // Train ML models
+  trainMLModel: (startDate?: string, endDate?: string) =>
+    apiRequest<MLTrainResponse>('/analytics/ml/train', {
+      method: 'POST',
+      body: JSON.stringify({
+        start_date: startDate || null,
+        end_date: endDate || null
+      })
+    }),
+
+  // Get risk predictions
+  getMLPredictions: (start: string, end: string, limit: number = 10) =>
+    apiRequest<MLPredictResponse>(
+      `/analytics/ml/predict?start=${start}&end=${end}&limit=${limit}`
+    ),
+
+  // Get absence forecast
+  getMLForecast: (start: string, end: string, weeks: number = 4) =>
+    apiRequest<MLForecastResponse>(
+      `/analytics/ml/forecast?start=${start}&end=${end}&weeks=${weeks}`
+    ),
+
 };
+

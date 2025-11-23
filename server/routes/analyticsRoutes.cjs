@@ -1598,4 +1598,142 @@ router.get('/ot-ut-by-type', async (req, res) => {
     });
   }
 });
+
+// =============================================================================
+// ADD THIS TO THE END OF YOUR analyticsRoutes.cjs (before module.exports)
+// =============================================================================
+
+// ML API Integration - Proxy endpoints to Python ML service
+const ML_API_URL = process.env.ML_API_URL || 'http://localhost:8000';
+
+// Helper function to call ML API
+async function callMLAPI(endpoint, method = 'GET', body = null) {
+  const fetch = (await import('node-fetch')).default;
+  
+  const options = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+  };
+  
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+  
+  const response = await fetch(`${ML_API_URL}${endpoint}`, options);
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'ML API error' }));
+    throw new Error(error.detail || `ML API returned ${response.status}`);
+  }
+  
+  return response.json();
+}
+
+// ------------------------------ ML: HEALTH CHECK ------------------------------
+// GET /api/analytics/ml/health
+router.get('/ml/health', async (req, res) => {
+  try {
+    const result = await callMLAPI('/api/ml/health');
+    res.json(result);
+  } catch (e) {
+    console.error('[ML Health] Error:', e.message);
+    res.json({
+      status: 'unavailable',
+      model_trained: false,
+      last_trained: null,
+      prophet_available: false,
+      error: e.message
+    });
+  }
+});
+
+// ------------------------------ ML: TRAIN MODEL ------------------------------
+// POST /api/analytics/ml/train
+router.post('/ml/train', async (req, res) => {
+  try {
+    console.log('[ML Train] Starting model training...');
+    
+    const body = {
+      start_date: req.body.start_date || null,
+      end_date: req.body.end_date || null
+    };
+    
+    const result = await callMLAPI('/api/ml/train', 'POST', body);
+    
+    console.log('[ML Train] ✅ Training complete:', result.metrics);
+    res.json(result);
+  } catch (e) {
+    console.error('[ML Train] ❌ Error:', e.message);
+    res.status(500).json({ 
+      success: false, 
+      error: e.message,
+      message: 'Model training failed. Is the Python ML service running?'
+    });
+  }
+});
+
+// ------------------------------ ML: PREDICT RISK ------------------------------
+// GET /api/analytics/ml/predict?start=YYYY-MM-DD&end=YYYY-MM-DD&limit=10
+router.get('/ml/predict', async (req, res) => {
+  try {
+    const { start, end, limit = 10 } = req.query;
+    
+    if (!start || !end) {
+      return res.status(400).json({ error: 'start and end dates required' });
+    }
+    
+    console.log(`[ML Predict] Getting predictions for ${start} to ${end}`);
+    
+    const body = {
+      start_date: start,
+      end_date: end,
+      limit: parseInt(limit)
+    };
+    
+    const result = await callMLAPI('/api/ml/predict', 'POST', body);
+    res.json(result);
+  } catch (e) {
+    console.error('[ML Predict] ❌ Error:', e.message);
+    res.status(500).json({ 
+      success: false, 
+      error: e.message,
+      employees: []
+    });
+  }
+});
+
+// ------------------------------ ML: FORECAST ------------------------------
+// GET /api/analytics/ml/forecast?start=YYYY-MM-DD&end=YYYY-MM-DD&weeks=4
+router.get('/ml/forecast', async (req, res) => {
+  try {
+    const { start, end, weeks = 4 } = req.query;
+    
+    if (!start || !end) {
+      return res.status(400).json({ error: 'start and end dates required' });
+    }
+    
+    console.log(`[ML Forecast] Getting ${weeks}-week forecast`);
+    
+    const body = {
+      start_date: start,
+      end_date: end,
+      weeks: parseInt(weeks)
+    };
+    
+    const result = await callMLAPI('/api/ml/forecast', 'POST', body);
+    res.json(result);
+  } catch (e) {
+    console.error('[ML Forecast] ❌ Error:', e.message);
+    res.status(500).json({ 
+      success: false, 
+      error: e.message,
+      forecast: [],
+      historical_avg: 0
+    });
+  }
+});
+
+// =============================================================================
+// END OF ML ROUTES ADDITION
+// =============================================================================
 module.exports = router;
