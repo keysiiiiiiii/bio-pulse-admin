@@ -1,18 +1,39 @@
+//src/components/admin/DailyTimeRecords.tsx
 // =================================================================
 // IMPROVED DTR ADMIN SOLUTION
 // Generate on-demand → Store in Supabase → Download anytime
 // =================================================================
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Download, CheckCircle2, Loader2, RefreshCw, Package } from "lucide-react";
+import {
+  Download,
+  CheckCircle2,
+  Loader2,
+  RefreshCw,
+  Package,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { API_BASE_URL } from "@/services/api/config";
+import { dtrApi } from "@/services/api/dtrApi";
 
 interface DTRRecord {
   staff_user_id: number;
@@ -28,23 +49,43 @@ interface DTRRecord {
 }
 
 const monthNames = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 export function DailyTimeRecords() {
   const currentDate = new Date();
-  const [selectedMonth, setSelectedMonth] = useState<string>((currentDate.getMonth()).toString());
-  const [selectedYear, setSelectedYear] = useState<string>(currentDate.getFullYear().toString());
-  const [filterType, setFilterType] = useState<"all" | "colleges" | "departments">("all");
+  const [selectedMonth, setSelectedMonth] = useState<string>(
+    currentDate.getMonth().toString()
+  );
+  const [selectedYear, setSelectedYear] = useState<string>(
+    currentDate.getFullYear().toString()
+  );
+  const [filterType, setFilterType] = useState<
+    "all" | "colleges" | "departments"
+  >("all");
   const [filterValue, setFilterValue] = useState<string>("all");
-  const [selectedRecords, setSelectedRecords] = useState<Set<string>>(new Set());
+  const [selectedRecords, setSelectedRecords] = useState<Set<string>>(
+    new Set()
+  );
   const [dtrRecords, setDtrRecords] = useState<DTRRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const { toast } = useToast();
+
+  const [downloadingRow, setDownloadingRow] = useState<string | null>(null);
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 4 }, (_, i) => currentYear - 1 + i);
@@ -58,7 +99,7 @@ export function DailyTimeRecords() {
     "Gen Ed - General Education",
     "CBPM - College of Business and Public Management",
     "CL - College of Law",
-    "CAS - College of Arts and Sciences"
+    "CAS - College of Arts and Sciences",
   ];
 
   const departments = [
@@ -69,7 +110,7 @@ export function DailyTimeRecords() {
     "Cleaning Services",
     "Human Resource (HR)",
     "Registrar",
-    "HR Office"
+    "HR Office",
   ];
 
   useEffect(() => {
@@ -81,7 +122,7 @@ export function DailyTimeRecords() {
     try {
       const params = new URLSearchParams({
         month: selectedMonth,
-        year: selectedYear
+        year: selectedYear,
       });
 
       if (filterType === "colleges" && filterValue !== "all") {
@@ -92,7 +133,7 @@ export function DailyTimeRecords() {
 
       const response = await fetch(`${API_BASE_URL}/dtr/list?${params}`);
 
-      if (!response.ok) throw new Error('Failed to fetch DTR records');
+      if (!response.ok) throw new Error("Failed to fetch DTR records");
 
       const data = await response.json();
       let records = data.rows || [];
@@ -105,11 +146,11 @@ export function DailyTimeRecords() {
 
       setDtrRecords(records);
     } catch (error) {
-      console.error('Error fetching DTR records:', error);
+      console.error("Error fetching DTR records:", error);
       toast({
         title: "Error",
         description: "Failed to fetch DTR records",
-        variant: "destructive"
+        variant: "destructive",
       });
       setDtrRecords([]);
     } finally {
@@ -147,16 +188,19 @@ export function DailyTimeRecords() {
 
     try {
       const response = await fetch(`${API_BASE_URL}/dtr/ensure-month`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           month: parseInt(selectedMonth),
           year: parseInt(selectedYear),
-          dept: filterType !== "all" && filterValue !== "all" ? filterValue : undefined
-        })
+          dept:
+            filterType !== "all" && filterValue !== "all"
+              ? filterValue
+              : undefined,
+        }),
       });
 
-      if (!response.ok) throw new Error('Generation failed');
+      if (!response.ok) throw new Error("Generation failed");
 
       const result = await response.json();
       const successCount = result.items?.filter((i: any) => i.ok).length || 0;
@@ -172,11 +216,11 @@ export function DailyTimeRecords() {
       // Refresh list to show updated status
       await fetchDTRRecords();
     } catch (error) {
-      console.error('Error generating DTRs:', error);
+      console.error("Error generating DTRs:", error);
       toast({
         title: "Error",
         description: "Failed to generate DTR files",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setGenerating(false);
@@ -188,7 +232,7 @@ export function DailyTimeRecords() {
   const handleBatchGenerateAll = async () => {
     const confirmed = confirm(
       "Generate all DTRs from January 2025 to current month?\n\n" +
-      "This will take several minutes. Continue?"
+        "This will take several minutes. Continue?"
     );
 
     if (!confirmed) return;
@@ -218,13 +262,16 @@ export function DailyTimeRecords() {
       for (const { year, month } of monthsToGenerate) {
         try {
           const response = await fetch(`${API_BASE_URL}/dtr/ensure-month`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               month,
               year,
-              dept: filterType !== "all" && filterValue !== "all" ? filterValue : undefined
-            })
+              dept:
+                filterType !== "all" && filterValue !== "all"
+                  ? filterValue
+                  : undefined,
+            }),
           });
 
           if (response.ok) {
@@ -243,11 +290,11 @@ export function DailyTimeRecords() {
 
       await fetchDTRRecords();
     } catch (error) {
-      console.error('Error in batch generation:', error);
+      console.error("Error in batch generation:", error);
       toast({
         title: "Error",
         description: "Batch generation failed",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setGenerating(false);
@@ -261,22 +308,22 @@ export function DailyTimeRecords() {
       const items = [{ staff_id: staffId }];
 
       const response = await fetch(`${API_BASE_URL}/dtr/ensure-sign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items,
           month: parseInt(selectedMonth),
-          year: parseInt(selectedYear)
-        })
+          year: parseInt(selectedYear),
+        }),
       });
 
-      if (!response.ok) throw new Error('Failed to get download URL');
+      if (!response.ok) throw new Error("Failed to get download URL");
 
       const result = await response.json();
       const item = result.items?.[0];
 
       if (item?.url) {
-        window.open(item.url, '_blank');
+        window.open(item.url, "_blank");
         toast({
           title: "📥 Downloading",
           description: `DTR for ${staffId}`,
@@ -285,14 +332,14 @@ export function DailyTimeRecords() {
         // Refresh to update status
         await fetchDTRRecords();
       } else {
-        throw new Error(item?.error || 'No URL returned');
+        throw new Error(item?.error || "No URL returned");
       }
     } catch (error) {
-      console.error('Error downloading DTR:', error);
+      console.error("Error downloading DTR:", error);
       toast({
         title: "Error",
         description: "Failed to download DTR",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -303,51 +350,30 @@ export function DailyTimeRecords() {
     setDownloading(true);
 
     try {
-      const items = Array.from(selectedRecords).map(staffId => {
-        const record = filteredRecords.find(r => r.staff_id === staffId);
-        return {
-          staff_id: staffId,
-          staff_user_id: record?.staff_user_id
-        };
-      });
+      const staff_ids = Array.from(selectedRecords);
+      const monthNum = parseInt(selectedMonth) + 1; // Convert to 1-12
+      const yearNum = parseInt(selectedYear);
 
-      const response = await fetch(`${API_BASE_URL}/dtr/ensure-sign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items,
-          month: parseInt(selectedMonth),
-          year: parseInt(selectedYear)
-        })
-      });
-
-      if (!response.ok) throw new Error('Failed to get download URLs');
-
-      const result = await response.json();
-
-      let successCount = 0;
-      for (const item of result.items) {
-        if (item.url) {
-          window.open(item.url, '_blank');
-          successCount++;
-          // Small delay between downloads
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-      }
+      const result = await dtrApi.downloadExcelBatch(
+        staff_ids,
+        yearNum,
+        monthNum
+      );
 
       toast({
-        title: "📥 Downloading",
-        description: `${successCount} DTR files`,
+        title: "📥 Excel Files Downloaded",
+        description: `${result.success} file(s) downloaded successfully${
+          result.failed > 0 ? `, ${result.failed} failed` : ""
+        }`,
       });
 
       setSelectedRecords(new Set());
-      await fetchDTRRecords();
     } catch (error) {
-      console.error('Error downloading DTRs:', error);
+      console.error("Error downloading Excel files:", error);
       toast({
         title: "Error",
-        description: "Failed to download DTR files",
-        variant: "destructive"
+        description: "Failed to download Excel files",
+        variant: "destructive",
       });
     } finally {
       setDownloading(false);
@@ -368,18 +394,22 @@ export function DailyTimeRecords() {
     if (selectedRecords.size === filteredRecords.length) {
       setSelectedRecords(new Set());
     } else {
-      setSelectedRecords(new Set(filteredRecords.map(r => r.staff_id)));
+      setSelectedRecords(new Set(filteredRecords.map((r) => r.staff_id)));
     }
   };
 
-  const missingCount = filteredRecords.filter(r => !r.has_file).length;
-  const readyCount = filteredRecords.filter(r => r.has_file).length;
+  const missingCount = filteredRecords.filter((r) => !r.has_file).length;
+  const readyCount = filteredRecords.filter((r) => r.has_file).length;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Daily Time Records</h1>
-        <p className="text-muted-foreground">Generate and download employee DTR files</p>
+        <h1 className="text-3xl font-bold text-foreground">
+          Daily Time Records
+        </h1>
+        <p className="text-muted-foreground">
+          Generate and download employee DTR files
+        </p>
       </div>
 
       <Card className="shadow-md">
@@ -439,7 +469,9 @@ export function DailyTimeRecords() {
                 <SelectContent>
                   <SelectItem value="all">All Colleges</SelectItem>
                   {colleges.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -453,7 +485,9 @@ export function DailyTimeRecords() {
                 <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
                   {departments.map((d) => (
-                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -502,7 +536,7 @@ export function DailyTimeRecords() {
               )}
             </Button>
 
-            {/* Download Selected */}
+            {/* Download Excel Selected */}
             <Button
               onClick={handleDownloadSelected}
               disabled={selectedRecords.size === 0 || downloading}
@@ -516,7 +550,7 @@ export function DailyTimeRecords() {
               ) : (
                 <>
                   <Download className="h-4 w-4 mr-2" />
-                  Download Selected ({selectedRecords.size})
+                  Download Excel ({selectedRecords.size})
                 </>
               )}
             </Button>
@@ -535,7 +569,10 @@ export function DailyTimeRecords() {
           {/* Stats */}
           <div className="mt-4 flex gap-6 text-sm">
             <span className="text-muted-foreground">
-              Total: <strong className="text-foreground">{filteredRecords.length}</strong>
+              Total:{" "}
+              <strong className="text-foreground">
+                {filteredRecords.length}
+              </strong>
             </span>
             <span className="text-green-600">
               In Storage: <strong>{readyCount}</strong>
@@ -559,7 +596,10 @@ export function DailyTimeRecords() {
                 <TableRow>
                   <TableHead className="w-12">
                     <Checkbox
-                      checked={selectedRecords.size === filteredRecords.length && filteredRecords.length > 0}
+                      checked={
+                        selectedRecords.size === filteredRecords.length &&
+                        filteredRecords.length > 0
+                      }
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
@@ -567,14 +607,16 @@ export function DailyTimeRecords() {
                   <TableHead>Name</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Department</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRecords.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell
+                      colSpan={6}
+                      className="text-center text-muted-foreground py-8"
+                    >
                       No records found
                     </TableCell>
                   </TableRow>
@@ -582,45 +624,73 @@ export function DailyTimeRecords() {
                   filteredRecords.map((record) => {
                     const isSelected = selectedRecords.has(record.staff_id);
                     const downloadable = canDownload(record);
-                    const status = record.has_file ? "Ready" : "Will Generate";
 
                     return (
                       <TableRow
                         key={record.staff_id}
-                        className={`cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-muted" : ""}`}
+                        className={`cursor-pointer hover:bg-muted/50 ${
+                          isSelected ? "bg-muted" : ""
+                        }`}
                         onClick={(e) => {
-                          if ((e.target as HTMLElement).closest('button')) return;
+                          if ((e.target as HTMLElement).closest("button"))
+                            return;
                           handleSelectRecord(record.staff_id);
                         }}
                       >
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={isSelected}
-                            onCheckedChange={() => handleSelectRecord(record.staff_id)}
+                            onCheckedChange={() =>
+                              handleSelectRecord(record.staff_id)
+                            }
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{record.staff_id}</TableCell>
+                        <TableCell className="font-medium">
+                          {record.staff_id}
+                        </TableCell>
                         <TableCell>{record.name}</TableCell>
                         <TableCell>{record.role}</TableCell>
                         <TableCell>{record.department}</TableCell>
-                        <TableCell>
-                          <span className={status === "Ready" ? "text-green-600 font-medium" : "text-amber-600"}>
-                            {status}
-                          </span>
-                        </TableCell>
                         <TableCell className="text-right">
                           <Button
                             size="sm"
-                            variant={isSelected && downloadable ? "default" : "outline"}
-                            disabled={!downloadable}
+                            variant="outline"
+                            disabled={
+                              !downloadable ||
+                              downloadingRow === record.staff_id
+                            }
                             className="gap-2"
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              handleDownloadSingle(record.staff_id);
+                              setDownloadingRow(record.staff_id); // 🔁 start animation
+
+                              try {
+                                await dtrApi.downloadExcel(
+                                  record.staff_id,
+                                  parseInt(selectedYear),
+                                  parseInt(selectedMonth) + 1
+                                );
+
+                                toast({
+                                  title: "📥 Downloading Excel",
+                                  description: `DTR for ${record.name}`,
+                                });
+                              } catch (error) {
+                                toast({
+                                  title: "Error",
+                                  description: "Failed to download Excel",
+                                  variant: "destructive",
+                                });
+                              } finally {
+                                setDownloadingRow(null); // 🔁 stop animation
+                              }
                             }}
                           >
-                            {isSelected && downloadable && <CheckCircle2 className="h-4 w-4" />}
-                            <Download className="h-4 w-4" />
+                            {downloadingRow === record.staff_id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
                           </Button>
                         </TableCell>
                       </TableRow>

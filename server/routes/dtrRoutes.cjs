@@ -1,4 +1,4 @@
-// server/routes/dtrRoutes.cjs – FIXED: Actually generates PDF files
+// server/routes/dtrRoutes.cjs
 console.log('🔵 [DTR] Loading dtrRoutes.cjs...');
 
 const express = require('express');

@@ -106,13 +106,14 @@ export function LeaveRequests() {
     }
   };
 
-const handleApprove = async (id: string) => {
+  const handleApprove = async (id: string) => {
     try {
       console.log('✅ Approving request:', id);
       
       const token = localStorage.getItem('token');
       
-      const response = await fetch(`/api/leaves/${id}/status`, {
+      // Try with capitalized first
+      let response = await fetch(`/api/leaves/${id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -120,6 +121,18 @@ const handleApprove = async (id: string) => {
         },
         body: JSON.stringify({ status: 'approved' })
       });
+      
+      // If it fails, try lowercase
+      if (!response.ok && response.status === 500) {
+        response = await fetch(`/api/leaves/${id}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify({ status: 'approved' })
+        });
+      }
       
       if (!response.ok) {
         const errorText = await response.text();
