@@ -577,14 +577,54 @@ router.get('/api/leaves/history', verifyToken, async (req, res) => {
 });
 
 /* ============ STATUS UPDATE ============ */
-// ✅ UPDATE THE APPROVAL SECTION in leaveRoutes.cjs
-
 router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice President', 'ICTO'), async (req, res) => {
   try {
-    // ... existing approval code ...
+    const { id } = req.params;
+    const { status, remarks } = req.body;
 
-    // ✅ AFTER DEDUCTING CREDITS, LOG DETAILED NOTIFICATION
-    if (status === 'approved' && leaveRequest.staff_user_id && leaveRequest.duration) {
+    console.log(`📝 PATCH /api/leaves/${id}/status`, { status, remarks });
+
+    if (!status) {
+      return res.status(400).json({ error: 'Status is required' });
+    }
+
+    const normalizedStatus = normStatus(status);
+
+    // Get existing leave request
+    const { data: leaveRequest, error: fetchError } = await db
+      .from('leave_requests')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !leaveRequest) {
+      console.error('❌ Leave request not found:', fetchError);
+      return res.status(404).json({ error: 'Leave request not found' });
+    }
+
+    // Update the status
+    const { data, error } = await db
+      .from('leave_requests')
+      .update({ 
+        status: normalizedStatus,
+        remarks: remarks || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Update error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    // Get staff_id for activity logging
+    let actorStaffId = req.user?.sid || '';
+    let targetStaffId = leaveRequest.staff_id || '';
+
+    // Deduct leave credits if approved
+    if (normalizedStatus === 'approved' && leaveRequest.staff_user_id && leaveRequest.duration) {
       const leaveType = leaveRequest.leave_type;
       
       if (leaveType === 'sick' || leaveType === 'vacation') {
@@ -599,7 +639,22 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
           const deducted = Number(leaveRequest.duration);
           const newBalance = currentCredits - deducted;
 
-          // ✅ UPDATE THE ACTIVITY LOG
+          // Update deduction
+          const { error: updateErr } = await db
+            .from('user_accounts')
+            .update({ 
+              leave_credits: Math.max(0, newBalance),
+              used_credits: db.raw(`used_credits + ${deducted}`)
+            })
+            .eq('staff_user_id', leaveRequest.staff_user_id);
+
+          if (updateErr) {
+            console.error('❌ Failed to deduct credits:', updateErr);
+          } else {
+            console.log('✅ Credits deducted successfully');
+          }
+
+          // Log activity with credit details
           await logLeaveActivity({
             leave_id: id,
             action: 'leave_status_update',
@@ -609,36 +664,51 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
             staff_user_id: data.staff_user_id,
             details: {
               leave_type: leaveRequest.leave_type,
-              status: status,
+              status: normalizedStatus,
               remarks: remarks || null,
               days_deducted: deducted,
-              // ✅ ADD THESE FOR NOTIFICATION
               previous_balance: currentCredits,
               new_balance: Math.max(0, newBalance),
               deduction_amount: deducted
             }
           });
-
-          // ✅ UPDATE DEDUCTION LOGIC
-          const { error: updateErr } = await db
-            .from('user_accounts')
-            .update({ 
-              leave_credits: Math.max(0, newBalance),
-              used_credits: db.raw(`used_credits + ${deducted}`)  // ✅ Increment used
-            })
-            .eq('staff_user_id', leaveRequest.staff_user_id);
-
-          if (updateErr) {
-            console.error('❌ Failed to deduct credits:', updateErr);
-            return res.status(500).json({ error: 'Failed to deduct leave credits' });
-          }
-
-          console.log('✅ Credits deducted successfully');
         }
       }
+    } else {
+      // Log activity without credit deduction
+      await logLeaveActivity({
+        leave_id: id,
+        action: 'leave_status_update',
+        actor_staff_id: actorStaffId,
+        actor_role: req.user?.role || '',
+        staff_id: targetStaffId,
+        staff_user_id: data.staff_user_id,
+        details: {
+          leave_type: leaveRequest.leave_type,
+          status: normalizedStatus,
+          remarks: remarks || null
+        }
+      });
     }
 
-    // ... rest of approval code ...
+    // Send notification to staff member
+    if (leaveRequest.staff_user_id) {
+      const statusMessage = normalizedStatus === 'approved' 
+        ? 'Your leave request has been approved' 
+        : normalizedStatus === 'disapproved'
+        ? `Your leave request has been disapproved${remarks ? ': ' + remarks : ''}`
+        : `Your leave request status has been updated to ${normalizedStatus}`;
+
+      await safeNotify({
+        staff_user_id: leaveRequest.staff_user_id,
+        title: 'Leave Request Update',
+        message: statusMessage,
+        link: '/faculty/leave'
+      });
+    }
+
+    console.log(`✅ Leave ${id} updated to ${normalizedStatus}`);
+    return res.json({ ok: true, data });
   } catch (e) {
     console.error('❌ Error:', e);
     res.status(500).json({ error: e.message });
