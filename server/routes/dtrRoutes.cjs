@@ -752,6 +752,54 @@ router.get('/download-excel', async (req, res) => {
   }
 });
 
+// GET /api/dtr/list?month=10&year=2025&department=...
+router.get('/list', async (req, res) => {
+  try {
+    const { month, year, department } = req.query;
+
+    if (!month || !year) {
+      return res.status(400).json({ error: 'month and year are required' });
+    }
+
+    // Build query for staff users
+    let query = db
+      .from('staff_users')
+      .select('id, staff_id, name, employee_type, department')
+      .order('name', { ascending: true });
+
+    // Filter by department if provided
+    if (department && department !== 'all') {
+      query = query.eq('department', department);
+    }
+
+    const { data: staffList, error } = await query;
+
+    if (error) {
+      console.error('[DTR List] Error fetching staff:', error);
+      return res.status(500).json({ error: 'Failed to fetch staff list' });
+    }
+
+    // Map to DTRRecord format
+    const rows = (staffList || []).map(staff => ({
+      staff_user_id: staff.id,
+      staff_id: staff.staff_id,
+      name: staff.name,
+      role: staff.employee_type || 'Staff',
+      department: staff.department || 'N/A',
+      filename: null,
+      path: null,
+      has_file: false,
+      month: parseInt(month),
+      year: parseInt(year)
+    }));
+
+    res.json({ rows });
+  } catch (err) {
+    console.error('[DTR List] Error:', err);
+    res.status(500).json({ error: 'Failed to fetch DTR list', details: err.message });
+  }
+});
+
 // GET /api/dtr/test
 router.get('/test', (_req, res) => {
   console.log('✅ [DTR /test] Route is working!');
