@@ -19,11 +19,12 @@ import {
 } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { validateLeaveApplication } from '@/utils/leaveValidation';
+import { staffApi } from '@/services/api/staffApi';
 
 export const FacultyLeaveForm = () => {
   const [startDate, setStartDate] = useState<Date>();
@@ -32,6 +33,8 @@ export const FacultyLeaveForm = () => {
   const [reason, setReason] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [leaveCredits, setLeaveCredits] = useState<number | null>(null);
+  const [loadingCredits, setLoadingCredits] = useState(true);
 
   // Conditional leave details
   const [vacationLocation, setVacationLocation] = useState<"philippines" | "abroad" | "">("");
@@ -45,6 +48,25 @@ export const FacultyLeaveForm = () => {
 
   const { user } = useAuth();
 
+  useEffect(() => {
+    const fetchLeaveCredits = async () => {
+      try {
+        setLoadingCredits(true);
+        const credits = await staffApi.getMyLeaveCredits();
+        setLeaveCredits(credits.computed_credits || 0);
+      } catch (error) {
+        console.error("Failed to fetch leave credits:", error);
+        setLeaveCredits(null);
+      } finally {
+        setLoadingCredits(false);
+      }
+    };
+
+    if (user?.staff_id) {
+      fetchLeaveCredits();
+    }
+  }, [user]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -55,6 +77,23 @@ export const FacultyLeaveForm = () => {
         description: "Please fill in all required fields.",
       });
       return;
+    }
+
+    // Validate sick leave cannot be in the future
+    if (leaveType === "sick") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selectedStartDate = new Date(startDate);
+      selectedStartDate.setHours(0, 0, 0, 0);
+      
+      if (selectedStartDate > today) {
+        toast({
+          variant: "destructive",
+          title: "Invalid Date",
+          description: "Sick leave cannot be filed for future dates. You can only file sick leave for today or past dates.",
+        });
+        return;
+      }
     }
 
     // ✅ ADD THIS VALIDATION
@@ -233,9 +272,18 @@ export const FacultyLeaveForm = () => {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Request Leave</CardTitle>
-        </CardHeader>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Request Leave</span>
+          {loadingCredits ? (
+            <span className="text-sm text-muted-foreground">Loading credits...</span>
+          ) : (
+            <span className="text-sm font-semibold text-primary">
+              Available Leave Credits: {leaveCredits?.toFixed(2) || "0.00"} days
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2">

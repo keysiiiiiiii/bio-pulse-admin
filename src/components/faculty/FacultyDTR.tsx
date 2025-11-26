@@ -164,10 +164,6 @@ export const FacultyDTR = () => {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <Button onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-2" />
-            Download Excel
-          </Button>
         </div>
       </div>
 
