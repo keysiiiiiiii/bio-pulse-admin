@@ -47,6 +47,7 @@ function normStatus(s) {
   if (v === 'cancelled' || v === 'canceled') return 'cancelled';
   return 'pending-admin';
 }
+
 async function safeNotify({ staff_user_id = null, title = '', message = '', link = '' }) {
   try {
     await db.from('notifications').insert([{
@@ -140,7 +141,7 @@ router.post('/api/leaves', async (req, res) => {
       file_url: null,
       leave_form_url: null,
       fields: fieldsObj,
-      status: normStatus(status),
+      status: normStatus(status),  // ✅ FIXED: Now normalizing status
       created_at: new Date().toISOString(),
       archived: false
     };
@@ -165,7 +166,7 @@ router.post('/api/leaves', async (req, res) => {
 // route: create with attachment and auto-filled leave form
 router.post('/api/leaves/with-file', upload.single('file'), async (req, res) => {
   const file = req.file;
-  console.log('📎 POST /api/leaves/with-file');
+  console.log('🔎 POST /api/leaves/with-file');
   console.log('📄 File:', file ? file.originalname : 'none');
   console.log('📝 Body:', req.body);
 
@@ -297,7 +298,7 @@ router.post('/api/leaves/with-file', upload.single('file'), async (req, res) => 
         // Date of filing -> F12
         ws.getCell('F12').value = date || new Date().toISOString().slice(0, 10);
 
-        // ---- Mark the selected leave type with a check mark (✔) ----
+        // ---- Mark the selected leave type with a check mark (✓) ----
         const leaveType = (leave_type || '').toLowerCase();
 
         // explicit mapping between <select> values and Excel row numbers
@@ -320,13 +321,13 @@ router.post('/api/leaves/with-file', upload.single('file'), async (req, res) => 
         // mark the correct cell in Column B (beside column C text)
         const markRow = leaveTypeMap[leaveType];
         if (markRow) {
-          ws.getCell(`C${markRow}`).value = '✔';
+          ws.getCell(`C${markRow}`).value = '✓';
           console.log(`✅ Marked leave type "${leaveType}" at row ${markRow}`);
         } else {
           console.warn(`⚠️ Unknown leave type "${leaveType}", no mark added`);
         }
 
-        // Number of leave days (C33 for example — adjust if different)
+        // Number of leave days (C33 for example – adjust if different)
         if (num_days) ws.getCell('E34').value = Number(num_days);
 
         // Start date (E36), End date (G36)
@@ -373,7 +374,7 @@ router.post('/api/leaves/with-file', upload.single('file'), async (req, res) => 
       file_url,
       leave_form_url,
       fields: fieldsObj,
-      status: 'Pending',
+      status: 'pending-admin',  // ✅ FIXED: Changed from 'Pending' to 'pending-admin'
       created_at: new Date().toISOString(),
       archived: false
     };
