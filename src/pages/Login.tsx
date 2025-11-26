@@ -76,8 +76,12 @@ const Login = () => {
       }
 
       // ✅ SECURITY: Backend already validates role, no client-side check needed
-      // Just verify the role matches what user selected (for UX feedback only)
-      if (res.user.role !== role) {
+      // Handle "Employee" role selection (maps to Faculty or Staff)
+      if (role === "Employee") {
+        if (res.user.role !== "Faculty" && res.user.role !== "Staff") {
+          throw new Error("Invalid role selected. Please select the correct role for your account.");
+        }
+      } else if (res.user.role !== role) {
         throw new Error("Invalid role selected. Please select the correct role for your account.");
       }
 
@@ -161,8 +165,7 @@ const Login = () => {
                   <SelectContent className="bg-popover">
                     <SelectItem value="Admin">Admin</SelectItem>
                     <SelectItem value="ICTO">ICTO</SelectItem>
-                    <SelectItem value="Faculty">Faculty</SelectItem>
-                    <SelectItem value="Staff">Staff</SelectItem>
+                    <SelectItem value="Employee">Employee</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

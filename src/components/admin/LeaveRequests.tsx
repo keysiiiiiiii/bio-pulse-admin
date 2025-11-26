@@ -1,13 +1,33 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Search, CheckCircle, XCircle, FileText, Pin, Download, Eye } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+
+// Helper function to format leave type display
+const formatLeaveType = (type: string): string => {
+  const typeMap: Record<string, string> = {
+    'vacation': 'Vacation Leave',
+    'sick': 'Sick Leave',
+    'emergency': 'Special Emergency (Calamity) Leave',
+    'maternity': 'Maternity Leave',
+    'paternity': 'Paternity Leave',
+    'forced': 'Mandatory/Forced Leave',
+    'privilege': 'Special Privilege Leave',
+    'soloparent': 'Solo Parent Leave',
+    'study': 'Study Leave',
+    'vawc': '10-Day VAWC Leave',
+    'rehab': 'Rehabilitation Privilege',
+    'special': 'Special Leave Benefits for Women',
+    'adoption': 'Adoption Leave',
+  };
+  return typeMap[type.toLowerCase()] || type;
+};
 
 interface LeaveRequest {
   id: string;
@@ -308,8 +328,8 @@ export function LeaveRequests() {
                     </div>
                     <p className="text-sm text-muted-foreground">Staff ID: {request.staffId}</p>
                   </div>
-                  <Badge variant="outline" className="bg-primary-light text-primary">
-                    {request.type}
+                  <Badge variant="outline" className="text-sm font-semibold">
+                    {formatLeaveType(request.type)}
                   </Badge>
                 </div>
               </CardHeader>
