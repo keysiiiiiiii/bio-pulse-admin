@@ -4,6 +4,26 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Search } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+
+// Helper function to format leave type display
+const formatLeaveType = (type: string): string => {
+  const typeMap: Record<string, string> = {
+    'vacation': 'Vacation Leave',
+    'sick': 'Sick Leave',
+    'emergency': 'Special Emergency (Calamity) Leave',
+    'maternity': 'Maternity Leave',
+    'paternity': 'Paternity Leave',
+    'forced': 'Mandatory/Forced Leave',
+    'privilege': 'Special Privilege Leave',
+    'soloparent': 'Solo Parent Leave',
+    'study': 'Study Leave',
+    'vawc': '10-Day VAWC Leave',
+    'rehab': 'Rehabilitation Privilege',
+    'special': 'Special Leave Benefits for Women',
+    'adoption': 'Adoption Leave',
+  };
+  return typeMap[type.toLowerCase()] || type;
+};
 import {
   Table,
   TableBody,
@@ -78,11 +98,11 @@ export function LeaveHistory() {
         name: req.staff_name,
         date: req.date,
         reason: req.reason || '',
-        type: req.fields?.leave_type || 'Leave Request',
+        type: req.leave_type || req.fields?.leave_type || 'Leave Request',
         status: req.status === 'approved' ? 'approved' as const : 'disapproved' as const,
         remarks: req.admin_remarks || req.remarks,
         attachment: req.file_url,
-        updatedAt: req.updated_at || req.date // finalized date
+        updatedAt: req.finalized_at || req.updated_at || req.date // finalized date
       }));
       
       // Sort by finalized date (newest first)
@@ -168,7 +188,7 @@ export function LeaveHistory() {
                       <TableCell className="font-medium">{record.name}</TableCell>
                       <TableCell>{record.staffId}</TableCell>
                       <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
-                      <TableCell>{record.type}</TableCell>
+                      <TableCell className="font-medium">{formatLeaveType(record.type)}</TableCell>
                       <TableCell>
                         {record.status === 'disapproved' && record.remarks ? (
                           <span className="text-destructive italic">{record.remarks}</span>

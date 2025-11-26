@@ -23,15 +23,11 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   Download,
-  CheckCircle2,
   Loader2,
-  RefreshCw,
-  Package,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Progress } from "@/components/ui/progress";
 import { API_BASE_URL } from "@/services/api/config";
 import { dtrApi } from "@/services/api/dtrApi";
 
@@ -81,11 +77,7 @@ export function DailyTimeRecords() {
   const [dtrRecords, setDtrRecords] = useState<DTRRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState(0);
   const { toast } = useToast();
-
-  const [downloadingRow, setDownloadingRow] = useState<string | null>(null);
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 4 }, (_, i) => currentYear - 1 + i);
@@ -180,127 +172,6 @@ export function DailyTimeRecords() {
     }
     return true;
   });
-
-  // 🆕 GENERATE FOR SELECTED MONTH - Creates PDF in storage
-  const handleGenerateMonth = async () => {
-    setGenerating(true);
-    setGenerationProgress(0);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/dtr/ensure-month`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          month: parseInt(selectedMonth),
-          year: parseInt(selectedYear),
-          dept:
-            filterType !== "all" && filterValue !== "all"
-              ? filterValue
-              : undefined,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Generation failed");
-
-      const result = await response.json();
-      const successCount = result.items?.filter((i: any) => i.ok).length || 0;
-      const totalCount = result.items?.length || 0;
-
-      setGenerationProgress(100);
-
-      toast({
-        title: "✅ DTRs Generated Successfully",
-        description: `${successCount}/${totalCount} DTR files saved to storage`,
-      });
-
-      // Refresh list to show updated status
-      await fetchDTRRecords();
-    } catch (error) {
-      console.error("Error generating DTRs:", error);
-      toast({
-        title: "Error",
-        description: "Failed to generate DTR files",
-        variant: "destructive",
-      });
-    } finally {
-      setGenerating(false);
-      setGenerationProgress(0);
-    }
-  };
-
-  // 🆕 BATCH GENERATE - January 2025 to current month
-  const handleBatchGenerateAll = async () => {
-    const confirmed = confirm(
-      "Generate all DTRs from January 2025 to current month?\n\n" +
-        "This will take several minutes. Continue?"
-    );
-
-    if (!confirmed) return;
-
-    setGenerating(true);
-    setGenerationProgress(0);
-
-    try {
-      const startYear = 2025;
-      const endYear = currentYear;
-      const endMonth = currentDate.getMonth() + 1; // 1-12
-
-      const monthsToGenerate = [];
-
-      for (let year = startYear; year <= endYear; year++) {
-        const startMonth = year === startYear ? 1 : 1;
-        const lastMonth = year === endYear ? endMonth : 12;
-
-        for (let month = startMonth; month <= lastMonth; month++) {
-          monthsToGenerate.push({ year, month });
-        }
-      }
-
-      let completed = 0;
-      const total = monthsToGenerate.length;
-
-      for (const { year, month } of monthsToGenerate) {
-        try {
-          const response = await fetch(`${API_BASE_URL}/dtr/ensure-month`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              month,
-              year,
-              dept:
-                filterType !== "all" && filterValue !== "all"
-                  ? filterValue
-                  : undefined,
-            }),
-          });
-
-          if (response.ok) {
-            completed++;
-            setGenerationProgress(Math.round((completed / total) * 100));
-          }
-        } catch (err) {
-          console.error(`Failed for ${year}-${month}:`, err);
-        }
-      }
-
-      toast({
-        title: "✅ Batch Generation Complete",
-        description: `Generated DTRs for ${completed}/${total} months`,
-      });
-
-      await fetchDTRRecords();
-    } catch (error) {
-      console.error("Error in batch generation:", error);
-      toast({
-        title: "Error",
-        description: "Batch generation failed",
-        variant: "destructive",
-      });
-    } finally {
-      setGenerating(false);
-      setGenerationProgress(0);
-    }
-  };
 
   // ✅ DOWNLOAD - Will auto-generate if not in storage
   const handleDownloadSingle = async (staffId: string) => {
@@ -398,9 +269,6 @@ export function DailyTimeRecords() {
     }
   };
 
-  const missingCount = filteredRecords.filter((r) => !r.has_file).length;
-  const readyCount = filteredRecords.filter((r) => r.has_file).length;
-
   return (
     <div className="space-y-6">
       <div>
@@ -494,49 +362,7 @@ export function DailyTimeRecords() {
             )}
           </div>
 
-          {/* Action Buttons */}
           <div className="flex flex-wrap gap-3">
-            {/* Generate This Month */}
-            <Button
-              onClick={handleGenerateMonth}
-              variant="default"
-              disabled={generating || loading}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {generating && generationProgress < 100 ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating... {generationProgress}%
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Generate This Month
-                </>
-              )}
-            </Button>
-
-            {/* Batch Generate All */}
-            <Button
-              onClick={handleBatchGenerateAll}
-              variant="outline"
-              disabled={generating || loading}
-              className="border-blue-600 text-blue-600 hover:bg-blue-50"
-            >
-              {generating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {generationProgress}%
-                </>
-              ) : (
-                <>
-                  <Package className="h-4 w-4 mr-2" />
-                  Generate All (Jan 2025 - Now)
-                </>
-              )}
-            </Button>
-
-            {/* Download Excel Selected */}
             <Button
               onClick={handleDownloadSelected}
               disabled={selectedRecords.size === 0 || downloading}
@@ -555,48 +381,23 @@ export function DailyTimeRecords() {
               )}
             </Button>
           </div>
-
-          {/* Progress Bar */}
-          {generating && generationProgress > 0 && (
-            <div className="mt-4">
-              <Progress value={generationProgress} className="h-2" />
-              <p className="text-sm text-muted-foreground mt-2">
-                Generating DTR files... {generationProgress}% complete
-              </p>
-            </div>
-          )}
-
-          {/* Stats */}
-          <div className="mt-4 flex gap-6 text-sm">
-            <span className="text-muted-foreground">
-              Total:{" "}
-              <strong className="text-foreground">
-                {filteredRecords.length}
-              </strong>
-            </span>
-            <span className="text-green-600">
-              In Storage: <strong>{readyCount}</strong>
-            </span>
-            <span className="text-amber-600">
-              Not Yet Generated: <strong>{missingCount}</strong>
-            </span>
-          </div>
         </CardContent>
       </Card>
 
+      {/* DTR Records Table */}
       <Card className="shadow-md">
-        <CardContent className="pt-6">
-          {loading ? (
-            <div className="flex justify-center items-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
+        <CardHeader>
+          <CardTitle>Personnel List</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">
+                  <TableHead className="w-[50px]">
                     <Checkbox
                       checked={
+                        selectedRecords.size > 0 &&
                         selectedRecords.size === filteredRecords.length &&
                         filteredRecords.length > 0
                       }
@@ -617,89 +418,51 @@ export function DailyTimeRecords() {
                       colSpan={6}
                       className="text-center text-muted-foreground py-8"
                     >
-                      No records found
+                      {loading
+                        ? "Loading DTR records..."
+                        : "No personnel found for the selected criteria"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredRecords.map((record) => {
-                    const isSelected = selectedRecords.has(record.staff_id);
-                    const downloadable = canDownload(record);
-
-                    return (
-                      <TableRow
-                        key={record.staff_id}
-                        className={`cursor-pointer hover:bg-muted/50 ${
-                          isSelected ? "bg-muted" : ""
-                        }`}
-                        onClick={(e) => {
-                          if ((e.target as HTMLElement).closest("button"))
-                            return;
-                          handleSelectRecord(record.staff_id);
-                        }}
-                      >
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() =>
-                              handleSelectRecord(record.staff_id)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {record.staff_id}
-                        </TableCell>
-                        <TableCell>{record.name}</TableCell>
-                        <TableCell>{record.role}</TableCell>
-                        <TableCell>{record.department}</TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              !downloadable ||
-                              downloadingRow === record.staff_id
-                            }
-                            className="gap-2"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              setDownloadingRow(record.staff_id); // 🔁 start animation
-
-                              try {
-                                await dtrApi.downloadExcel(
-                                  record.staff_id,
-                                  parseInt(selectedYear),
-                                  parseInt(selectedMonth) + 1
-                                );
-
-                                toast({
-                                  title: "📥 Downloading Excel",
-                                  description: `DTR for ${record.name}`,
-                                });
-                              } catch (error) {
-                                toast({
-                                  title: "Error",
-                                  description: "Failed to download Excel",
-                                  variant: "destructive",
-                                });
-                              } finally {
-                                setDownloadingRow(null); // 🔁 stop animation
-                              }
-                            }}
-                          >
-                            {downloadingRow === record.staff_id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Download className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                  filteredRecords.map((record) => (
+                    <TableRow key={record.staff_id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedRecords.has(record.staff_id)}
+                          onCheckedChange={() =>
+                            handleSelectRecord(record.staff_id)
+                          }
+                          disabled={!canDownload(record)}
+                        />
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {record.staff_id}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {record.name}
+                      </TableCell>
+                      <TableCell>{record.role}</TableCell>
+                      <TableCell className="text-sm">
+                        {record.department}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDownloadSingle(record.staff_id)}
+                          disabled={!canDownload(record)}
+                          className="gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
                 )}
               </TableBody>
             </Table>
-          )}
+          </div>
         </CardContent>
       </Card>
     </div>
