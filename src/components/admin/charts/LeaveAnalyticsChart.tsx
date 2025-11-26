@@ -207,7 +207,8 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
                       dataKey={leaveType.key} 
                       name={leaveType.label} 
                       fill={leaveType.color} 
-                      stackId="leaves" 
+                      stackId="leaves"
+                      label={selectedLeaveTypes.length === 1 ? { position: 'inside', fill: '#fff', fontSize: 14 } : false}
                     />
                   ))
                 }

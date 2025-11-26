@@ -34,10 +34,13 @@ export function AttendanceChart({ selectedDate }: AttendanceChartProps) {
         const stats = await attendanceApi.getStats(date);
         console.log('AttendanceChart: Received stats:', stats);
         
+        // Calculate total absent including leave
+        const totalAbsent = (stats.absent || 0) + (stats.on_leave || 0);
+        
         // Create new data array to force re-render
         const newData = [
           { name: "Present", value: stats.present || 0, color: "#22c55e" },
-          { name: "Absent", value: stats.absent || 0, color: "#ef4444" },
+          { name: "Absent", value: totalAbsent, color: "#ef4444" },
           { name: "Tardy", value: stats.late || 0, color: "#f97316" },
         ];
         
@@ -95,21 +98,21 @@ export function AttendanceChart({ selectedDate }: AttendanceChartProps) {
         <div>
           <p className="text-2xl font-bold text-success">{data[0].value}</p>
           <p className="text-sm text-muted-foreground">Present</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-green-600 font-medium">
             {totalAttendance > 0 ? ((data[0].value / totalAttendance) * 100).toFixed(1) : 0}%
           </p>
         </div>
         <div>
           <p className="text-2xl font-bold text-destructive">{data[1].value}</p>
           <p className="text-sm text-muted-foreground">Absent</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-red-600 font-medium">
             {totalAttendance > 0 ? ((data[1].value / totalAttendance) * 100).toFixed(1) : 0}%
           </p>
         </div>
         <div>
           <p className="text-2xl font-bold text-warning">{data[2].value}</p>
           <p className="text-sm text-muted-foreground">Tardy</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-orange-600 font-medium">
             {totalAttendance > 0 ? ((data[2].value / totalAttendance) * 100).toFixed(1) : 0}%
           </p>
         </div>
@@ -123,7 +126,7 @@ export function AttendanceChart({ selectedDate }: AttendanceChartProps) {
             cx="50%"
             cy="50%"
             labelLine={false}
-            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
             outerRadius={90}
             fill="#8884d8"
             dataKey="value"
