@@ -164,18 +164,15 @@ async function buildExcelDTR({ staff, month, year }) {
   worksheet.getCell('H3').value = staff.employee_type || '';
   worksheet.getCell('H4').value = staff.department || '';
 
-  if (staff.photo_url) {
-    try {
-      const response = await axios.get(staff.photo_url, {
-        responseType: 'arraybuffer',
-        timeout: 10000
-      });
-      const imageBuffer = Buffer.from(response.data);
-      const ext = staff.photo_url.toLowerCase().includes('.png') ? 'png' : 'jpeg';
-
+  // Add UDM logo to cells A1:B5
+  try {
+    const logoPath = path.join(__dirname, '..', 'udm-logo.webp');
+    if (fs.existsSync(logoPath)) {
+      const logoBuffer = fs.readFileSync(logoPath);
+      
       const imageId = workbook.addImage({
-        buffer: imageBuffer,
-        extension: ext,
+        buffer: logoBuffer,
+        extension: 'jpeg',
       });
 
       worksheet.addImage(imageId, {
@@ -183,9 +180,9 @@ async function buildExcelDTR({ staff, month, year }) {
         br: { col: 1, row: 4 },
         editAs: 'oneCell'
       });
-    } catch (err) {
-      console.error('Failed to load photo:', err.message);
     }
+  } catch (err) {
+    console.error('Failed to load UDM logo:', err.message);
   }
 
   for (let day = 1; day <= lastDay; day++) {
