@@ -1,10 +1,17 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Search, FileText } from "lucide-react";
+import { Search } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface LeaveRecord {
   id: string;
@@ -16,6 +23,7 @@ interface LeaveRecord {
   status: "approved" | "disapproved";
   remarks?: string;
   attachment?: string;
+  updatedAt?: string; // finalized date
 }
 
 export function LeaveHistory() {
@@ -32,10 +40,8 @@ export function LeaveHistory() {
     try {
       console.log('📚 Fetching leave history...');
       
-      // Get token from localStorage
       const token = localStorage.getItem('token');
       
-      // Fetch ALL leave requests first
       const response = await fetch('/api/leaves', {
         method: 'GET',
         headers: {
@@ -75,8 +81,16 @@ export function LeaveHistory() {
         type: req.fields?.leave_type || 'Leave Request',
         status: req.status === 'approved' ? 'approved' as const : 'disapproved' as const,
         remarks: req.admin_remarks || req.remarks,
-        attachment: req.file_url
+        attachment: req.file_url,
+        updatedAt: req.updated_at || req.date // finalized date
       }));
+      
+      // Sort by finalized date (newest first)
+      formatted.sort((a, b) => {
+        const dateA = new Date(a.updatedAt || a.date).getTime();
+        const dateB = new Date(b.updatedAt || b.date).getTime();
+        return dateB - dateA; // newest first
+      });
       
       console.log(`✅ Formatted ${formatted.length} history records`);
       setHistory(formatted);
@@ -120,7 +134,7 @@ export function LeaveHistory() {
         </CardContent>
       </Card>
 
-      {/* History List */}
+      {/* History Table */}
       {loading ? (
         <Card className="shadow-md">
           <CardContent className="pt-6">
@@ -134,55 +148,49 @@ export function LeaveHistory() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
-          {filteredHistory.map((record) => (
-          <Card key={record.id} className="shadow-md">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-lg">{record.name}</CardTitle>
-                  <p className="text-sm text-muted-foreground">Staff ID: {record.staffId}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Badge variant="outline" className="bg-primary-light text-primary">
-                    {record.type}
-                  </Badge>
-                  <Badge 
-                    variant={record.status === "approved" ? "default" : "destructive"}
-                    className={record.status === "approved" ? "bg-success text-success-foreground" : ""}
-                  >
-                    {record.status.toUpperCase()}
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Leave Date</p>
-                  <p className="text-base">{new Date(record.date).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Reason</p>
-                  <p className="text-base">{record.reason}</p>
-                </div>
-                {record.remarks && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Admin Remarks</p>
-                    <p className="text-base italic text-destructive">{record.remarks}</p>
-                  </div>
-                )}
-                {record.attachment && (
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <FileText className="h-4 w-4" />
-                    View Attachment
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-          ))}
-        </div>
+        <Card className="shadow-md">
+          <CardContent className="pt-6">
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="font-semibold">Name</TableHead>
+                    <TableHead className="font-semibold">Staff ID</TableHead>
+                    <TableHead className="font-semibold">Leave Date</TableHead>
+                    <TableHead className="font-semibold">Type of Leave</TableHead>
+                    <TableHead className="font-semibold">Remarks</TableHead>
+                    <TableHead className="font-semibold">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredHistory.map((record) => (
+                    <TableRow key={record.id}>
+                      <TableCell className="font-medium">{record.name}</TableCell>
+                      <TableCell>{record.staffId}</TableCell>
+                      <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
+                      <TableCell>{record.type}</TableCell>
+                      <TableCell>
+                        {record.status === 'disapproved' && record.remarks ? (
+                          <span className="text-destructive italic">{record.remarks}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={record.status === "approved" ? "default" : "destructive"}
+                          className={record.status === "approved" ? "bg-success text-success-foreground" : ""}
+                        >
+                          {record.status.toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

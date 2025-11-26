@@ -290,8 +290,8 @@ export function LeaveRequests() {
         </CardContent>
       </Card>
 
-      {/* Requests List */}
-      <div className="grid gap-4">
+      {/* Requests List - 2 Column Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {loading ? (
           <div className="text-center p-8 text-muted-foreground">Loading requests...</div>
         ) : filteredRequests.length === 0 ? (
