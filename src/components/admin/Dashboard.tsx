@@ -495,7 +495,7 @@ export function Dashboard() {
       <StatusDistributionDual selectedDate={selectedDate} selectedMonth={selectedMonth} />
 
       {/* Day-of-Week Analysis */}
-      <DayOfWeekComparison selectedDate={selectedDate} />
+      <DayOfWeekComparison selectedDate={selectedDate} selectedMonth={selectedMonth} />
 
     </div>
   );

@@ -6,6 +6,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, getDate } 
 
 interface DayOfWeekComparisonProps {
   selectedDate?: Date;
+  selectedMonth?: Date; // ✅ ADD this prop to sync with Dashboard's month selector
 }
 
 interface WeekData {
@@ -17,16 +18,29 @@ interface WeekData {
   week5?: number;
 }
 
-export function DayOfWeekComparison({ selectedDate }: DayOfWeekComparisonProps) {
-  const [selectedMonth, setSelectedMonth] = useState<string>("");
+export function DayOfWeekComparison({ selectedDate, selectedMonth }: DayOfWeekComparisonProps) {
+  const [displayMonth, setDisplayMonth] = useState<string>("");
   const [weekData, setWeekData] = useState<WeekData[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // ✅ FIXED: Listen to BOTH selectedDate AND selectedMonth changes
   useEffect(() => {
-    const currentDate = selectedDate || new Date();
-    setSelectedMonth(format(currentDate, 'MMMM yyyy'));
+    // Use selectedMonth if provided (from Dashboard dropdown), otherwise use selectedDate
+    const currentDate = selectedMonth || selectedDate || new Date();
+    const monthStr = format(currentDate, 'MMMM yyyy');
+
+    console.log(`🔍 DayOfWeek - Date/Month changed:`, {
+      selectedDate: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : 'undefined',
+      selectedMonth: selectedMonth ? format(selectedMonth, 'yyyy-MM-dd') : 'undefined',
+      using: selectedMonth ? 'selectedMonth' : 'selectedDate',
+      monthStr,
+      previousMonth: displayMonth
+    });
+
+    // Update displayed month and fetch data
+    setDisplayMonth(monthStr);
     fetchWeeklyComparison(currentDate);
-  }, [selectedDate]);
+  }, [selectedDate, selectedMonth]); // ✅ Watch BOTH props
 
   const fetchWeeklyComparison = async (date: Date) => {
     setLoading(true);
@@ -34,6 +48,9 @@ export function DayOfWeekComparison({ selectedDate }: DayOfWeekComparisonProps) 
       const monthStart = startOfMonth(date);
       const monthEnd = endOfMonth(date);
       const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+
+      console.log(`📊 Fetching weekly comparison for ${format(date, 'MMMM yyyy')}`);
+      console.log(`   Range: ${format(monthStart, 'yyyy-MM-dd')} to ${format(monthEnd, 'yyyy-MM-dd')}`);
 
       // Initialize week buckets (up to 5 weeks possible in a month)
       const weeks: Record<number, Record<string, number>> = {
@@ -49,7 +66,7 @@ export function DayOfWeekComparison({ selectedDate }: DayOfWeekComparisonProps) 
       for (const day of allDays) {
         const dayOfWeek = getDay(day);
         const dateNum = getDate(day);
-        
+
         // Calculate week number (1-5)
         const weekNumber = Math.min(Math.ceil(dateNum / 7), 5);
         const dayName = dayNames[dayOfWeek];
@@ -69,6 +86,8 @@ export function DayOfWeekComparison({ selectedDate }: DayOfWeekComparisonProps) 
         ...allDays.map(day => Math.min(Math.ceil(getDate(day) / 7), 5))
       );
 
+      console.log(`✅ Max week in month: ${maxWeek}`);
+
       // Build chart data for all 7 days
       const chartData: WeekData[] = [
         { day: 'Sun', week1: weeks[1].Sun, week2: weeks[2].Sun, week3: weeks[3].Sun, week4: weeks[4].Sun },
@@ -87,6 +106,7 @@ export function DayOfWeekComparison({ selectedDate }: DayOfWeekComparisonProps) 
         });
       }
 
+      console.log('✅ Chart data:', chartData);
       setWeekData(chartData);
     } catch (error) {
       console.error('Failed to fetch weekly comparison:', error);
@@ -103,11 +123,11 @@ export function DayOfWeekComparison({ selectedDate }: DayOfWeekComparisonProps) 
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle>Day-of-Week Analysis </CardTitle>
+            <CardTitle>Day-of-Week Analysis</CardTitle>
             <CardDescription>Compare attendance patterns across different weeks (including weekends)</CardDescription>
           </div>
           <div className="px-3 py-2 bg-muted rounded-md text-sm">
-            Month: {selectedMonth}
+            Month: {displayMonth}
           </div>
         </div>
       </CardHeader>

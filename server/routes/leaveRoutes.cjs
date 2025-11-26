@@ -595,9 +595,10 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
     const patch = {
       status,
       admin_remarks: remarks || null,
-      finalized_at: (status === 'approved' || status === 'disapproved') ? new Date().toISOString() : null
+      finalized_at: (status === 'approved' || status === 'disapproved')
+        ? new Date().toISOString()  // ✅ Full timestamp with timezone
+        : null
     };
-
     const { data, error } = await db.from('leave_requests').update(patch).eq('id', id).select().single();
 
     if (error) {
@@ -667,6 +668,44 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
         } else {
           console.log(`✅ Credits deducted: ${deducted} days (${data.leave_type || 'N/A'})`);
           console.log(`   Previous balance: ${currentCredits}, New balance: ${newBalance}`);
+        }
+      }
+    }
+
+    // ✅ THIS CODE IS ALREADY IN YOUR leaveRoutes.cjs (line 466-492)
+    // ADD THIS after approving a leave
+    if (status === 'approved' && data.staff_user_id && data.start_date && data.end_date) {
+      const startDate = new Date(data.start_date);
+      const endDate = new Date(data.end_date);
+      const duration = data.duration || 1;
+
+      // Insert into attendance_logs for each day of leave
+      const leaveDays = [];
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const attDate = d.toISOString().split('T')[0];
+        const weekOfYear = Math.ceil((d.getDate() + 6 - d.getDay()) / 7);
+
+        leaveDays.push({
+          staff_user_id: data.staff_user_id,
+          att_date: attDate,
+          on_leave: true,
+          leave_type: data.leave_type,
+          leave_duration: duration,
+          week_of_year: weekOfYear,
+          month: d.getMonth() + 1,
+          created_at: new Date().toISOString()
+        });
+      }
+
+      if (leaveDays.length > 0) {
+        const { error: insertErr } = await db
+          .from('attendance_logs')
+          .insert(leaveDays);
+
+        if (insertErr) {
+          console.error('❌ Failed to insert leave days:', insertErr);
+        } else {
+          console.log(`✅ Inserted ${leaveDays.length} leave days into attendance_logs`);
         }
       }
     }

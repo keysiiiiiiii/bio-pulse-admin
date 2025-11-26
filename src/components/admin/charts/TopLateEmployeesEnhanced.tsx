@@ -114,7 +114,7 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
         }
         const staff = staffMap.get(key);
         staff.totalDays++;
-        
+
         if (log.time_in) {
           if (log.status === 'late' || log.status === 'Late' || log.attendance_status === 'late') {
             staff.lateDays++;
@@ -215,7 +215,7 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
       "Contract of Service": { variant: "default", className: "bg-pink-600 text-white hover:bg-pink-700" },
       "COS": { variant: "default", className: "bg-pink-600 text-white hover:bg-pink-700" },
     };
-    
+
     const config = badgeConfig[status] || { variant: "default", className: "bg-gray-600 text-white hover:bg-gray-700" };
     return <Badge variant={config.variant} className={config.className}>{status}</Badge>;
   };
@@ -323,7 +323,11 @@ export function TopLateEmployeesEnhanced({ selectedDate, selectedMonth }: TopLat
                   {employees.map((emp) => (
                     <TableRow key={emp.staff_id}>
                       <TableCell>
-                        {emp.rank <= 3 ? (
+                        {sortBy === 'punctual' ? (
+                          // No red badge for punctual - just show rank number
+                          <span className="text-muted-foreground font-medium">#{emp.rank}</span>
+                        ) : emp.rank <= 5 ? (
+                          // Red badge for ranks 1-5 in late/absent
                           <Badge variant="destructive" className="rounded-full">
                             #{emp.rank}
                           </Badge>

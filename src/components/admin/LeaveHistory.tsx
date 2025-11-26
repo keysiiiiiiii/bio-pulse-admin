@@ -4,6 +4,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Search } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // Helper function to format leave type display
 const formatLeaveType = (type: string): string => {
@@ -24,14 +32,6 @@ const formatLeaveType = (type: string): string => {
   };
   return typeMap[type.toLowerCase()] || type;
 };
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 interface LeaveRecord {
   id: string;
@@ -43,25 +43,26 @@ interface LeaveRecord {
   status: "approved" | "disapproved";
   remarks?: string;
   attachment?: string;
-  updatedAt?: string; // finalized date
+  updatedAt?: string;
+  finalized_at?: string;  // ✅ Added for sorting
 }
 
 export function LeaveHistory() {
   const [searchTerm, setSearchTerm] = useState("");
   const [history, setHistory] = useState<LeaveRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
   useEffect(() => {
     fetchHistory();
   }, []);
-  
+
   const fetchHistory = async () => {
     setLoading(true);
     try {
       console.log('📚 Fetching leave history...');
-      
+
       const token = localStorage.getItem('token');
-      
+
       const response = await fetch('/api/leaves', {
         method: 'GET',
         headers: {
@@ -69,29 +70,30 @@ export function LeaveHistory() {
           ...(token && { 'Authorization': `Bearer ${token}` })
         }
       });
-      
+
       console.log('📡 Response status:', response.status);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ Response error:', errorText);
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
-      
+
       const result = await response.json();
       console.log('✅ Response data:', result);
-      
+
       if (!result.ok || !result.data) {
         throw new Error('Invalid response format');
       }
-      
+
       // Filter only approved and denied requests
-      const filtered = result.data.filter((req: any) => 
+      const filtered = result.data.filter((req: any) =>
         req.status === 'approved' || req.status === 'disapproved'
       );
-      
+
       console.log(`📊 Filtered ${filtered.length} history records from ${result.data.length} total`);
-      
+
+      // ✅ Map the data with finalized_at
       const formatted: LeaveRecord[] = filtered.map((req: any) => ({
         id: String(req.id),
         staffId: req.staff_id || '',
@@ -102,17 +104,54 @@ export function LeaveHistory() {
         status: req.status === 'approved' ? 'approved' as const : 'disapproved' as const,
         remarks: req.admin_remarks || req.remarks,
         attachment: req.file_url,
-        updatedAt: req.finalized_at || req.updated_at || req.date // finalized date
+        updatedAt: req.updated_at,
+        finalized_at: req.finalized_at  // ✅ Include finalized_at
       }));
-      
-      // Sort by finalized date (newest first)
+
+      // ✅ FIXED: Simple sort by finalized_at timestamp (newest first)
       formatted.sort((a, b) => {
-        const dateA = new Date(a.updatedAt || a.date).getTime();
-        const dateB = new Date(b.updatedAt || b.date).getTime();
-        return dateB - dateA; // newest first
+        // Since finalized_at is now TIMESTAMPTZ, we can sort directly
+        const getTimestamp = (record: LeaveRecord): number => {
+          // Priority 1: finalized_at (has both date AND time now!)
+          if (record.finalized_at) {
+            const date = new Date(record.finalized_at);
+            if (!isNaN(date.getTime())) {
+              return date.getTime();
+            }
+          }
+          
+          // Priority 2: updatedAt (fallback for old records)
+          if (record.updatedAt) {
+            const date = new Date(record.updatedAt);
+            if (!isNaN(date.getTime())) {
+              return date.getTime();
+            }
+          }
+          
+          // Priority 3: Leave date itself (last resort)
+          return new Date(record.date).getTime();
+        };
+
+        const timestampA = getTimestamp(a);
+        const timestampB = getTimestamp(b);
+        
+        return timestampB - timestampA; // newest first
       });
+
+      console.log(`✅ Formatted and sorted ${formatted.length} history records`);
       
-      console.log(`✅ Formatted ${formatted.length} history records`);
+      // ✅ Debug: Log first 5 records to verify sorting
+      if (formatted.length > 0) {
+        console.log('📋 First 5 records (newest finalized first):');
+        formatted.slice(0, 5).forEach((record, i) => {
+          console.log(`  ${i + 1}. ${record.name} - ${record.type}`);
+          console.log(`     Leave Date: ${record.date}`);
+          console.log(`     Finalized: ${record.finalized_at || 'N/A'}`);
+          console.log(`     Updated: ${record.updatedAt || 'N/A'}`);
+          console.log(`     Status: ${record.status}`);
+        });
+      }
+
       setHistory(formatted);
     } catch (error: any) {
       console.error('❌ Fetch error:', error);
@@ -197,7 +236,7 @@ export function LeaveHistory() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge 
+                        <Badge
                           variant={record.status === "approved" ? "default" : "destructive"}
                           className={record.status === "approved" ? "bg-success text-success-foreground" : ""}
                         >

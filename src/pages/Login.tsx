@@ -141,7 +141,7 @@ const Login = () => {
             Universidad de Manila
           </h1>
           <p className="text-primary-foreground/80 text-sm">
-            Bio-ALMS Biometric Attendance and Leave Management System
+            Biometric Attendance and Leave Management System
           </p>
         </div>
 
