@@ -103,7 +103,7 @@ export function DayOfWeekComparison({ selectedDate }: DayOfWeekComparisonProps) 
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle>Day-of-Week Analysis (Week 1 vs Week 2 vs Week 3 vs Week 4{hasWeek5 ? ' vs Week 5' : ''})</CardTitle>
+            <CardTitle>Day-of-Week Analysis </CardTitle>
             <CardDescription>Compare attendance patterns across different weeks (including weekends)</CardDescription>
           </div>
           <div className="px-3 py-2 bg-muted rounded-md text-sm">
