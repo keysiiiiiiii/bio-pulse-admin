@@ -137,7 +137,7 @@ const Login = () => {
             Universidad de Manila
           </h1>
           <p className="text-primary-foreground/80 text-sm">
-            Biometrics Attendance System
+            Bio-ALMS Biometric Attendance and Leave Management System
           </p>
         </div>
 
@@ -147,7 +147,7 @@ const Login = () => {
               Sign in
             </CardTitle>
             <CardDescription className="text-center">
-              Use your Staff ID, role, and password
+              Use your Employee ID, Role, and Password
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -168,7 +168,7 @@ const Login = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="staffId">Staff ID</Label>
+                <Label htmlFor="staffId">Employee ID</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input

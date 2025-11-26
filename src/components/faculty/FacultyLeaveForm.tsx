@@ -95,7 +95,7 @@ export const FacultyLeaveForm = () => {
         if (vacationSpecify) details.vacation_specify = vacationSpecify;
       }
 
-      if (leaveType === "sick" && sickLeaveType) {
+      if (leaveType === "Sick" && sickLeaveType) {
         details.sick_leave_type = sickLeaveType;
         if (sickLeaveSpecify) details.sick_leave_specify = sickLeaveSpecify;
       }
