@@ -173,43 +173,23 @@ export function DailyTimeRecords() {
     return true;
   });
 
-  // ✅ DOWNLOAD - Will auto-generate if not in storage
+  // ✅ DOWNLOAD EXCEL - Single file download
   const handleDownloadSingle = async (staffId: string) => {
     try {
-      const items = [{ staff_id: staffId }];
+      const monthNum = parseInt(selectedMonth) + 1; // Convert to 1-12
+      const yearNum = parseInt(selectedYear);
 
-      const response = await fetch(`${API_BASE_URL}/dtr/ensure-sign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items,
-          month: parseInt(selectedMonth),
-          year: parseInt(selectedYear),
-        }),
+      await dtrApi.downloadExcel(staffId, yearNum, monthNum);
+      
+      toast({
+        title: "📥 Downloading",
+        description: `Excel DTR for ${staffId}`,
       });
-
-      if (!response.ok) throw new Error("Failed to get download URL");
-
-      const result = await response.json();
-      const item = result.items?.[0];
-
-      if (item?.url) {
-        window.open(item.url, "_blank");
-        toast({
-          title: "📥 Downloading",
-          description: `DTR for ${staffId}`,
-        });
-
-        // Refresh to update status
-        await fetchDTRRecords();
-      } else {
-        throw new Error(item?.error || "No URL returned");
-      }
     } catch (error) {
       console.error("Error downloading DTR:", error);
       toast({
         title: "Error",
-        description: "Failed to download DTR",
+        description: "Failed to download Excel DTR",
         variant: "destructive",
       });
     }
@@ -408,7 +388,7 @@ export function DailyTimeRecords() {
                   <TableHead>Name</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Department</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="text-right">Download</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
