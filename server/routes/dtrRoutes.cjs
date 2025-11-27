@@ -5,12 +5,11 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
-const fsPromises = require('fs').promises;
 
 const { createClient } = require('@supabase/supabase-js');
 const ExcelJS = require('exceljs');
 const axios = require('axios');
-const puppeteer = require('puppeteer');
+const PDFDocument = require('pdfkit'); // ✅ ADD: For PDF generation
 
 console.log('🔵 [DTR] Express Router created');
 
@@ -234,10 +233,8 @@ async function buildExcelDTR({ staff, month, year }) {
   return Buffer.from(buffer);
 }
 
-// ✅ NEW: Generate PDF from Excel data using Puppeteer + HTML template
+// ✅ NEW: Generate PDF from Excel data
 async function buildPDFfromExcel({ staff, month, year }) {
-  console.log(`📄 [DTR-PDF] Generating PDF for ${staff.name} - ${month}/${year}`);
-  
   const lastDay = new Date(year, month, 0).getDate();
   const startDate = `${year}-${pad2(month)}-01`;
 
@@ -266,120 +263,93 @@ async function buildPDFfromExcel({ staff, month, year }) {
     return `${hour12}:${pad2(m)} ${ampm}`;
   };
 
-  // Build table rows HTML
-  const rows = [];
-  for (let day = 1; day <= lastDay; day++) {
-    const log = byDay[day];
-    
-    let tardinessHours = 0;
-    let tardinessMinutes = 0;
-    let undertimeHours = 0;
-    let undertimeMinutes = 0;
+  const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
 
-    if (log) {
-      const minuteLate = Number(log.minute_late) || 0;
-      tardinessHours = Math.floor(minuteLate / 60);
-      tardinessMinutes = minuteLate % 60;
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    const chunks = [];
+
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    // Header
+    doc.fontSize(16).font('Helvetica-Bold').text('CIUDAD DE MANILA', { align: 'center' });
+    doc.fontSize(14).text('UNIVERSIDAD DE MANILA', { align: 'center' });
+    doc.fontSize(12).font('Helvetica').text('DAILY TIME RECORD', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(10).text(`CIVIL SERVICE FORM NO. 48`, { align: 'right' });
+    doc.moveDown();
+
+    // Employee Info
+    doc.fontSize(11).font('Helvetica-Bold').text(`Name: ${staff.name || 'N/A'}`);
+    doc.fontSize(10).font('Helvetica').text(`For the month of: ${monthName} ${year}`);
+    doc.text(`Employment: ${staff.employee_type || 'N/A'}`);
+    doc.text(`Department/College: ${staff.department || 'N/A'}`);
+    doc.moveDown();
+
+    // Table Header
+    const tableTop = doc.y;
+    const colWidths = [30, 80, 80, 80, 80, 60, 60, 60, 60];
+    const headers = ['Day', 'A.M.\nArrival', 'A.M.\nDeparture', 'P.M.\nArrival', 'P.M.\nDeparture', 
+                     'Tardiness\nHours', 'Tardiness\nMinutes', 'Undertime\nHours', 'Undertime\nMinutes'];
+
+    doc.fontSize(8).font('Helvetica-Bold');
+    let xPos = 40;
+    headers.forEach((header, i) => {
+      doc.text(header, xPos, tableTop, { width: colWidths[i], align: 'center' });
+      xPos += colWidths[i];
+    });
+
+    doc.moveDown();
+    let yPos = doc.y;
+
+    // Table Rows
+    doc.font('Helvetica').fontSize(8);
+    for (let day = 1; day <= lastDay; day++) {
+      const log = byDay[day];
+      xPos = 40;
+
+      const rowData = [
+        day.toString(),
+        log ? formatTime(log.time_in) : '',
+        '', // AM Departure (not tracked)
+        '', // PM Arrival (not tracked)
+        log ? formatTime(log.time_out) : '',
+        log ? Math.floor((log.minute_late || 0) / 60).toString() : '0',
+        log ? ((log.minute_late || 0) % 60).toString() : '0',
+        '0', // Undertime hours (calculated)
+        '0'  // Undertime minutes (calculated)
+      ];
 
       // Calculate undertime
-      if (log.time_in && log.time_out) {
+      if (log && log.time_in && log.time_out) {
         const inDate = new Date(log.time_in);
         const outDate = new Date(log.time_out);
         const workedHours = (outDate - inDate) / (1000 * 60 * 60);
         const requiredHours = 9;
         
         if (workedHours > 0 && workedHours < requiredHours) {
-          const undertimeDecimal = requiredHours - workedHours;
-          const undertimeMinutesTotal = undertimeDecimal * 60;
-          undertimeHours = Math.floor(undertimeMinutesTotal / 60);
-          undertimeMinutes = Math.round(undertimeMinutesTotal % 60);
+          const undertimeMinutesTotal = (requiredHours - workedHours) * 60;
+          rowData[7] = Math.floor(undertimeMinutesTotal / 60).toString();
+          rowData[8] = Math.round(undertimeMinutesTotal % 60).toString();
         }
       }
-    }
 
-    rows.push(`
-      <tr>
-        <td>${day}</td>
-        <td>${log ? formatTime(log.time_in) : ''}</td>
-        <td></td>
-        <td></td>
-        <td>${log ? formatTime(log.time_out) : ''}</td>
-        <td>${tardinessHours}</td>
-        <td>${tardinessMinutes}</td>
-        <td>${undertimeHours}</td>
-        <td>${undertimeMinutes}</td>
-      </tr>
-    `);
-  }
+      rowData.forEach((cell, i) => {
+        doc.text(cell, xPos, yPos, { width: colWidths[i], align: 'center' });
+        xPos += colWidths[i];
+      });
 
-  const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
-
-  // Load and populate HTML template
-  const templatePath = path.join(__dirname, 'templates', 'dtr-template.html');
-  let html = await fsPromises.readFile(templatePath, 'utf-8');
-
-  // Replace template variables
-  html = html.replace('{{name}}', staff.name || 'N/A');
-  html = html.replace('{{monthYear}}', `${monthName} ${year}`);
-  html = html.replace('{{employment}}', staff.employee_type || 'Regular Faculty');
-  html = html.replace('{{department}}', staff.department || 'N/A');
-  
-  // Handle photo - convert to base64 if exists
-  if (staff.photo_url) {
-    try {
-      let photoBase64 = '';
-      
-      // If it's a URL, fetch it
-      if (staff.photo_url.startsWith('http')) {
-        const response = await axios.get(staff.photo_url, { responseType: 'arraybuffer' });
-        photoBase64 = `data:image/jpeg;base64,${Buffer.from(response.data).toString('base64')}`;
+      yPos += 15;
+      if (yPos > 750) {
+        doc.addPage();
+        yPos = 50;
       }
-      
-      html = html.replace('{{PHOTO_SECTION}}', `
-        <div class="photo-box">
-          <img src="${photoBase64 || staff.photo_url}" alt="Photo" />
-        </div>
-      `);
-    } catch (err) {
-      console.error('Failed to load photo:', err.message);
-      html = html.replace('{{PHOTO_SECTION}}', '');
     }
-  } else {
-    html = html.replace('{{PHOTO_SECTION}}', '');
-  }
 
-  // Insert table rows
-  html = html.replace('{{ROWS}}', rows.join(''));
-
-  // Generate PDF with Puppeteer
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    doc.end();
   });
-  
-  const page = await browser.newPage();
-  
-  // Set viewport for consistent rendering
-  await page.setViewport({ width: 794, height: 1123 }); // A4 in pixels at 96 DPI
-  
-  await page.setContent(html, { waitUntil: 'networkidle0' });
-  
-  const pdfBuffer = await page.pdf({
-    format: 'A4',
-    printBackground: true,
-    preferCSSPageSize: true,
-    margin: {
-      top: '8mm',
-      right: '8mm',
-      bottom: '8mm',
-      left: '8mm'
-    }
-  });
-  
-  await browser.close();
-  
-  console.log(`✅ [DTR-PDF] Generated PDF for ${staff.name}`);
-  return Buffer.from(pdfBuffer);
 }
 
 // ✅ FIXED: Main DTR builder function
@@ -749,54 +719,6 @@ router.get('/download-excel', async (req, res) => {
   } catch (err) {
     console.error('[DTR Excel Download] Error:', err);
     res.status(500).json({ error: 'Failed to generate Excel', details: err.message });
-  }
-});
-
-// GET /api/dtr/list?month=10&year=2025&department=...
-router.get('/list', async (req, res) => {
-  try {
-    const { month, year, department } = req.query;
-
-    if (!month || !year) {
-      return res.status(400).json({ error: 'month and year are required' });
-    }
-
-    // Build query for staff users
-    let query = db
-      .from('staff_users')
-      .select('id, staff_id, name, employee_type, department')
-      .order('name', { ascending: true });
-
-    // Filter by department if provided
-    if (department && department !== 'all') {
-      query = query.eq('department', department);
-    }
-
-    const { data: staffList, error } = await query;
-
-    if (error) {
-      console.error('[DTR List] Error fetching staff:', error);
-      return res.status(500).json({ error: 'Failed to fetch staff list' });
-    }
-
-    // Map to DTRRecord format
-    const rows = (staffList || []).map(staff => ({
-      staff_user_id: staff.id,
-      staff_id: staff.staff_id,
-      name: staff.name,
-      role: staff.employee_type || 'Staff',
-      department: staff.department || 'N/A',
-      filename: null,
-      path: null,
-      has_file: false,
-      month: parseInt(month),
-      year: parseInt(year)
-    }));
-
-    res.json({ rows });
-  } catch (err) {
-    console.error('[DTR List] Error:', err);
-    res.status(500).json({ error: 'Failed to fetch DTR list', details: err.message });
   }
 });
 
