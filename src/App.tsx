@@ -11,6 +11,7 @@ import Admin from "./pages/Admin";
 import ICTO from "./pages/ICTO";
 import Faculty from "./pages/Faculty";
 import Staff from "./pages/Staff";
+import ERPDocumentation from "./pages/ERPDocumentation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,6 +61,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Staff />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/erp-documentation"
+              element={
+                <ProtectedRoute>
+                  <ERPDocumentation />
                 </ProtectedRoute>
               }
             />
