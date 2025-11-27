@@ -65,7 +65,7 @@ const ERPDocumentation = () => {
         </Card>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="pb-3">
               <FileText className="h-8 w-8 text-primary mb-2" />
@@ -110,6 +110,18 @@ const ERPDocumentation = () => {
             <CardContent>
               <p className="text-sm text-muted-foreground">
                 Complete system infrastructure from client to external devices
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-3">
+              <Network className="h-8 w-8 text-primary mb-2" />
+              <CardTitle className="text-lg">Organizational Context</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                How the system integrates with UDM's business processes and stakeholders
               </p>
             </CardContent>
           </Card>
@@ -425,6 +437,138 @@ const ERPDocumentation = () => {
                     <p className="text-xs text-muted-foreground">For DTR files and reports</p>
                   </div>
                 </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Diagram 5: Organizational Context */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Network className="h-5 w-5" />
+              5. Organizational Context Diagram (ERP View)
+            </CardTitle>
+            <CardDescription>How the system integrates with Universidad de Manila's business processes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-muted/50 p-8 rounded-lg">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Column: Input Sources */}
+                <div className="space-y-4">
+                  <h4 className="font-bold text-foreground text-center mb-4">📥 INPUT SOURCES</h4>
+                  
+                  <div className="bg-blue-100 dark:bg-blue-950 p-4 rounded-lg border-2 border-blue-500 shadow-lg">
+                    <div className="text-center mb-2">
+                      <span className="text-2xl">👥</span>
+                    </div>
+                    <h5 className="font-bold text-blue-700 dark:text-blue-300 text-center">Faculty & Staff</h5>
+                    <p className="text-xs text-muted-foreground text-center mt-2">Providing labor and time data</p>
+                  </div>
+
+                  <div className="text-center text-2xl text-muted-foreground">↓</div>
+
+                  <div className="bg-red-100 dark:bg-red-950 p-4 rounded-lg border-2 border-red-500 shadow-lg">
+                    <div className="text-center mb-2">
+                      <span className="text-2xl">🖐️</span>
+                    </div>
+                    <h5 className="font-bold text-red-700 dark:text-red-300 text-center">Biometric Terminals</h5>
+                    <p className="text-xs text-muted-foreground text-center mt-2">Located at University Entrances & Departments</p>
+                  </div>
+                </div>
+
+                {/* Center Column: The System */}
+                <div className="flex items-center justify-center">
+                  <div className="space-y-4 w-full">
+                    <div className="text-2xl text-muted-foreground text-center lg:hidden">↓</div>
+                    <div className="text-2xl text-muted-foreground text-center hidden lg:block">→</div>
+                    
+                    <div className="bg-primary text-primary-foreground p-6 rounded-lg shadow-2xl border-4 border-primary">
+                      <div className="text-center mb-3">
+                        <span className="text-3xl">🏢</span>
+                      </div>
+                      <h3 className="font-bold text-xl text-center leading-tight">Biometric Attendance<br />ERP System</h3>
+                      <div className="mt-4 pt-4 border-t border-primary-foreground/20">
+                        <p className="text-xs text-center">Single Source of Truth</p>
+                        <p className="text-xs text-center mt-1">Universidad de Manila</p>
+                      </div>
+                    </div>
+                    
+                    <div className="text-2xl text-muted-foreground text-center lg:hidden">↓</div>
+                    <div className="text-2xl text-muted-foreground text-center hidden lg:block">→</div>
+                  </div>
+                </div>
+
+                {/* Right Column: Beneficiaries/Outputs */}
+                <div className="space-y-4">
+                  <h4 className="font-bold text-foreground text-center mb-4">📤 BENEFICIARIES / OUTPUTS</h4>
+                  
+                  <div className="bg-green-100 dark:bg-green-950 p-4 rounded-lg border-2 border-green-500 shadow-lg">
+                    <div className="text-center mb-2">
+                      <span className="text-2xl">👨‍💼</span>
+                    </div>
+                    <h5 className="font-bold text-green-700 dark:text-green-300 text-center">HR Department</h5>
+                    <p className="text-xs text-muted-foreground mt-2">Receives:</p>
+                    <ul className="text-xs text-muted-foreground space-y-1 mt-1">
+                      <li>• Automated DTRs</li>
+                      <li>• Ready for payroll computation</li>
+                      <li>• Leave credits tracking</li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-purple-100 dark:bg-purple-950 p-4 rounded-lg border-2 border-purple-500 shadow-lg">
+                    <div className="text-center mb-2">
+                      <span className="text-2xl">🎓</span>
+                    </div>
+                    <h5 className="font-bold text-purple-700 dark:text-purple-300 text-center">Department Heads</h5>
+                    <p className="text-xs text-muted-foreground mt-2">Receives:</p>
+                    <ul className="text-xs text-muted-foreground space-y-1 mt-1">
+                      <li>• Real-time staff availability</li>
+                      <li>• Department attendance status</li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-orange-100 dark:bg-orange-950 p-4 rounded-lg border-2 border-orange-500 shadow-lg">
+                    <div className="text-center mb-2">
+                      <span className="text-2xl">📊</span>
+                    </div>
+                    <h5 className="font-bold text-orange-700 dark:text-orange-300 text-center">Top Management</h5>
+                    <p className="text-xs text-muted-foreground mt-2">Receives:</p>
+                    <ul className="text-xs text-muted-foreground space-y-1 mt-1">
+                      <li>• Analytics & forecasting</li>
+                      <li>• Decision-making reports</li>
+                      <li>• Compliance monitoring</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom: Data Repository */}
+              <div className="mt-8 pt-6 border-t-2 border-dashed border-primary">
+                <div className="bg-yellow-100 dark:bg-yellow-950 p-6 rounded-lg border-2 border-yellow-500 shadow-lg">
+                  <div className="flex items-center justify-center gap-4">
+                    <span className="text-3xl">🗄️</span>
+                    <div className="flex-1">
+                      <h5 className="font-bold text-yellow-700 dark:text-yellow-300 text-lg">Centralized Database</h5>
+                      <p className="text-sm text-muted-foreground mt-1">Single source of truth - No duplicate records</p>
+                      <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div className="bg-card p-2 rounded text-xs text-center">Attendance Logs</div>
+                        <div className="bg-card p-2 rounded text-xs text-center">Leave Records</div>
+                        <div className="bg-card p-2 rounded text-xs text-center">Personnel Data</div>
+                        <div className="bg-card p-2 rounded text-xs text-center">Analytics Data</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ERP Integration Note */}
+              <div className="mt-6 bg-primary/10 p-4 rounded-lg border-2 border-primary">
+                <p className="text-sm font-semibold text-foreground mb-2">✓ Proven ERP Integration</p>
+                <p className="text-xs text-muted-foreground">
+                  This system functions as a complete ERP module that integrates Universidad de Manila's business processes: 
+                  <span className="font-semibold"> Attendance → Leave Management → Analytics & Reporting</span>
+                </p>
               </div>
             </div>
           </CardContent>
