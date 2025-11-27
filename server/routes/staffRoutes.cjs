@@ -40,7 +40,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '2h';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';  // ✅ Extended to 24 hours
 
 // -- helpers for Activity History --
 async function getStaffRowByStaffId(staff_id) {
