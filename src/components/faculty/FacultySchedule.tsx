@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
 import { scheduleApi } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import axios from "axios";
+import { API_BASE_URL } from "@/services/api/config";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -13,13 +16,14 @@ export function FacultySchedule() {
   const [schedule, setSchedule] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [createdBy, setCreatedBy] = useState<any>(null);
+  const [approvedLeaveDays, setApprovedLeaveDays] = useState<Date[]>([]);
 
   useEffect(() => {
     fetchSchedule();
+    fetchApprovedLeaves();
   }, [user]);
 
   const fetchSchedule = async () => {
-    // ✅ FIX: Handle multiple possible user ID fields
     const userId = (user as any)?.id || (user as any)?.staff_user_id;
 
     if (!userId) {
@@ -44,6 +48,37 @@ export function FacultySchedule() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchApprovedLeaves = async () => {
+    const userId = (user as any)?.id || (user as any)?.staff_user_id;
+
+    if (!userId) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/leaves`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { staff_id: userId, status: 'approved' }
+      });
+
+      const leaveDays: Date[] = [];
+      
+      if (response.data?.rows) {
+        response.data.rows.forEach((leave: any) => {
+          const startDate = new Date(leave.start_date);
+          const endDate = new Date(leave.end_date);
+          
+          for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            leaveDays.push(new Date(d));
+          }
+        });
+      }
+
+      setApprovedLeaveDays(leaveDays);
+    } catch (error: any) {
+      console.error('Error fetching approved leaves:', error);
     }
   };
 
@@ -101,68 +136,98 @@ export function FacultySchedule() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          My Work Schedule
-        </CardTitle>
-        <CardDescription>Your assigned work schedule set by ICTO</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-3">
-          {DAYS.map((dayName, index) => {
-            const daySchedule = getScheduleForDay(index);
-            const isScheduled = !!daySchedule;
+    <div className="space-y-6">
+      {/* Leave Calendar */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarIcon className="h-5 w-5" />
+            My Leave Calendar
+          </CardTitle>
+          <CardDescription>Days with approved leave requests are highlighted in blue</CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center">
+          <Calendar
+            mode="single"
+            className="rounded-md border"
+            modifiers={{
+              approved: approvedLeaveDays
+            }}
+            modifiersStyles={{
+              approved: {
+                backgroundColor: 'hsl(var(--primary))',
+                color: 'hsl(var(--primary-foreground))',
+                fontWeight: 'bold'
+              }
+            }}
+          />
+        </CardContent>
+      </Card>
 
-            return (
-              <div
-                key={index}
-                className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-28 font-medium">{dayName}</div>
-                  {isScheduled ? (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Clock className="h-4 w-4" />
-                      <span>
-                        {formatTime(daySchedule.time_in)} - {formatTime(daySchedule.time_out)}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="text-muted-foreground">-</div>
-                  )}
+      {/* Work Schedule */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            My Work Schedule
+          </CardTitle>
+          <CardDescription>Your assigned work schedule set by ICTO</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            {DAYS.map((dayName, index) => {
+              const daySchedule = getScheduleForDay(index);
+              const isScheduled = !!daySchedule;
+
+              return (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-28 font-medium">{dayName}</div>
+                    {isScheduled ? (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Clock className="h-4 w-4" />
+                        <span>
+                          {formatTime(daySchedule.time_in)} - {formatTime(daySchedule.time_out)}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground">-</div>
+                    )}
+                  </div>
+                  <Badge variant={isScheduled ? "default" : "secondary"} className="gap-1">
+                    {isScheduled ? (
+                      <>
+                        <CheckCircle2 className="h-3 w-3" />
+                        Scheduled
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-3 w-3" />
+                        Rest Day
+                      </>
+                    )}
+                  </Badge>
                 </div>
-                <Badge variant={isScheduled ? "default" : "secondary"} className="gap-1">
-                  {isScheduled ? (
-                    <>
-                      <CheckCircle2 className="h-3 w-3" />
-                      Scheduled
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="h-3 w-3" />
-                      Rest Day
-                    </>
-                  )}
-                </Badge>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
 
-        <div className="p-4 bg-info/10 border border-info/20 rounded-lg text-sm">
-          <p className="text-info-foreground">
-            ℹ️ <strong>Note:</strong> You can only record attendance on scheduled days during your assigned hours.
-          </p>
-        </div>
+          <div className="p-4 bg-info/10 border border-info/20 rounded-lg text-sm">
+            <p className="text-info-foreground">
+              ℹ️ <strong>Note:</strong> You can only record attendance on scheduled days during your assigned hours.
+            </p>
+          </div>
 
-        {createdBy && (
-          <p className="text-xs text-muted-foreground text-center">
-            Last updated by Admin
-          </p>
-        )}
-      </CardContent>
-    </Card>
+          {createdBy && (
+            <p className="text-xs text-muted-foreground text-center">
+              Last updated by Admin
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
