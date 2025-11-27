@@ -236,7 +236,7 @@ export function Dashboard() {
     { title: "Total Staff", value: stats.total, icon: Users, color: "text-primary" },
     { title: "Present Today", value: stats.present, icon: UserCheck, color: "text-success" },
     { title: "Absent Today without Leave", value: stats.absent, icon: UserX, color: "text-destructive" },,
-    { title: "Leave Today", value: stats.on_leave, icon: CalendarDays, color: "text-info" },
+    { title: "Absent Today with Leave", value: stats.on_leave, icon: CalendarDays, color: "text-info" },
     { title: "Tardy Today", value: stats.late, icon: Clock, color: "text-warning" }
   ];
 

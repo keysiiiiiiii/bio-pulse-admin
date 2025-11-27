@@ -169,7 +169,7 @@ async function buildExcelDTR({ staff, month, year }) {
     const logoPath = path.join(__dirname, '..', 'udm-logo.webp');
     if (fs.existsSync(logoPath)) {
       const logoBuffer = fs.readFileSync(logoPath);
-      
+
       const imageId = workbook.addImage({
         buffer: logoBuffer,
         extension: 'jpeg',
@@ -207,7 +207,7 @@ async function buildExcelDTR({ staff, month, year }) {
 
       const requiredHours = 9;
       let workedHours = 0;
-      
+
       if (log.time_in && log.time_out) {
         const inDate = new Date(log.time_in);
         const outDate = new Date(log.time_out);
@@ -231,6 +231,288 @@ async function buildExcelDTR({ staff, month, year }) {
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);
+}
+
+// ====== PDF GENERATOR (MATCHING EXCEL TEMPLATE) ======
+async function buildPDFFromTemplate({ staff, month, year }) {
+  const lastDay = new Date(year, month, 0).getDate();
+  const startDate = `${year}-${pad2(month)}-01`;
+
+  const { data: attendance } = await db
+    .from('attendance_logs')
+    .select('att_date, time_in, time_out, minute_late')
+    .eq('staff_user_id', staff.id)
+    .gte('att_date', startDate)
+    .lte('att_date', `${year}-${pad2(month)}-${lastDay}`)
+    .order('att_date', { ascending: true });
+
+  const byDay = {};
+  for (const log of attendance || []) {
+    const dt = new Date(log.att_date + 'T00:00:00Z');
+    const day = dt.getUTCDate();
+    if (!byDay[day]) byDay[day] = log;
+  }
+
+  const formatTime = (isoTimestamp) => {
+    if (!isoTimestamp) return '';
+    const dt = new Date(isoTimestamp);
+    const h = dt.getUTCHours();
+    const m = dt.getUTCMinutes();
+    const hour12 = h % 12 || 12;
+    const ampm = h < 12 ? 'AM' : 'PM';
+    return `${hour12}:${pad2(m)} ${ampm}`;
+  };
+
+  const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
+
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'LETTER',
+      margin: 50,
+      info: {
+        Title: `DTR - ${staff.name} - ${monthName} ${year}`,
+        Author: 'Universidad de Manila'
+      }
+    });
+
+    const chunks = [];
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    // === HEADER SECTION ===
+    doc.fontSize(14).font('Helvetica-Bold').text('CITY OF MANILA', 0, 40, { align: 'center' });
+    doc.fontSize(16).text('UNIVERSIDAD DE MANILA', 0, 58, { align: 'center' });
+    doc.fontSize(12).text('DAILY TIME RECORD', 0, 78, { align: 'center' });
+
+    // Right side header - CIVIL SERVICE FORM NO. 48
+    doc.fontSize(9).font('Helvetica').text('CIVIL SERVICE FORM', 450, 40, { align: 'right' });
+    doc.text('NO. 48', 450, 52, { align: 'right' });
+
+    // === EMPLOYEE INFO SECTION ===
+    const infoStartY = 110;
+
+    // Left side - Name
+    doc.fontSize(11).font('Helvetica-Bold').text('Name:', 50, infoStartY);
+    doc.font('Helvetica').text(staff.name || '', 50, infoStartY + 15);
+
+    // Right side - Employment (aligned with Name)
+    doc.font('Helvetica-Bold').text('Employment:', 380, infoStartY);
+    doc.font('Helvetica').text(staff.employee_type || '', 380, infoStartY + 15);
+
+    // Left side - For the month of
+    doc.font('Helvetica-Bold').text('For the month of:', 50, infoStartY + 35);
+    doc.font('Helvetica').text(monthName, 50, infoStartY + 50);
+
+    // Right side - College/Department (aligned with month)
+    doc.font('Helvetica-Bold').text('College:', 380, infoStartY + 35);
+    doc.font('Helvetica').text(staff.department || '', 380, infoStartY + 50);
+
+    // === TABLE SECTION ===
+    const tableTop = 180;
+    const rowHeight = 16;
+    const colWidths = [40, 70, 70, 70, 70, 50, 60, 50, 60];
+    const startX = 36;
+
+    // Calculate column positions
+    const cols = colWidths.map((w, i) => ({
+      x: startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0),
+      w: w
+    }));
+
+    // Table Headers
+    doc.font('Helvetica-Bold').fontSize(9);
+
+    const headers = [
+      'Day',
+      'A.M.\nArrival',
+      'A.M.\nDeparture',
+      'P.M.\nArrival',
+      'P.M.\nDeparture',
+      'Tardiness\nHours',
+      'Tardiness\nMinutes',
+      'Undertime\nHours',
+      'Undertime\nMinutes'
+    ];
+
+    headers.forEach((header, i) => {
+      doc.text(header, cols[i].x + 2, tableTop + 2, {
+        width: cols[i].w - 4,
+        align: 'center',
+        lineGap: -2
+      });
+    });
+
+    // Draw header border
+    doc.rect(startX, tableTop, colWidths.reduce((a, b) => a + b), 24).stroke();
+
+    // Draw vertical lines for header
+    let xPos = startX;
+    colWidths.forEach(w => {
+      doc.moveTo(xPos, tableTop).lineTo(xPos, tableTop + 24).stroke();
+      xPos += w;
+    });
+    doc.moveTo(xPos, tableTop).lineTo(xPos, tableTop + 24).stroke();
+
+    // === DATA ROWS ===
+    doc.font('Helvetica').fontSize(9);
+
+    const dataStartY = tableTop + 24;
+    const maxRowsPerPage = 31; // Days 1-31 fit in one page
+
+    for (let day = 1; day <= lastDay; day++) {
+      const log = byDay[day];
+      const rowY = dataStartY + (day - 1) * rowHeight;
+
+      // Check if we need a new page
+      if (rowY > 700) {
+        doc.addPage();
+        // Redraw headers on new page
+        // (simplified - in production you'd want to repeat full header)
+      }
+
+      // Draw row border
+      doc.rect(startX, rowY, colWidths.reduce((a, b) => a + b), rowHeight).stroke();
+
+      // Draw vertical lines
+      let x = startX;
+      colWidths.forEach(w => {
+        doc.moveTo(x, rowY).lineTo(x, rowY + rowHeight).stroke();
+        x += w;
+      });
+      doc.moveTo(x, rowY).lineTo(x, rowY + rowHeight).stroke();
+
+      // Fill data
+      const rowData = [day.toString(), '', '', '', '', '', '', '', ''];
+
+      if (log) {
+        rowData[1] = formatTime(log.time_in);
+        rowData[4] = formatTime(log.time_out);
+
+        const minuteLate = Number(log.minute_late) || 0;
+        rowData[5] = Math.floor(minuteLate / 60).toString();
+        rowData[6] = (minuteLate % 60).toString();
+
+        // Calculate undertime
+        const requiredHours = 9;
+        let workedHours = 0;
+
+        if (log.time_in && log.time_out) {
+          const inDate = new Date(log.time_in);
+          const outDate = new Date(log.time_out);
+          workedHours = (outDate - inDate) / (1000 * 60 * 60);
+        }
+
+        if (workedHours > 0 && workedHours < requiredHours) {
+          const undertimeMinutes = (requiredHours - workedHours) * 60;
+          rowData[7] = Math.floor(undertimeMinutes / 60).toString();
+          rowData[8] = Math.round(undertimeMinutes % 60).toString();
+        } else {
+          rowData[7] = '0';
+          rowData[8] = '0';
+        }
+      }
+
+      // Write row data
+      rowData.forEach((data, i) => {
+        if (data) {
+          doc.text(data, cols[i].x + 2, rowY + 4, {
+            width: cols[i].w - 4,
+            align: i === 0 ? 'center' : 'center'
+          });
+        }
+      });
+    }
+
+    // === FOOTER SECTION ===
+    const footerY = dataStartY + lastDay * rowHeight + 20;
+
+    // Check if footer fits on current page, if not add new page
+    if (footerY > 650) {
+      doc.addPage();
+      const newFooterY = 100;
+
+      // Certification text
+      doc.fontSize(8).font('Helvetica');
+      doc.text(
+        'I certify on my honor that the above is a true and correct report of the hours of work performed,',
+        50,
+        newFooterY,
+        { width: 500 }
+      );
+      doc.text(
+        'record of which was made daily at the time of arrival and departure from office.',
+        50,
+        newFooterY + 12,
+        { width: 500 }
+      );
+
+      // Employee signature line
+      const sigY = newFooterY + 60;
+      doc.moveTo(200, sigY).lineTo(400, sigY).stroke();
+      doc.fontSize(10).font('Helvetica-Bold').text(staff.name || '', 200, sigY + 5, {
+        width: 200,
+        align: 'center'
+      });
+
+      // Verified section
+      doc.fontSize(9).font('Helvetica').text(
+        'Verified as to prescribed office hours',
+        200,
+        sigY + 50,
+        { width: 200, align: 'center' }
+      );
+
+      // Dean signature line
+      const deanY = sigY + 90;
+      doc.moveTo(200, deanY).lineTo(400, deanY).stroke();
+      doc.text(`Dean, ${staff.department || ''}`, 200, deanY + 5, {
+        width: 200,
+        align: 'center'
+      });
+    } else {
+      // Footer fits on same page
+      doc.fontSize(8).font('Helvetica');
+      doc.text(
+        'I certify on my honor that the above is a true and correct report of the hours of work performed,',
+        50,
+        footerY,
+        { width: 500 }
+      );
+      doc.text(
+        'record of which was made daily at the time of arrival and departure from office.',
+        50,
+        footerY + 12,
+        { width: 500 }
+      );
+
+      // Employee signature line
+      const sigY = footerY + 60;
+      doc.moveTo(200, sigY).lineTo(400, sigY).stroke();
+      doc.fontSize(10).font('Helvetica-Bold').text(staff.name || '', 200, sigY + 5, {
+        width: 200,
+        align: 'center'
+      });
+
+      // Verified section
+      doc.fontSize(9).font('Helvetica').text(
+        'Verified as to prescribed office hours',
+        200,
+        sigY + 50,
+        { width: 200, align: 'center' }
+      );
+
+      // Dean signature line
+      const deanY = sigY + 90;
+      doc.moveTo(200, deanY).lineTo(400, deanY).stroke();
+      doc.text(`Dean, ${staff.department || ''}`, 200, deanY + 5, {
+        width: 200,
+        align: 'center'
+      });
+    }
+
+    doc.end();
+  });
 }
 
 // ✅ NEW: Generate PDF from Excel data
@@ -291,8 +573,8 @@ async function buildPDFfromExcel({ staff, month, year }) {
     // Table Header
     const tableTop = doc.y;
     const colWidths = [30, 80, 80, 80, 80, 60, 60, 60, 60];
-    const headers = ['Day', 'A.M.\nArrival', 'A.M.\nDeparture', 'P.M.\nArrival', 'P.M.\nDeparture', 
-                     'Tardiness\nHours', 'Tardiness\nMinutes', 'Undertime\nHours', 'Undertime\nMinutes'];
+    const headers = ['Day', 'A.M.\nArrival', 'A.M.\nDeparture', 'P.M.\nArrival', 'P.M.\nDeparture',
+      'Tardiness\nHours', 'Tardiness\nMinutes', 'Undertime\nHours', 'Undertime\nMinutes'];
 
     doc.fontSize(8).font('Helvetica-Bold');
     let xPos = 40;
@@ -328,7 +610,7 @@ async function buildPDFfromExcel({ staff, month, year }) {
         const outDate = new Date(log.time_out);
         const workedHours = (outDate - inDate) / (1000 * 60 * 60);
         const requiredHours = 9;
-        
+
         if (workedHours > 0 && workedHours < requiredHours) {
           const undertimeMinutesTotal = (requiredHours - workedHours) * 60;
           rowData[7] = Math.floor(undertimeMinutesTotal / 60).toString();
@@ -690,8 +972,8 @@ router.get('/records', async (req, res) => {
   }
 });
 
-// GET /api/dtr/download-excel?staff_id=...&year=2025&month=11
-router.get('/download-excel', async (req, res) => {
+// GET /api/dtr/download-pdf?staff_id=...&year=2025&month=11
+router.get('/download-pdf', async (req, res) => {
   try {
     const { staff_id, year, month } = req.query;
 
@@ -704,21 +986,21 @@ router.get('/download-excel', async (req, res) => {
       return res.status(404).json({ error: 'Staff not found' });
     }
 
-    const excel = await buildExcelDTR({
+    const pdf = await buildPDFFromTemplate({
       staff,
       month: Number(month),
       year: Number(year)
     });
 
     const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
-    const filename = `DTR-${staff.staff_id}-${monthName}-${year}.xlsx`;
+    const filename = `DTR-${staff.staff_id}-${monthName}-${year}.pdf`;
 
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(excel);
+    res.send(pdf);
   } catch (err) {
-    console.error('[DTR Excel Download] Error:', err);
-    res.status(500).json({ error: 'Failed to generate Excel', details: err.message });
+    console.error('[DTR PDF Download] Error:', err);
+    res.status(500).json({ error: 'Failed to generate PDF', details: err.message });
   }
 });
 

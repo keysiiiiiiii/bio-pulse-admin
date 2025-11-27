@@ -515,7 +515,7 @@ export const FacultyLeaveForm = () => {
             )}
 
             <div className="space-y-2">
-              <Label>Attachment (Optional)</Label>
+              <Label>Attachment </Label>
               <Input
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png"

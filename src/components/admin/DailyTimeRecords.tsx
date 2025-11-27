@@ -21,10 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import {
-  Download,
-  Loader2,
-} from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -173,23 +170,23 @@ export function DailyTimeRecords() {
     return true;
   });
 
-  // ✅ DOWNLOAD EXCEL - Single file download
+  // ✅ DOWNLOAD PDF - Single file download
   const handleDownloadSingle = async (staffId: string) => {
     try {
       const monthNum = parseInt(selectedMonth) + 1; // Convert to 1-12
       const yearNum = parseInt(selectedYear);
 
-      await dtrApi.downloadExcel(staffId, yearNum, monthNum);
-      
+      await dtrApi.downloadPDF(staffId, yearNum, monthNum);
+
       toast({
         title: "📥 Downloading",
-        description: `Excel DTR for ${staffId}`,
+        description: `PDF DTR for ${staffId}`,
       });
     } catch (error) {
       console.error("Error downloading DTR:", error);
       toast({
         title: "Error",
-        description: "Failed to download Excel DTR",
+        description: "Failed to download PDF DTR",
         variant: "destructive",
       });
     }
@@ -205,14 +202,14 @@ export function DailyTimeRecords() {
       const monthNum = parseInt(selectedMonth) + 1; // Convert to 1-12
       const yearNum = parseInt(selectedYear);
 
-      const result = await dtrApi.downloadExcelBatch(
+      const result = await dtrApi.downloadPDFBatch(
         staff_ids,
         yearNum,
         monthNum
       );
 
       toast({
-        title: "📥 Excel Files Downloaded",
+        title: "📥 PDF Files Downloaded",
         description: `${result.success} file(s) downloaded successfully${
           result.failed > 0 ? `, ${result.failed} failed` : ""
         }`,
@@ -220,10 +217,10 @@ export function DailyTimeRecords() {
 
       setSelectedRecords(new Set());
     } catch (error) {
-      console.error("Error downloading Excel files:", error);
+      console.error("Error downloading PDF files:", error);
       toast({
         title: "Error",
-        description: "Failed to download Excel files",
+        description: "Failed to download PDF files",
         variant: "destructive",
       });
     } finally {
@@ -356,7 +353,7 @@ export function DailyTimeRecords() {
               ) : (
                 <>
                   <Download className="h-4 w-4 mr-2" />
-                  Download Excel ({selectedRecords.size})
+                  Download PDF ({selectedRecords.size})
                 </>
               )}
             </Button>
