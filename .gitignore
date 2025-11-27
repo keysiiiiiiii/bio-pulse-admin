@@ -28,6 +28,10 @@ venv/
 env/
 ENV/
 .venv/
+server\python-ml\venv
+server\.env
+.env.local
+
 
 # Python
 __pycache__/
