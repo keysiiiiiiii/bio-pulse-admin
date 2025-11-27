@@ -17,7 +17,12 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
-  const { token } = useAuth();
+  const { token, isLoading } = useAuth();
+
+  if (isLoading) {
+    return null;
+  }
+
   if (!token) return <Navigate to="/" replace />;
   return children;
 };
