@@ -1,4 +1,4 @@
-// backend/routes/leaveRoutes.cjs - COMPLETE UPDATED VERSION
+// backend/routes/leaveRoutes.cjs - FIXED VERSION
 const express = require('express');
 const router = express.Router();
 const path = require('path');
@@ -118,10 +118,19 @@ async function logLeaveActivity({ leave_id, action, actor_staff_id, actor_role, 
   }
 }
 
+// ✅ FIXED: Correct ISO week calculation
+function getWeekOfYear(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
 /* ============ CREATE WITHOUT FILE ============ */
 router.post('/api/leaves', optionalAuth, async (req, res) => {
   try {
-    console.log('📝 POST /api/leaves');
+    console.log('🔍 POST /api/leaves');
     console.log('   Body:', req.body);
     console.log('   User:', req.user);
 
@@ -199,7 +208,6 @@ router.post('/api/leaves', optionalAuth, async (req, res) => {
       file_url: null,
       leave_form_url: null,
 
-      // ✅ Add these columns directly (not in fields)
       leave_type: leave_type || null,
       start_date: start_date || null,
       end_date: end_date || null,
@@ -221,7 +229,6 @@ router.post('/api/leaves', optionalAuth, async (req, res) => {
       return res.status(500).json({ ok: false, error: error.message });
     }
 
-    // ✅ Log activity for user's own notification
     if (staff_user_id) {
       let actorStaffId = staffIdRaw;
       if (!actorStaffId && req.user?.sid) actorStaffId = req.user.sid;
@@ -254,7 +261,7 @@ router.post('/api/leaves', optionalAuth, async (req, res) => {
 /* ============ CREATE WITH FILE ============ */
 router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async (req, res) => {
   const file = req.file;
-  console.log('📎 POST /api/leaves/with-file');
+  console.log('🔎 POST /api/leaves/with-file');
   console.log('   File:', file ? file.originalname : 'none');
   console.log('   Body:', req.body);
   console.log('   User:', req.user);
@@ -341,26 +348,22 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
         await workbook.xlsx.readFile(templatePath);
         const ws = workbook.worksheets[0];
 
-        // Get department
         let department = req.body.department || null;
         if (!department && staff_user_id) {
           const { data: staffData } = await db.from('staff_users').select('department').eq('id', staff_user_id).single();
           if (staffData) department = staffData.department;
         }
 
-        // Use parsed names from database
         const firstName = first_name || '';
         const lastName = last_name || '';
         const middleInitial = middle_name || '';
 
-        // Fill basic cells
         if (department) ws.getCell('C10').value = department;
         ws.getCell('G10').value = lastName;
         ws.getCell('I10').value = firstName;
         ws.getCell('N10').value = middleInitial;
         ws.getCell('F12').value = date;
 
-        // Mark leave type checkbox (Column C)
         const leaveTypeMap = {
           vacation: 18, forced: 19, sick: 20, maternity: 21, paternity: 22,
           privilege: 23, soloparent: 24, study: 25, vawc: 26, rehab: 27,
@@ -369,11 +372,10 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
         const markRow = leaveTypeMap[leave_type?.toLowerCase()];
         if (markRow) {
           const cell = ws.getCell(`C${markRow}`);
-          cell.value = '✔';
-          if (cell.border) cell.border = cell.border; // Preserve borders
+          cell.value = '✓';
+          if (cell.border) cell.border = cell.border;
         }
 
-        // ✅ Fill details of leave (vacation/privilege - abroad/philippines)
         let parsedDetails = {};
         try {
           parsedDetails = typeof details === 'string' ? JSON.parse(details) : details || {};
@@ -383,50 +385,46 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
 
         if ((leave_type === 'vacation' || leave_type === 'privilege') && parsedDetails.vacation_location) {
           if (parsedDetails.vacation_location === 'philippines') {
-            ws.getCell('J19').value = '✔'; // Check "Within the Philippines"
+            ws.getCell('J19').value = '✓';
             if (parsedDetails.vacation_specify) {
-              ws.getCell('N19').value = parsedDetails.vacation_specify; // Input province/city
+              ws.getCell('N19').value = parsedDetails.vacation_specify;
             }
           } else if (parsedDetails.vacation_location === 'abroad') {
-            ws.getCell('J20').value = '✔'; // Check "Abroad"
+            ws.getCell('J20').value = '✓';
             if (parsedDetails.vacation_specify) {
-              ws.getCell('N20').value = parsedDetails.vacation_specify; // Input country
+              ws.getCell('N20').value = parsedDetails.vacation_specify;
             }
           }
         }
 
-        // ✅ Fill sick leave details (in hospital / out patient)
         if (leave_type === 'sick' && parsedDetails.sick_leave_type) {
           if (parsedDetails.sick_leave_type === 'hospital') {
-            ws.getCell('J22').value = '✔'; // Check "In Hospital"
+            ws.getCell('J22').value = '✓';
             if (parsedDetails.sick_leave_specify) {
-              ws.getCell('N22').value = parsedDetails.sick_leave_specify; // Input illness
+              ws.getCell('N22').value = parsedDetails.sick_leave_specify;
             }
           } else if (parsedDetails.sick_leave_type === 'outpatient') {
-            ws.getCell('J23').value = '✔'; // Check "Out Patient"
+            ws.getCell('J23').value = '✓';
             if (parsedDetails.sick_leave_specify) {
-              ws.getCell('N23').value = parsedDetails.sick_leave_specify; // Input illness
+              ws.getCell('N23').value = parsedDetails.sick_leave_specify;
             }
           }
         }
 
-        // ✅ Fill special leave benefits for women
         if (leave_type === 'special' && parsedDetails.women_leave_illness) {
-          ws.getCell('M25').value = parsedDetails.women_leave_illness; // Input illness
+          ws.getCell('M25').value = parsedDetails.women_leave_illness;
         }
 
-        // ✅ Fill study leave details
         if (leave_type === 'study' && parsedDetails.study_leave_type) {
           if (parsedDetails.study_leave_type === 'masters') {
-            ws.getCell('J27').value = '✔'; // Check "Completion of Master's Degree"
+            ws.getCell('J27').value = '✓';
           } else if (parsedDetails.study_leave_type === 'bar_board') {
-            ws.getCell('J28').value = '✔'; // Check "BAR/Board Examination Review"
+            ws.getCell('J28').value = '✓';
           } else if (parsedDetails.study_leave_type === 'other' && parsedDetails.study_leave_specify) {
-            ws.getCell('M29').value = parsedDetails.study_leave_specify; // Input other purpose
+            ws.getCell('M29').value = parsedDetails.study_leave_specify;
           }
         }
 
-        // Fill number of days and date range
         if (num_days) ws.getCell('E34').value = Number(num_days);
         if (start_date) ws.getCell('E36').value = `${start_date} - ${end_date}`;
 
@@ -457,7 +455,6 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
       file_url,
       leave_form_url,
 
-      // ✅ Add these columns directly (not in fields)
       leave_type: leave_type || null,
       start_date: start_date || null,
       end_date: end_date || null,
@@ -479,7 +476,6 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
       return res.status(500).json({ ok: false, error: error.message });
     }
 
-    // ✅ Log activity
     if (staff_user_id) {
       let actorStaffId = staffIdRaw;
       if (!actorStaffId && req.user?.sid) actorStaffId = req.user.sid;
@@ -579,7 +575,7 @@ router.get('/api/leaves/history', verifyToken, async (req, res) => {
 /* ============ STATUS UPDATE ============ */
 router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice President', 'ICTO'), async (req, res) => {
   try {
-    console.log('📝 PATCH /api/leaves/:id/status');
+    console.log('🔄 PATCH /api/leaves/:id/status');
     console.log('   ID:', req.params.id);
     console.log('   Body:', req.body);
 
@@ -596,7 +592,7 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
       status,
       admin_remarks: remarks || null,
       finalized_at: (status === 'approved' || status === 'disapproved')
-        ? new Date().toISOString()  // ✅ Full timestamp with timezone
+        ? new Date().toISOString()
         : null
     };
     const { data, error } = await db.from('leave_requests').update(patch).eq('id', id).select().single();
@@ -608,11 +604,9 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
 
     console.log('✅ Updated:', data);
 
-    // Get staff details for activity log
     const actorStaffId = req.user?.sid || '';
     const actorRole = req.user?.role || '';
 
-    // Fetch staff_id from staff_users table
     let targetStaffId = null;
     if (data.staff_user_id) {
       const { data: staffData } = await db
@@ -623,7 +617,6 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
       if (staffData) targetStaffId = staffData.staff_id;
     }
 
-    // ✅ Log activity to account_activity table
     await logLeaveActivity({
       leave_id: id,
       action: 'leave_status_update',
@@ -640,7 +633,6 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
       }
     });
 
-    // ✅ Deduct leave credits if approved (for ANY leave type)
     if (status === 'approved' && data.staff_user_id && data.duration) {
       const { data: account } = await db
         .from('user_accounts')
@@ -654,7 +646,6 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
         const deducted = Number(data.duration);
         const newBalance = Math.max(0, currentCredits - deducted);
 
-        // Update deduction
         const { error: updateErr } = await db
           .from('user_accounts')
           .update({
@@ -672,18 +663,20 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
       }
     }
 
-    // ✅ THIS CODE IS ALREADY IN YOUR leaveRoutes.cjs (line 466-492)
-    // ADD THIS after approving a leave
+    // ✅ FIXED: Insert into attendance_logs with correct week calculation
     if (status === 'approved' && data.staff_user_id && data.start_date && data.end_date) {
       const startDate = new Date(data.start_date);
       const endDate = new Date(data.end_date);
       const duration = data.duration || 1;
 
-      // Insert into attendance_logs for each day of leave
+      console.log('📅 Inserting leave days into attendance_logs...');
+      console.log('   Start:', data.start_date, 'End:', data.end_date, 'Duration:', duration);
+
       const leaveDays = [];
       for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
         const attDate = d.toISOString().split('T')[0];
-        const weekOfYear = Math.ceil((d.getDate() + 6 - d.getDay()) / 7);
+        const weekOfYear = getWeekOfYear(d); // ✅ FIXED: Use correct calculation
+        const month = d.getMonth() + 1;
 
         leaveDays.push({
           staff_user_id: data.staff_user_id,
@@ -692,9 +685,11 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
           leave_type: data.leave_type,
           leave_duration: duration,
           week_of_year: weekOfYear,
-          month: d.getMonth() + 1,
+          month: month,
           created_at: new Date().toISOString()
         });
+
+        console.log(`   → ${attDate}: week=${weekOfYear}, month=${month}`);
       }
 
       if (leaveDays.length > 0) {
@@ -710,8 +705,6 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
       }
     }
 
-
-    // Send notification
     const title = status === 'approved' ? 'Leave Approved' : status === 'disapproved' ? 'Leave Denied' : 'Leave Updated';
     const message = status === 'disapproved' && remarks ? `Denied: ${remarks}` : `Status: ${status}`;
 

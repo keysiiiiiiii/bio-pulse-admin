@@ -50,14 +50,17 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
         const monthStart = format(firstDay, 'yyyy-MM-dd');
         const monthEnd = format(lastDay, 'yyyy-MM-dd');
 
-        console.log('🔍 Fetching leave data between:', monthStart, 'and', monthEnd);
+        console.log('📊 [LeaveAnalyticsChart] Fetching leave data...');
+        console.log('   Month:', format(selectedMonth, "MMMM yyyy"));
+        console.log('   Range:', monthStart, 'to', monthEnd);
 
-        // ✅ This is CORRECT - it queries attendance_logs
+        // ✅ Query attendance_logs for leave records
         const { data, error } = await supabase
           .from('attendance_logs')
           .select('leave_type, week_of_year, att_date, on_leave, leave_duration')
           .gte('att_date', monthStart)
           .lte('att_date', monthEnd)
+          .eq('on_leave', true)  // ✅ Only get leave records
           .not('leave_type', 'is', null);
 
         if (error) {
@@ -65,56 +68,43 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
           throw error;
         }
 
-        console.log('✅ Fetched leave data (ALL):', data);
-        console.log('📊 Total records:', data?.length || 0);
+        console.log('✅ Fetched records:', data?.length || 0);
 
-        // ✅ Filter records with on_leave = 1 or true
-        const leaveRecords = data?.filter(d => d.on_leave === 1 || d.on_leave === true || d.on_leave === '1') || [];
-        console.log('✅ Filtered leave records (on_leave=1):', leaveRecords);
-        console.log('📊 Leave records count:', leaveRecords.length);
-
-        if (leaveRecords.length === 0) {
-          console.log('⚠️ No leave data found');
-
-          // Debug: Show what leave types exist in the data
-          if (data && data.length > 0) {
-            const allLeaveTypes = [...new Set(data.map(d => d.leave_type).filter(Boolean))];
-            console.log('📝 Available leave types in DB:', allLeaveTypes);
-            console.log('📝 Sample records:', data.slice(0, 5));
-          }
-
+        if (!data || data.length === 0) {
+          console.log('⚠️ No leave data found for this month');
           setChartData([]);
           return;
         }
 
-        // ✅ Show unique leave types for debugging
-        const uniqueLeaveTypes = [...new Set(leaveRecords.map(d => d.leave_type))];
-        console.log('📝 Unique leave types found:', uniqueLeaveTypes);
+        // ✅ Debug: Show unique leave types
+        const uniqueLeaveTypes = [...new Set(data.map(d => d.leave_type))];
+        console.log('📋 Leave types found:', uniqueLeaveTypes);
 
-        // ✅ Generate week numbers for the month
-        const weeksInMonth: number[] = [];
-        const allWeeks = [...new Set(leaveRecords.map(d => d.week_of_year).filter(Boolean))].sort((a, b) => a - b);
+        // ✅ Debug: Show week distribution
+        const weekDistribution = data.reduce((acc, d) => {
+          const week = d.week_of_year || 'null';
+          acc[week] = (acc[week] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        console.log('📅 Week distribution:', weekDistribution);
 
-        console.log('📅 Weeks found in data:', allWeeks);
-
-        // If no weeks, calculate based on dates
-        if (allWeeks.length === 0) {
-          for (let w = 1; w <= 5; w++) {
-            weeksInMonth.push(w);
-          }
-        } else {
-          weeksInMonth.push(...allWeeks);
+        // ✅ Get all unique weeks from data (sorted)
+        const weeksInMonth = [...new Set(data.map(d => d.week_of_year).filter(Boolean))].sort((a, b) => a - b);
+        
+        if (weeksInMonth.length === 0) {
+          console.log('⚠️ No valid week_of_year values found');
+          setChartData([]);
+          return;
         }
 
         console.log('📅 Weeks to display:', weeksInMonth);
 
-        // ✅ Transform data by week - sum leave_duration
+        // ✅ Transform data by week
         const transformedData = weeksInMonth.map(week => {
           const weekData: any = { month: `Week ${week}` };
 
           leaveTypes.forEach(lt => {
-            // ✅ FIXED: Exact match or contains check (case-insensitive)
-            const totalDays = leaveRecords
+            const totalDays = data
               .filter(d => {
                 if (!d.leave_type) return false;
 
@@ -128,7 +118,7 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
 
                 return d.week_of_year === week && matches;
               })
-              .reduce((sum, d) => sum + (Number(d.leave_duration) || 1), 0); // Default to 1 if no duration
+              .reduce((sum, d) => sum + (Number(d.leave_duration) || 1), 0);
 
             weekData[lt.key] = totalDays;
           });
@@ -136,14 +126,18 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
           return weekData;
         });
 
-        console.log('📊 Transformed leave data:', transformedData);
+        console.log('📊 Transformed data:', transformedData);
 
-        // ✅ Check if there's any data
+        // ✅ Check if there's any data to display
         const hasAnyData = transformedData.some(week => {
           return leaveTypes.some(lt => week[lt.key] > 0);
         });
 
-        console.log('📊 Has any data to display:', hasAnyData);
+        console.log('✅ Has data to display:', hasAnyData);
+
+        if (!hasAnyData) {
+          console.log('⚠️ No leave data found after transformation');
+        }
 
         setChartData(transformedData);
       } catch (error) {
@@ -189,7 +183,7 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
           ) : chartData.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <p>No leave data for {format(selectedMonth, "MMMM yyyy")}</p>
-              <p className="text-xs mt-2">Check the console for debugging info</p>
+              <p className="text-xs mt-2">Try approving some leave requests and check again</p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={400}>
