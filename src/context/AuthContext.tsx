@@ -20,7 +20,6 @@ interface User {
 interface AuthContextProps {
   user: User | null;
   token: string | null;
-  isLoading: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
 }
@@ -28,7 +27,6 @@ interface AuthContextProps {
 const AuthContext = createContext<AuthContextProps>({
   user: null,
   token: null,
-  isLoading: true,
   login: () => {},
   logout: () => {},
 });
@@ -38,7 +36,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
@@ -55,19 +52,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           console.log("Token expired, clearing auth state");
           localStorage.removeItem("token");
           localStorage.removeItem("user");
-        } else {
-          // Token still valid, restore session
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          return;
         }
+        
+        // Token still valid, restore session
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
       } catch (error) {
         console.error("Failed to restore auth state:", error);
         localStorage.removeItem("token");
         localStorage.removeItem("user");
       }
     }
-
-    setIsLoading(false);
   }, []);
 
   const login = (jwt: string, userData: User) => {
@@ -91,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

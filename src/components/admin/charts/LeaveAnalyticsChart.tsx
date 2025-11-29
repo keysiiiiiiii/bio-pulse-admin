@@ -5,21 +5,21 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { supabase } from '@/lib/supabase';
 
-// ✅ FIXED: Match exact database values for leave_type
+// ✅ FIXED: Map database values to display labels
 const leaveTypes = [
-  { key: "Vacation Leave", label: "Vacation Leave", color: "#3b82f6" },
-  { key: "Mandatory/Forced Leave", label: "Mandatory/Forced Leave", color: "#8b5cf6" },
-  { key: "Sick Leave", label: "Sick Leave", color: "#ef4444" },
-  { key: "Maternity Leave", label: "Maternity Leave", color: "#ec4899" },
-  { key: "Paternity Leave", label: "Paternity Leave", color: "#06b6d4" },
-  { key: "Special Privilege Leave", label: "Special Privilege Leave", color: "#22c55e" },
-  { key: "Solo Parent Leave", label: "Solo Parent Leave", color: "#f43f5e" },
-  { key: "Study Leave", label: "Study Leave", color: "#14b8a6" },
-  { key: "10-Day VAWC Leave", label: "10-Day VAWC Leave", color: "#db2777" },
-  { key: "Rehabilitation Privilege", label: "Rehabilitation Privilege", color: "#f97316" },
-  { key: "Special Leave Benefits for Women", label: "Special Leave Benefits for Women", color: "#a855f7" },
-  { key: "Special Emergency (Calamity) Leave", label: "Special Emergency (Calamity) Leave", color: "#eab308" },
-  { key: "Adoption Leave", label: "Adoption Leave", color: "#6366f1" },
+  { key: "vacation", dbValues: ["vacation", "vacation leave"], label: "Vacation Leave", color: "#3b82f6" },
+  { key: "forced", dbValues: ["forced", "mandatory/forced leave", "mandatory"], label: "Mandatory/Forced Leave", color: "#8b5cf6" },
+  { key: "sick", dbValues: ["sick", "sick leave"], label: "Sick Leave", color: "#ef4444" },
+  { key: "maternity", dbValues: ["maternity", "maternity leave"], label: "Maternity Leave", color: "#ec4899" },
+  { key: "paternity", dbValues: ["paternity", "paternity leave"], label: "Paternity Leave", color: "#06b6d4" },
+  { key: "privilege", dbValues: ["privilege", "special privilege leave"], label: "Special Privilege Leave", color: "#22c55e" },
+  { key: "soloparent", dbValues: ["soloparent", "solo parent leave", "solo parent"], label: "Solo Parent Leave", color: "#f43f5e" },
+  { key: "study", dbValues: ["study", "study leave"], label: "Study Leave", color: "#14b8a6" },
+  { key: "vawc", dbValues: ["vawc", "10-day vawc leave", "10-day vawc"], label: "10-Day VAWC Leave", color: "#db2777" },
+  { key: "rehab", dbValues: ["rehab", "rehabilitation privilege"], label: "Rehabilitation Privilege", color: "#f97316" },
+  { key: "special", dbValues: ["special", "special leave benefits for women"], label: "Special Leave Benefits for Women", color: "#a855f7" },
+  { key: "emergency", dbValues: ["emergency", "special emergency (calamity) leave", "calamity"], label: "Special Emergency (Calamity) Leave", color: "#eab308" },
+  { key: "adoption", dbValues: ["adoption", "adoption leave"], label: "Adoption Leave", color: "#6366f1" },
 ];
 
 interface LeaveAnalyticsChartProps {
@@ -36,6 +36,19 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
   };
 
   const unselectAll = () => setSelectedLeaveTypes([]);
+
+  // ✅ FIXED: Better leave type matching function
+  const matchLeaveType = (dbLeaveType: string | null) => {
+    if (!dbLeaveType) return null;
+    const normalized = dbLeaveType.trim().toLowerCase();
+    
+    for (const lt of leaveTypes) {
+      if (lt.dbValues.some(val => normalized === val || normalized.includes(val) || val.includes(normalized))) {
+        return lt.key;
+      }
+    }
+    return null;
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -54,13 +67,12 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
         console.log('   Month:', format(selectedMonth, "MMMM yyyy"));
         console.log('   Range:', monthStart, 'to', monthEnd);
 
-        // ✅ Query attendance_logs for leave records
         const { data, error } = await supabase
           .from('attendance_logs')
-          .select('leave_type, week_of_year, att_date, on_leave, leave_duration')
+          .select('leave_type, week_of_year, att_date, on_leave')
           .gte('att_date', monthStart)
           .lte('att_date', monthEnd)
-          .eq('on_leave', true)  // ✅ Only get leave records
+          .eq('on_leave', 1)
           .not('leave_type', 'is', null);
 
         if (error) {
@@ -80,13 +92,13 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
         const uniqueLeaveTypes = [...new Set(data.map(d => d.leave_type))];
         console.log('📋 Leave types found:', uniqueLeaveTypes);
 
-        // ✅ Debug: Show week distribution
-        const weekDistribution = data.reduce((acc, d) => {
-          const week = d.week_of_year || 'null';
-          acc[week] = (acc[week] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-        console.log('📅 Week distribution:', weekDistribution);
+        // ✅ Map database leave types to chart keys
+        const mappedData = data.map(d => ({
+          ...d,
+          matched_key: matchLeaveType(d.leave_type)
+        }));
+
+        console.log('🔗 Mapped data sample:', mappedData.slice(0, 3));
 
         // ✅ Get all unique weeks from data (sorted)
         const weeksInMonth = [...new Set(data.map(d => d.week_of_year).filter(Boolean))].sort((a, b) => a - b);
@@ -99,28 +111,19 @@ export function LeaveAnalyticsChart({ selectedMonth }: LeaveAnalyticsChartProps)
 
         console.log('📅 Weeks to display:', weeksInMonth);
 
-        // ✅ Transform data by week
+        // ✅ FIXED: COUNT days instead of SUM leave_duration
         const transformedData = weeksInMonth.map(week => {
           const weekData: any = { month: `Week ${week}` };
 
           leaveTypes.forEach(lt => {
-            const totalDays = data
-              .filter(d => {
-                if (!d.leave_type) return false;
+            // ✅ Count unique dates (days) instead of summing duration
+            const daysOnLeave = new Set(
+              mappedData
+                .filter(d => d.week_of_year === week && d.matched_key === lt.key)
+                .map(d => d.att_date)
+            ).size;
 
-                const dbLeaveType = d.leave_type.trim().toLowerCase();
-                const searchKey = lt.key.trim().toLowerCase();
-
-                // Exact match or contains
-                const matches = dbLeaveType === searchKey ||
-                  dbLeaveType.includes(searchKey) ||
-                  searchKey.includes(dbLeaveType);
-
-                return d.week_of_year === week && matches;
-              })
-              .reduce((sum, d) => sum + (Number(d.leave_duration) || 1), 0);
-
-            weekData[lt.key] = totalDays;
+            weekData[lt.key] = daysOnLeave;
           });
 
           return weekData;

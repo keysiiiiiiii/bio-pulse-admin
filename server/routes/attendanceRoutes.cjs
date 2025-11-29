@@ -1,13 +1,9 @@
-// backend/routes/attendanceRoutes.js
-// Supabase-based attendance routes aligned to your schema.
-// IMPORTANT: Every read/write uses the numeric FK: staff_user_id.
-
+// backend/routes/attendanceRoutes.cjs - WITH LEAVE CHECKING
 const express = require('express');
 const router = express.Router();
-const db = require('../db.cjs'); // Supabase client
+const db = require('../db.cjs');
 
-// ---------- config / helpers ----------
-const OFFICE_START = process.env.OFFICE_START || '07:35'; // HH:MM (24h)
+const OFFICE_START = process.env.OFFICE_START || '07:35';
 
 const pad = (n) => String(n).padStart(2, '0');
 const toISO = (ts) => new Date(ts).toISOString();
@@ -32,14 +28,12 @@ function normalizeYMD(input) {
   return `${y}-${pad(m)}-${pad(d)}`;
 }
 
-// Return rows formatted for the Admin modal table
 function shapeRow(r) {
   const su = r.staff_users || {};
   const type = r.method || 'biometric';
   
   let status = r.status || 'Unknown';
   
-  // Extract early minutes from interval if exists
   let early_minutes = 0;
   if (r.early_time_in) {
     const match = String(r.early_time_in).match(/(\d+):(\d+):(\d+)/);
@@ -48,13 +42,12 @@ function shapeRow(r) {
     }
   }
 
-  // ✅ CORRECT: role comes from staff_users, NOT attendance_logs
   return {
     staff_id: su.staff_id,
     name: su.name,
     department: su.department,
-    role: su.role || 'Unknown',                   // ← from staff_users
-    employee_type: su.employee_type || 'Unknown', // ← from staff_users
+    role: su.role || 'Unknown',
+    employee_type: su.employee_type || 'Unknown',
     time_in: r.time_in,
     time_out: r.time_out,
     type,
@@ -66,7 +59,6 @@ function shapeRow(r) {
   };
 }
 
-// Resolve staff_users.id from a string staff_id
 async function getStaffUserIdByStaffId(staff_id) {
   const { data, error } = await db
     .from('staff_users')
@@ -78,7 +70,6 @@ async function getStaffUserIdByStaffId(staff_id) {
   return row ? row.id : null;
 }
 
-// Unified query resolver
 async function getSuidFromQuery(req) {
   const qSuid = parseIntSafe(req.query.staff_user_id);
   if (qSuid) return qSuid;
@@ -89,11 +80,32 @@ async function getSuidFromQuery(req) {
   return await getStaffUserIdByStaffId(sid);
 }
 
-// Upsert a biometric IN/OUT for a specific staff_user_id + date
+// ✅ NEW: Check if user has approved leave for today
+async function checkIfOnLeaveToday(staff_user_id, date) {
+  const { data, error } = await db
+    .from('attendance_logs')
+    .select('leave_type, on_leave')
+    .eq('staff_user_id', staff_user_id)
+    .eq('att_date', date)
+    .eq('on_leave', 1)
+    .limit(1);
+
+  if (error) throw error;
+  return data && data.length > 0 ? data[0] : null;
+}
+
+// ✅ UPDATED: Upsert with leave checking
 async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
   const att_date = todayPH();
 
-  // Schedule validation
+  // ✅ CHECK 1: Is user on approved leave today?
+  const leaveRecord = await checkIfOnLeaveToday(staff_user_id, att_date);
+  if (leaveRecord) {
+    const leaveType = leaveRecord.leave_type || 'leave';
+    throw new Error(`ON_LEAVE: You have an approved ${leaveType} today. Attendance not recorded.`);
+  }
+
+  // ✅ CHECK 2: Schedule validation
   const now = new Date(tsISO);
   const dayOfWeek = now.getDay();
 
@@ -164,6 +176,22 @@ async function upsertBiometric({ staff_user_id, tsISO, out = false }) {
   }
 }
 
+// ✅ UPDATED: Send notification helper
+async function sendNotification({ staff_user_id, title, message }) {
+  try {
+    await db.from('notifications').insert([{
+      staff_user_id,
+      title,
+      message,
+      link: '',
+      created_at: new Date().toISOString(),
+      read: false
+    }]);
+  } catch (err) {
+    console.error('⚠️ Failed to send notification:', err);
+  }
+}
+
 // ------------------------------------------------------------------------------------
 // ROUTES
 // ------------------------------------------------------------------------------------
@@ -194,6 +222,7 @@ router.post('/biometric', async (req, res) => {
         actor_staff_id: employeeId,
         actor_role: 'Staff',
         staff_id: employeeId,
+        staff_user_id: staff_user_id,
         created_at: new Date().toISOString()
       }]);
     } catch (actErr) {
@@ -203,6 +232,32 @@ router.post('/biometric', async (req, res) => {
     return res.json({ ok: true, result });
   } catch (e) {
     console.error('[biometric IN] error:', e.message || e);
+    
+    // ✅ Handle specific errors with notifications
+    if (e.message.startsWith('ON_LEAVE:')) {
+      const staff_user_id = await getStaffUserIdByStaffId(req.body?.employeeId || req.body?.staff_id);
+      if (staff_user_id) {
+        await sendNotification({
+          staff_user_id,
+          title: 'Attendance Not Recorded',
+          message: e.message.replace('ON_LEAVE: ', '')
+        });
+      }
+      return res.status(403).json({ error: e.message });
+    }
+    
+    if (e.message.startsWith('NO_SCHEDULE_TODAY:')) {
+      const staff_user_id = await getStaffUserIdByStaffId(req.body?.employeeId || req.body?.staff_id);
+      if (staff_user_id) {
+        await sendNotification({
+          staff_user_id,
+          title: 'Attendance Not Recorded',
+          message: e.message.replace('NO_SCHEDULE_TODAY: ', '')
+        });
+      }
+      return res.status(403).json({ error: e.message });
+    }
+    
     return res.status(500).json({ error: 'Server error' });
   }
 });
@@ -226,6 +281,7 @@ router.post('/biometric/out', async (req, res) => {
         actor_staff_id: employeeId,
         actor_role: 'Staff',
         staff_id: employeeId,
+        staff_user_id: staff_user_id,
         created_at: new Date().toISOString()
       }]);
     } catch (actErr) {
@@ -235,11 +291,36 @@ router.post('/biometric/out', async (req, res) => {
     return res.json({ ok: true, result });
   } catch (e) {
     console.error('[biometric OUT] error:', e.message || e);
+    
+    // ✅ Handle specific errors with notifications
+    if (e.message.startsWith('ON_LEAVE:')) {
+      const staff_user_id = await getStaffUserIdByStaffId(req.body?.employeeId || req.body?.staff_id);
+      if (staff_user_id) {
+        await sendNotification({
+          staff_user_id,
+          title: 'Attendance Not Recorded',
+          message: e.message.replace('ON_LEAVE: ', '')
+        });
+      }
+      return res.status(403).json({ error: e.message });
+    }
+    
+    if (e.message.startsWith('NO_SCHEDULE_TODAY:')) {
+      const staff_user_id = await getStaffUserIdByStaffId(req.body?.employeeId || req.body?.staff_id);
+      if (staff_user_id) {
+        await sendNotification({
+          staff_user_id,
+          title: 'Attendance Not Recorded',
+          message: e.message.replace('NO_SCHEDULE_TODAY: ', '')
+        });
+      }
+      return res.status(403).json({ error: e.message });
+    }
+    
     return res.status(500).json({ error: 'Server error' });
   }
 });
 
-// ✅ FIXED: role is in staff_users, NOT attendance_logs
 router.get('/today', async (req, res) => {
   try {
     const date = todayPH();

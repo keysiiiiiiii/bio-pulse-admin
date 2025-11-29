@@ -1,4 +1,4 @@
-// backend/routes/leaveRoutes.cjs - FIXED VERSION
+// backend/routes/leaveRoutes.cjs - COMPLETE FIXED VERSION
 const express = require('express');
 const router = express.Router();
 const path = require('path');
@@ -130,7 +130,7 @@ function getWeekOfYear(date) {
 /* ============ CREATE WITHOUT FILE ============ */
 router.post('/api/leaves', optionalAuth, async (req, res) => {
   try {
-    console.log('🔍 POST /api/leaves');
+    console.log('📝 POST /api/leaves');
     console.log('   Body:', req.body);
     console.log('   User:', req.user);
 
@@ -572,7 +572,7 @@ router.get('/api/leaves/history', verifyToken, async (req, res) => {
   }
 });
 
-/* ============ STATUS UPDATE ============ */
+/* ============ STATUS UPDATE - FIXED leave_duration ============ */
 router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice President', 'ICTO'), async (req, res) => {
   try {
     console.log('🔄 PATCH /api/leaves/:id/status');
@@ -598,11 +598,11 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
     const { data, error } = await db.from('leave_requests').update(patch).eq('id', id).select().single();
 
     if (error) {
-      console.error('❌ Error:', error);
+      console.error('❌ Error updating leave request:', error);
       return res.status(500).json({ error: error.message });
     }
 
-    console.log('✅ Updated:', data);
+    console.log('✅ Updated leave request:', data);
 
     const actorStaffId = req.user?.sid || '';
     const actorRole = req.user?.role || '';
@@ -625,15 +625,17 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
       staff_id: targetStaffId,
       staff_user_id: data.staff_user_id,
       details: {
-        leave_type: data.fields?.leave_type || 'N/A',
+        leave_type: data.leave_type || 'N/A',
         status: status,
         remarks: remarks || null,
-        start_date: data.fields?.start_date || null,
-        end_date: data.fields?.end_date || null
+        start_date: data.start_date || null,
+        end_date: data.end_date || null
       }
     });
 
+    // ✅ Deduct leave credits when approved
     if (status === 'approved' && data.staff_user_id && data.duration) {
+      console.log('💳 Deducting leave credits...');
       const { data: account } = await db
         .from('user_accounts')
         .select('leave_credits, used_credits')
@@ -663,48 +665,72 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
       }
     }
 
-    // ✅ FIXED: Insert into attendance_logs with correct week calculation
+    // ✅ CRITICAL FIX: Insert with leave_duration = 1 per day
     if (status === 'approved' && data.staff_user_id && data.start_date && data.end_date) {
-      const startDate = new Date(data.start_date);
-      const endDate = new Date(data.end_date);
-      const duration = data.duration || 1;
+      console.log('📅 ===== INSERTING LEAVE DAYS INTO ATTENDANCE_LOGS =====');
+      console.log('   Leave Type:', data.leave_type);
+      console.log('   Start Date:', data.start_date);
+      console.log('   End Date:', data.end_date);
+      console.log('   Duration:', data.duration);
 
-      console.log('📅 Inserting leave days into attendance_logs...');
-      console.log('   Start:', data.start_date, 'End:', data.end_date, 'Duration:', duration);
+      try {
+        const startDate = new Date(data.start_date);
+        const endDate = new Date(data.end_date);
 
-      const leaveDays = [];
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        const attDate = d.toISOString().split('T')[0];
-        const weekOfYear = getWeekOfYear(d); // ✅ FIXED: Use correct calculation
-        const month = d.getMonth() + 1;
+        const leaveDays = [];
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+          const attDate = d.toISOString().split('T')[0];
+          const weekOfYear = getWeekOfYear(d);
+          const month = d.getMonth() + 1;
 
-        leaveDays.push({
-          staff_user_id: data.staff_user_id,
-          att_date: attDate,
-          on_leave: true,
-          leave_type: data.leave_type,
-          leave_duration: duration,
-          week_of_year: weekOfYear,
-          month: month,
-          created_at: new Date().toISOString()
-        });
+          leaveDays.push({
+            staff_user_id: data.staff_user_id,
+            att_date: attDate,
+            on_leave: 1,
+            leave_type: data.leave_type,
+            leave_duration: 1, // ✅ FIXED: Always 1 day per record
+            week_of_year: weekOfYear,
+            month: month,
+            created_at: new Date().toISOString()
+          });
 
-        console.log(`   → ${attDate}: week=${weekOfYear}, month=${month}`);
-      }
-
-      if (leaveDays.length > 0) {
-        const { error: insertErr } = await db
-          .from('attendance_logs')
-          .insert(leaveDays);
-
-        if (insertErr) {
-          console.error('❌ Failed to insert leave days:', insertErr);
-        } else {
-          console.log(`✅ Inserted ${leaveDays.length} leave days into attendance_logs`);
+          console.log(`   ✓ Prepared: ${attDate} | Week: ${weekOfYear} | Month: ${month} | Duration: 1 day`);
         }
+
+        if (leaveDays.length > 0) {
+          console.log(`📤 Inserting ${leaveDays.length} records into attendance_logs...`);
+          const { data: insertedData, error: insertErr } = await db
+            .from('attendance_logs')
+            .insert(leaveDays)
+            .select();
+
+          if (insertErr) {
+            console.error('❌ FAILED TO INSERT LEAVE DAYS:', insertErr);
+            console.error('   Error code:', insertErr.code);
+            console.error('   Error message:', insertErr.message);
+            console.error('   Error details:', insertErr.details);
+            console.error('   Attempted payload:', JSON.stringify(leaveDays, null, 2));
+          } else {
+            console.log(`✅ SUCCESSFULLY INSERTED ${insertedData?.length || leaveDays.length} LEAVE DAYS!`);
+            console.log('   Inserted IDs:', insertedData?.map(r => r.id).join(', '));
+          }
+        } else {
+          console.log('⚠️ No leave days to insert (leaveDays array is empty)');
+        }
+      } catch (insertError) {
+        console.error('❌ EXCEPTION DURING INSERT:', insertError);
+        console.error('   Stack trace:', insertError.stack);
       }
+      console.log('===== END ATTENDANCE_LOGS INSERT =====\n');
+    } else {
+      console.log('⏭️ Skipping attendance_logs insert:');
+      console.log('   Status:', status);
+      console.log('   staff_user_id:', data.staff_user_id);
+      console.log('   start_date:', data.start_date);
+      console.log('   end_date:', data.end_date);
     }
 
+    // Send notification
     const title = status === 'approved' ? 'Leave Approved' : status === 'disapproved' ? 'Leave Denied' : 'Leave Updated';
     const message = status === 'disapproved' && remarks ? `Denied: ${remarks}` : `Status: ${status}`;
 
@@ -712,7 +738,8 @@ router.patch('/api/leaves/:id/status', verifyToken, requireRole('Admin', 'Vice P
 
     res.json({ ok: true, record: data });
   } catch (e) {
-    console.error('❌ Error:', e);
+    console.error('❌ Critical error in PATCH /api/leaves/:id/status:', e);
+    console.error('   Stack:', e.stack);
     res.status(500).json({ error: e.message });
   }
 });

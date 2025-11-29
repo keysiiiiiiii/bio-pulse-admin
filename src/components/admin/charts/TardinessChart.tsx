@@ -20,16 +20,16 @@ interface TardinessChartProps {
   selectedMonth: Date;
 }
 
-// ✅ FIXED: Added missing colleges to faculty whitelist
+// ✅ Complete college whitelist for faculty
 const COLLEGE_WHITELIST = new Set([
   'CED - College of Education',
   'CCS - College of Computing Studies',
   'CCJ - College of Criminal Justice',
-  'CBPM - College of Business and Public Management',  // ✅ ADDED
+  'CBPM - College of Business and Public Management',
   'CAS - College of Arts and Sciences',
   'CHS - College of Health Sciences',
-  'CL - College of Law',  // ✅ ADDED (alternative name)
-  'Gen Ed - General Education',  // ✅ ADDED
+  'CL - College of Law',
+  'Gen Ed - General Education',
   'NSTP - National Service Training Program'
 ]);
 
@@ -57,7 +57,10 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
         const monthStart = format(firstDay, 'yyyy-MM-dd');
         const monthEnd = format(lastDay, 'yyyy-MM-dd');
 
-        console.log('Fetching tardiness data for:', { monthStart, monthEnd, viewType });
+        console.log('📊 [TardinessChart] Fetching tardiness data...');
+        console.log('   Month:', format(selectedMonth, "MMMM yyyy"));
+        console.log('   Range:', monthStart, 'to', monthEnd);
+        console.log('   View Type:', viewType);
 
         // Query tardiness data
         const { data: logs, error } = await supabase
@@ -78,14 +81,14 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
           .gt('minute_late', 0);
 
         if (error) {
-          console.error('Supabase error:', error);
+          console.error('❌ Supabase error:', error);
           throw error;
         }
 
-        console.log('Fetched tardiness logs:', logs);
+        console.log('✅ Fetched tardiness logs:', logs?.length || 0);
 
         if (!logs || logs.length === 0) {
-          console.log('No tardiness data found');
+          console.log('⚠️ No tardiness data found');
           setData([]);
           return;
         }
@@ -103,7 +106,7 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
           // Check if department is in college whitelist
           const deptIsCollege = COLLEGE_WHITELIST.has(dept);
           
-          console.log('Filtering tardiness log:', {
+          console.log('🔍 Filtering tardiness log:', {
             dept,
             employee_type: log.staff_user?.employee_type,
             deptIsCollege,
@@ -120,10 +123,11 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
           }
         });
 
-        console.log('Filtered logs by department:', filteredLogs);
-        console.log(`View type: ${viewType}, Filtered count: ${filteredLogs.length}`);
+        console.log('✅ Filtered logs by department:', filteredLogs.length);
+        console.log(`   View type: ${viewType}, Filtered count: ${filteredLogs.length}`);
 
         if (filteredLogs.length === 0) {
+          console.log('⚠️ No data after filtering');
           setData([]);
           return;
         }
@@ -145,10 +149,11 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
             })
         )].sort();
 
-        console.log('Weeks:', weeksInData);
-        console.log(`${viewType === 'faculty' ? 'Colleges' : 'Departments'}:`, uniqueDepts);
+        console.log('📅 Weeks:', weeksInData);
+        console.log(`📋 ${viewType === 'faculty' ? 'Colleges' : 'Departments'}:`, uniqueDepts);
 
         if (weeksInData.length === 0) {
+          console.log('⚠️ No valid weeks found');
           setData([]);
           return;
         }
@@ -171,10 +176,10 @@ export function TardinessChart({ selectedMonth }: TardinessChartProps) {
           return weekData;
         });
 
-        console.log('Transformed tardiness data:', transformedData);
+        console.log('📊 Transformed tardiness data:', transformedData);
         setData(transformedData);
       } catch (error) {
-        console.error('Error fetching tardiness data:', error);
+        console.error('❌ Error fetching tardiness data:', error);
         setData([]);
       } finally {
         setLoading(false);
