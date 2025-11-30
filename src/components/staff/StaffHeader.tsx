@@ -42,38 +42,35 @@ export const StaffHeader = ({ currentView, sidebarCollapsed, onMenuClick, isMobi
   return (
     <header className="border-b bg-card shadow-sm sticky top-0 z-10 transition-all duration-300">
       <div className="px-4 md:px-6 py-3 md:py-4 flex items-center gap-3">
-        {/* Mobile Menu Button */}
-        {isMobile && (
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="md:hidden min-h-[44px] min-w-[44px]"
-            onClick={onMenuClick}
-          >
-            <Menu className="h-6 w-6" />
-          </Button>
-        )}
+        {/* Mobile Menu Button - Always visible on mobile via CSS */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="md:hidden min-h-[44px] min-w-[44px]"
+          onClick={onMenuClick}
+        >
+          <Menu className="h-6 w-6" />
+        </Button>
         
         <img src={logo} alt="UDM Logo" className="h-8 w-8" />
         
         <div className="flex-1 min-w-0">
           <h1 className="text-lg md:text-xl font-bold text-foreground truncate">
-            {isMobile ? "UDM" : "Universidad de Manila"}
+            <span className="md:hidden">UDM</span>
+            <span className="hidden md:inline">Universidad de Manila</span>
           </h1>
           <p className="text-xs md:text-sm text-muted-foreground truncate">
             Staff - {getViewTitle()}
           </p>
         </div>
 
-        {/* Mobile Profile Avatar */}
-        {isMobile && (
-          <Avatar className="h-9 w-9 border border-border">
-            <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
-            <AvatarFallback className="text-xs bg-primary text-primary-foreground">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-        )}
+        {/* Mobile Profile Avatar - Always visible on mobile via CSS */}
+        <Avatar className="h-9 w-9 border border-border md:hidden">
+          <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
+          <AvatarFallback className="text-xs bg-primary text-primary-foreground">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
       </div>
     </header>
   );
