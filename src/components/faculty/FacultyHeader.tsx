@@ -1,11 +1,19 @@
+import { Menu } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/context/AuthContext";
 import logo from "@/assets/web_logo.png";
 
 interface FacultyHeaderProps {
   currentView?: string;
   sidebarCollapsed?: boolean;
+  onMenuClick?: () => void;
+  isMobile?: boolean;
 }
 
-export const FacultyHeader = ({ currentView, sidebarCollapsed }: FacultyHeaderProps) => {
+export const FacultyHeader = ({ currentView, sidebarCollapsed, onMenuClick, isMobile }: FacultyHeaderProps) => {
+  const { user } = useAuth();
+  
   const getViewTitle = () => {
     switch (currentView) {
       case "dashboard":
@@ -14,6 +22,8 @@ export const FacultyHeader = ({ currentView, sidebarCollapsed }: FacultyHeaderPr
         return "Daily Time Record";
       case "leave":
         return "Leave Form";
+      case "schedule":
+        return "Schedule";
       case "notifications":
         return "Notifications";
       case "settings":
@@ -23,14 +33,47 @@ export const FacultyHeader = ({ currentView, sidebarCollapsed }: FacultyHeaderPr
     }
   };
 
+  const initials = user?.name
+    ?.split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase() || "FM";
+
   return (
     <header className="border-b bg-card shadow-sm sticky top-0 z-10 transition-all duration-300">
-      <div className={`px-6 py-4 flex items-center gap-3 transition-all duration-300 ${sidebarCollapsed ? 'ml-0' : 'ml-0'}`}>
+      <div className="px-4 md:px-6 py-3 md:py-4 flex items-center gap-3">
+        {/* Mobile Menu Button */}
+        {isMobile && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="md:hidden min-h-[44px] min-w-[44px]"
+            onClick={onMenuClick}
+          >
+            <Menu className="h-6 w-6" />
+          </Button>
+        )}
+        
         <img src={logo} alt="UDM Logo" className="h-8 w-8" />
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-foreground">Universidad de Manila</h1>
-          <p className="text-sm text-muted-foreground">Faculty - {getViewTitle()}</p>
+        
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg md:text-xl font-bold text-foreground truncate">
+            {isMobile ? "UDM" : "Universidad de Manila"}
+          </h1>
+          <p className="text-xs md:text-sm text-muted-foreground truncate">
+            Faculty - {getViewTitle()}
+          </p>
         </div>
+
+        {/* Mobile Profile Avatar */}
+        {isMobile && (
+          <Avatar className="h-9 w-9 border border-border">
+            <AvatarImage src={user?.photo_url || user?.avatarUrl || ""} alt={user?.name} />
+            <AvatarFallback className="text-xs bg-primary text-primary-foreground">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        )}
       </div>
     </header>
   );

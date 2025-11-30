@@ -179,24 +179,24 @@ export function StaffSchedule() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Leave Calendar */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
             <CalendarIcon className="h-5 w-5" />
             My Leave Calendar
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-sm">
             Days with approved leave requests are highlighted in blue. Click a date to view details.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex justify-center">
+        <CardContent className="flex justify-center p-4 pt-0 md:p-6 md:pt-0 overflow-x-auto">
           <Calendar
             mode="single"
             selected={selectedDate}
             onSelect={handleDateClick}
-            className="rounded-md border"
+            className="rounded-md border pointer-events-auto"
             modifiers={{
               approved: approvedLeaveDays
             }}
@@ -213,15 +213,15 @@ export function StaffSchedule() {
 
       {/* Work Schedule */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
             <Clock className="h-5 w-5" />
             My Work Schedule
           </CardTitle>
-          <CardDescription>Your assigned work schedule set by ICTO</CardDescription>
+          <CardDescription className="text-sm">Your assigned work schedule set by ICTO</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
+        <CardContent className="space-y-3 md:space-y-4 p-4 pt-0 md:p-6 md:pt-0">
+          <div className="space-y-2 md:space-y-3">
             {DAYS.map((dayName, index) => {
               const daySchedule = getScheduleForDay(index);
               const isScheduled = !!daySchedule;
@@ -229,31 +229,31 @@ export function StaffSchedule() {
               return (
                 <div 
                   key={index} 
-                  className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors gap-2"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="w-28 font-medium">{dayName}</div>
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className="w-20 md:w-28 font-medium text-sm md:text-base">{dayName}</div>
                     {isScheduled ? (
-                      <div className="flex items-center gap-2 text-muted-foreground">
+                      <div className="flex items-center gap-2 text-muted-foreground text-sm">
                         <Clock className="h-4 w-4" />
                         <span>
                           {formatTime(daySchedule.time_in)} - {formatTime(daySchedule.time_out)}
                         </span>
                       </div>
                     ) : (
-                      <div className="text-muted-foreground">-</div>
+                      <div className="text-muted-foreground text-sm">-</div>
                     )}
                   </div>
-                  <Badge variant={isScheduled ? "default" : "secondary"} className="gap-1">
+                  <Badge variant={isScheduled ? "default" : "secondary"} className="gap-1 self-start sm:self-auto">
                     {isScheduled ? (
                       <>
                         <CheckCircle2 className="h-3 w-3" />
-                        Scheduled
+                        <span className="text-xs">Scheduled</span>
                       </>
                     ) : (
                       <>
                         <XCircle className="h-3 w-3" />
-                        Rest Day
+                        <span className="text-xs">Rest Day</span>
                       </>
                     )}
                   </Badge>
@@ -262,7 +262,7 @@ export function StaffSchedule() {
             })}
           </div>
 
-          <div className="p-4 bg-info/10 border border-info/20 rounded-lg text-sm">
+          <div className="p-3 md:p-4 bg-info/10 border border-info/20 rounded-lg text-xs md:text-sm">
             <p className="text-info-foreground">
               ℹ️ <strong>Note:</strong> You can only record attendance on scheduled days during your assigned hours.
             </p>
@@ -278,7 +278,7 @@ export function StaffSchedule() {
 
       {/* Leave Details Dialog */}
       <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-[90vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Info className="h-5 w-5" />
