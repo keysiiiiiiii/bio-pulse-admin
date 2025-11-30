@@ -1,15 +1,32 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { CalendarDays, TrendingUp, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { CalendarDays, TrendingUp, Clock, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { staffApi } from "@/services/api/staffApi";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import axios from "axios";
+import { API_BASE_URL } from "@/services/api/config";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+interface LeaveDetails {
+  leave_type: string;
+  start_date: string;
+  end_date: string;
+  duration: number;
+  reason?: string;
+}
 
 export const FacultyDashboard = () => {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const { user } = useAuth();
 
   // Leave Credits State
@@ -29,13 +46,76 @@ export const FacultyDashboard = () => {
   const [performanceData, setPerformanceData] = useState<any[]>([]);
   const [performanceTrend, setPerformanceTrend] = useState<string>("");
 
+  // Leave Calendar State
+  const [approvedLeaveDays, setApprovedLeaveDays] = useState<Date[]>([]);
+  const [leaveLookup, setLeaveLookup] = useState<Map<string, LeaveDetails>>(new Map());
+  const [selectedLeaveDetails, setSelectedLeaveDetails] = useState<LeaveDetails | null>(null);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+
   useEffect(() => {
     if (user?.staff_id) {
       fetchLeaveCredits();
       fetchAttendanceStats();
       fetchPerformanceData();
+      fetchApprovedLeaves();
     }
   }, [user]);
+
+  const fetchApprovedLeaves = async () => {
+    const userId = (user as any)?.id || (user as any)?.staff_user_id;
+
+    if (!userId) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/leaves`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { staff_user_id: userId, status: 'approved' }
+      });
+
+      const leaveDays: Date[] = [];
+      const lookup = new Map<string, LeaveDetails>();
+      
+      if (response.data?.data) {
+        response.data.data.forEach((leave: any) => {
+          const startDate = new Date(leave.start_date);
+          const endDate = new Date(leave.end_date);
+          
+          const leaveDetails: LeaveDetails = {
+            leave_type: leave.leave_type || 'Leave',
+            start_date: leave.start_date,
+            end_date: leave.end_date,
+            duration: leave.duration || 0,
+            reason: leave.reason
+          };
+          
+          for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            lookup.set(dateStr, leaveDetails);
+            leaveDays.push(new Date(d));
+          }
+        });
+      }
+
+      setApprovedLeaveDays(leaveDays);
+      setLeaveLookup(lookup);
+    } catch (error: any) {
+      console.error('Error fetching approved leaves:', error);
+    }
+  };
+
+  const handleDateClick = (date: Date | undefined) => {
+    if (!date) return;
+    
+    const dateStr = date.toISOString().split('T')[0];
+    const leaveDetails = leaveLookup.get(dateStr);
+    
+    if (leaveDetails) {
+      setSelectedLeaveDetails(leaveDetails);
+      setSelectedDate(date);
+      setShowLeaveDialog(true);
+    }
+  };
 
   // ✅ Fetch Leave Credits with Used/Remaining
   const fetchLeaveCredits = async () => {
@@ -293,17 +373,30 @@ export const FacultyDashboard = () => {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Calendar */}
+        {/* Leave Calendar with Approved Leaves */}
         <Card>
           <CardHeader>
-            <CardTitle>Leave Calendar</CardTitle>
+            <CardTitle>My Leave Calendar</CardTitle>
+            <CardDescription>
+              Days with approved leave requests are highlighted in blue. Click a date to view details.
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={setSelectedDate}
+              onSelect={handleDateClick}
               className="rounded-md border"
+              modifiers={{
+                approved: approvedLeaveDays
+              }}
+              modifiersStyles={{
+                approved: {
+                  backgroundColor: 'hsl(var(--primary))',
+                  color: 'hsl(var(--primary-foreground))',
+                  fontWeight: 'bold'
+                }
+              }}
             />
           </CardContent>
         </Card>
@@ -395,6 +488,59 @@ export const FacultyDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Leave Details Dialog */}
+      <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5" />
+              Leave Details
+            </DialogTitle>
+            <DialogDescription>
+              {selectedDate && `Information for ${selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedLeaveDetails && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Leave Type</p>
+                  <p className="text-base font-semibold capitalize">{selectedLeaveDetails.leave_type}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Duration</p>
+                  <p className="text-base font-semibold">{selectedLeaveDetails.duration} day(s)</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Start Date</p>
+                  <p className="text-base">{new Date(selectedLeaveDetails.start_date).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">End Date</p>
+                  <p className="text-base">{new Date(selectedLeaveDetails.end_date).toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              {selectedLeaveDetails.reason && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Reason</p>
+                  <p className="text-base">{selectedLeaveDetails.reason}</p>
+                </div>
+              )}
+
+              <div className="p-3 bg-success/10 border border-success/20 rounded-lg">
+                <p className="text-sm text-success-foreground">
+                  ✅ This leave has been approved
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
