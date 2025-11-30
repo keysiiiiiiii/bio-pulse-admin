@@ -8,7 +8,6 @@ import { StaffSchedule } from "@/components/staff/StaffSchedule";
 import { StaffNotifications } from "@/components/staff/StaffNotifications";
 import { StaffAccountSettings } from "@/components/staff/StaffAccountSettings";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 type StaffView = "dashboard" | "dtr" | "leave" | "schedule" | "notifications" | "settings";
 
@@ -16,20 +15,17 @@ const Staff = () => {
   const [currentView, setCurrentView] = useState<StaffView>("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const isMobile = useIsMobile();
 
   // Close mobile sidebar when view changes
   useEffect(() => {
-    if (isMobile) {
-      setMobileSidebarOpen(false);
-    }
-  }, [currentView, isMobile]);
+    setMobileSidebarOpen(false);
+  }, [currentView]);
 
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
         {/* Mobile Overlay */}
-        {isMobile && mobileSidebarOpen && (
+        {mobileSidebarOpen && (
           <div 
             className="fixed inset-0 bg-black/50 z-40 md:hidden"
             onClick={() => setMobileSidebarOpen(false)}
@@ -38,8 +34,8 @@ const Staff = () => {
         
         {/* Sidebar - Hidden on mobile by default, shown when mobileSidebarOpen */}
         <div className={`
-          ${isMobile ? 'fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out' : ''}
-          ${isMobile && !mobileSidebarOpen ? '-translate-x-full' : 'translate-x-0'}
+          fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:relative md:transform-none
+          ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}>
           <StaffSidebar
             currentView={currentView}
@@ -47,7 +43,7 @@ const Staff = () => {
             collapsed={sidebarCollapsed}
             onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             onCloseMobile={() => setMobileSidebarOpen(false)}
-            isMobile={isMobile}
+            isMobile={mobileSidebarOpen}
           />
         </div>
         
@@ -56,7 +52,6 @@ const Staff = () => {
             currentView={currentView} 
             sidebarCollapsed={sidebarCollapsed}
             onMenuClick={() => setMobileSidebarOpen(true)}
-            isMobile={isMobile}
           />
           <main className="flex-1 p-4 md:p-6 overflow-auto">
             {currentView === "dashboard" && <StaffDashboard />}
