@@ -230,61 +230,61 @@ export const StaffDashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h2 className="text-3xl font-bold text-foreground">Dashboard</h2>
-        <p className="text-muted-foreground">Your performance analytics and attendance overview</p>
+        <h2 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard</h2>
+        <p className="text-sm md:text-base text-muted-foreground">Your performance analytics and attendance overview</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Cards - Stack on mobile */}
+      <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Present</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-4 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">Total Present</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-primary" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{attendanceStats.present} days</div>
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+            <div className="text-xl md:text-2xl font-bold">{attendanceStats.present} days</div>
             <p className="text-xs text-muted-foreground">This semester</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Absences</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-4 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">Absences</CardTitle>
             <CalendarDays className="h-4 w-4 text-destructive" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{attendanceStats.absent} days</div>
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+            <div className="text-xl md:text-2xl font-bold">{attendanceStats.absent} days</div>
             <p className="text-xs text-muted-foreground">This semester</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Tardiness</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-4 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">Tardiness</CardTitle>
             <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{attendanceStats.late} times</div>
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+            <div className="text-xl md:text-2xl font-bold">{attendanceStats.late} times</div>
             <p className="text-xs text-muted-foreground">This semester</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Leave Credits</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-4 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">Leave Credits</CardTitle>
             <TrendingUp className="h-4 w-4 text-success" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
             {leaveCredits ? (
               <>
-                <div className="text-2xl font-bold">{leaveCredits.remaining.toFixed(2)} days</div>
+                <div className="text-xl md:text-2xl font-bold">{leaveCredits.remaining.toFixed(2)} days</div>
                 <p className="text-xs text-muted-foreground">Remaining ({leaveCredits.used.toFixed(2)} used)</p>
               </>
             ) : (
               <>
-                <div className="text-2xl font-bold">0.00 days</div>
+                <div className="text-xl md:text-2xl font-bold">0.00 days</div>
                 <p className="text-xs text-muted-foreground">Not activated</p>
               </>
             )}
@@ -292,35 +292,36 @@ export const StaffDashboard = () => {
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      {/* Calendar and Leave Credits - Stack on mobile */}
+      <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2">
         {/* Calendar */}
         <Card>
-          <CardHeader>
-            <CardTitle>Leave Calendar</CardTitle>
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-base md:text-lg">Leave Calendar</CardTitle>
           </CardHeader>
-          <CardContent className="flex justify-center">
+          <CardContent className="flex justify-center p-4 pt-0 md:p-6 md:pt-0 overflow-x-auto">
             <Calendar
               mode="single"
               selected={selectedDate}
               onSelect={setSelectedDate}
-              className="rounded-md border"
+              className="rounded-md border pointer-events-auto"
             />
           </CardContent>
         </Card>
 
         {/* Leave Credits Pie Chart */}
         <Card>
-          <CardHeader>
-            <CardTitle>Leave Credits Overview</CardTitle>
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-base md:text-lg">Leave Credits Overview</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
             {leaveCredits && leaveData.length > 0 ? (
               <ChartContainer
                 config={{
                   used: { label: "Used", color: "hsl(var(--destructive))" },
                   remaining: { label: "Remaining", color: "hsl(var(--primary))" },
                 }}
-                className="h-[300px]"
+                className="h-[200px] md:h-[300px]"
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -330,7 +331,7 @@ export const StaffDashboard = () => {
                       cy="50%"
                       labelLine={false}
                       label={({ name, value }) => `${name}: ${value.toFixed(2)}`}
-                      outerRadius={80}
+                      outerRadius={60}
                       fill="#8884d8"
                       dataKey="value"
                     >
@@ -344,9 +345,9 @@ export const StaffDashboard = () => {
                 </ResponsiveContainer>
               </ChartContainer>
             ) : (
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+              <div className="flex items-center justify-center h-[200px] md:h-[300px] text-muted-foreground">
                 <div className="text-center">
-                  <CalendarDays className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <CalendarDays className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">Leave credits not activated</p>
                   <p className="text-xs">Contact admin to activate your leave credits</p>
                 </div>
@@ -356,41 +357,43 @@ export const StaffDashboard = () => {
         </Card>
       </div>
 
-      {/* Performance Chart */}
+      {/* Performance Chart - Scrollable on mobile */}
       <Card>
-        <CardHeader>
-          <CardTitle>Performance Analytics</CardTitle>
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="text-base md:text-lg">Performance Analytics</CardTitle>
         </CardHeader>
-        <CardContent>
-          <ChartContainer
-            config={{
-              present: { label: "Present", color: "hsl(142, 76%, 36%)" },
-              absent: { label: "Absent", color: "hsl(0, 84%, 60%)" },
-              late: { label: "Late", color: "hsl(38, 92%, 50%)" },
-              undertime: { label: "Undertime", color: "hsl(262, 83%, 58%)" },
-              overtime: { label: "Overtime", color: "hsl(199, 89%, 48%)" },
-            }}
-            className="h-[300px]"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={performanceData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Legend />
-                <Bar dataKey="present" fill="hsl(142, 76%, 36%)" />
-                <Bar dataKey="absent" fill="hsl(0, 84%, 60%)" />
-                <Bar dataKey="late" fill="hsl(38, 92%, 50%)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartContainer>
+        <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+          <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+            <ChartContainer
+              config={{
+                present: { label: "Present", color: "hsl(142, 76%, 36%)" },
+                absent: { label: "Absent", color: "hsl(0, 84%, 60%)" },
+                late: { label: "Late", color: "hsl(38, 92%, 50%)" },
+                undertime: { label: "Undertime", color: "hsl(262, 83%, 58%)" },
+                overtime: { label: "Overtime", color: "hsl(199, 89%, 48%)" },
+              }}
+              className="h-[250px] md:h-[300px] min-w-[500px] md:min-w-0"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={performanceData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
+                  <Bar dataKey="present" fill="hsl(142, 76%, 36%)" />
+                  <Bar dataKey="absent" fill="hsl(0, 84%, 60%)" />
+                  <Bar dataKey="late" fill="hsl(38, 92%, 50%)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </div>
 
           {/* AI Trend Analysis */}
           {performanceTrend && (
             <Alert className="mt-4">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{performanceTrend}</AlertDescription>
+              <AlertDescription className="text-sm">{performanceTrend}</AlertDescription>
             </Alert>
           )}
         </CardContent>

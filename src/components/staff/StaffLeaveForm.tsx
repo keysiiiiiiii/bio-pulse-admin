@@ -265,32 +265,32 @@ export const StaffLeaveForm = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h2 className="text-3xl font-bold text-foreground">Leave Form</h2>
-        <p className="text-muted-foreground">Submit your leave request</p>
+        <h2 className="text-2xl md:text-3xl font-bold text-foreground">Leave Form</h2>
+        <p className="text-sm md:text-base text-muted-foreground">Submit your leave request</p>
       </div>
 
       <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>Request Leave</span>
+      <CardHeader className="p-4 md:p-6">
+        <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <span className="text-base md:text-lg">Request Leave</span>
           {loadingCredits ? (
             <span className="text-sm text-muted-foreground">Loading credits...</span>
           ) : (
             <span className="text-sm font-semibold text-primary">
-              Available Leave Credits: {leaveCredits?.toFixed(2) || "0.00"} days
+              Available: {leaveCredits?.toFixed(2) || "0.00"} days
             </span>
           )}
         </CardTitle>
       </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2">
+        <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+          <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Leave Type</Label>
+                <Label className="text-sm">Leave Type</Label>
                 <Select value={leaveType} onValueChange={setLeaveType}>
-                  <SelectTrigger>
+                  <SelectTrigger className="min-h-[44px]">
                     <SelectValue placeholder="Select leave type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -312,13 +312,13 @@ export const StaffLeaveForm = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Number of Days</Label>
+                <Label className="text-sm">Number of Days</Label>
                 <Input
                   type="text"
                   value={startDate && endDate ? differenceInDays(endDate, startDate) + 1 : ''}
                   placeholder="Select dates to calculate"
                   readOnly
-                  className="bg-muted"
+                  className="bg-muted min-h-[44px]"
                 />
                 <p className="text-xs text-muted-foreground">
                   Automatically calculated based on date range
@@ -326,45 +326,46 @@ export const StaffLeaveForm = () => {
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Start Date</Label>
+                <Label className="text-sm">Start Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <Button variant="outline" className="w-full justify-start text-left font-normal min-h-[44px]">
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={startDate} onSelect={setStartDate} />
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={startDate} onSelect={setStartDate} className="pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
               </div>
 
               <div className="space-y-2">
-                <Label>End Date</Label>
+                <Label className="text-sm">End Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <Button variant="outline" className="w-full justify-start text-left font-normal min-h-[44px]">
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {endDate ? format(endDate, "PPP") : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={endDate} onSelect={setEndDate} />
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={endDate} onSelect={setEndDate} className="pointer-events-auto" />
                   </PopoverContent>
                 </Popover>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Reason</Label>
+              <Label className="text-sm">Reason</Label>
               <Textarea
                 placeholder="Provide the reason for your leave request"
                 rows={4}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
+                className="min-h-[100px] text-base"
               />
             </div>
 

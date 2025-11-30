@@ -252,20 +252,20 @@ const formatActivityMessage = (action: string, details: any) => {
     }
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">Notifications</h2>
-          <p className="text-muted-foreground">Stay updated with your leave requests and attendance</p>
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground">Notifications</h2>
+          <p className="text-sm md:text-base text-muted-foreground">Stay updated with your leave requests and attendance</p>
         </div>
 
         {/* Filter Section */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">Filter:</span>
           </div>
           <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px] min-h-[44px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -278,7 +278,7 @@ const formatActivityMessage = (action: string, details: any) => {
           </Select>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3 md:space-y-4">
           {filteredActivities.length === 0 ? (
             <Card>
               <CardContent className="flex items-center justify-center py-12">
@@ -300,16 +300,16 @@ const formatActivityMessage = (action: string, details: any) => {
 
               return (
                 <Card key={activity.id} className="overflow-hidden">
-                  <CardContent className="flex items-start gap-4 p-6">
-                    <div className={`rounded-full p-3 ${bgColor}`}>
-                      <Icon className={`h-5 w-5 ${iconColor}`} />
+                  <CardContent className="flex items-start gap-3 md:gap-4 p-4 md:p-6">
+                    <div className={`rounded-full p-2 md:p-3 ${bgColor} flex-shrink-0`}>
+                      <Icon className={`h-4 w-4 md:h-5 md:w-5 ${iconColor}`} />
                     </div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold">{title}</h3>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                        <h3 className="font-semibold text-sm md:text-base">{title}</h3>
                         <span className="text-xs text-muted-foreground">{time}</span>
                       </div>
-                      <p className="text-sm text-muted-foreground">{message}</p>
+                      <p className="text-xs md:text-sm text-muted-foreground break-words">{message}</p>
                     </div>
                   </CardContent>
                 </Card>

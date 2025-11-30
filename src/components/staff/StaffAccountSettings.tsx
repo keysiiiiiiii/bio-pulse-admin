@@ -142,22 +142,22 @@ export const StaffAccountSettings = () => {
     .toUpperCase() || "SM";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h2 className="text-3xl font-bold text-foreground">Account Settings</h2>
-        <p className="text-muted-foreground">Manage your profile and account preferences</p>
+        <h2 className="text-2xl md:text-3xl font-bold text-foreground">Account Settings</h2>
+        <p className="text-sm md:text-base text-muted-foreground">Manage your profile and account preferences</p>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Profile Information</CardTitle>
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="text-base md:text-lg">Profile Information</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center gap-6">
+        <CardContent className="space-y-6 p-4 pt-0 md:p-6 md:pt-0">
+          <div className="flex flex-col sm:flex-row items-center gap-4 md:gap-6">
             <div className="relative">
-              <Avatar className="h-32 w-32 border-2 border-primary">
+              <Avatar className="h-24 w-24 md:h-32 md:w-32 border-2 border-primary">
                 <AvatarImage src={avatarPreview} alt={user?.name} />
-                <AvatarFallback className="text-3xl bg-primary text-primary-foreground">
+                <AvatarFallback className="text-2xl md:text-3xl bg-primary text-primary-foreground">
                   {initials}
                 </AvatarFallback>
               </Avatar>
@@ -181,94 +181,99 @@ export const StaffAccountSettings = () => {
                 onChange={handleAvatarChange}
               />
             </div>
-            <div>
+            <div className="text-center sm:text-left">
               <h3 className="font-semibold">Profile Picture</h3>
               <p className="text-sm text-muted-foreground">Upload a new photo to update your profile</p>
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>Full Name</Label>
-              <Input value={user?.name || ""} disabled />
+              <Label className="text-sm">Full Name</Label>
+              <Input value={user?.name || ""} disabled className="min-h-[44px]" />
             </div>
 
             <div className="space-y-2">
-              <Label>Staff ID</Label>
-              <Input value={user?.staff_id || ""} disabled />
+              <Label className="text-sm">Staff ID</Label>
+              <Input value={user?.staff_id || ""} disabled className="min-h-[44px]" />
             </div>
 
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label className="text-sm">Email</Label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="min-h-[44px]"
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Contact Number</Label>
+              <Label className="text-sm">Contact Number</Label>
               <Input
                 type="tel"
                 value={contactNumber}
                 onChange={(e) => setContactNumber(e.target.value)}
+                className="min-h-[44px]"
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Department</Label>
-              <Input value={user?.department || ""} disabled />
+              <Label className="text-sm">Department</Label>
+              <Input value={user?.department || ""} disabled className="min-h-[44px]" />
             </div>
 
             <div className="space-y-2">
-              <Label>Role</Label>
-              <Input value={user?.role || ""} disabled />
+              <Label className="text-sm">Role</Label>
+              <Input value={user?.role || ""} disabled className="min-h-[44px]" />
             </div>
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Change Password</CardTitle>
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="text-base md:text-lg">Change Password</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 p-4 pt-0 md:p-6 md:pt-0">
           <div className="space-y-2">
-            <Label>Current Password</Label>
+            <Label className="text-sm">Current Password</Label>
             <Input
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
+              className="min-h-[44px]"
             />
           </div>
 
           <div className="space-y-2">
-            <Label>New Password</Label>
+            <Label className="text-sm">New Password</Label>
             <Input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              className="min-h-[44px]"
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Confirm New Password</Label>
+            <Label className="text-sm">Confirm New Password</Label>
             <Input
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              className="min-h-[44px]"
             />
           </div>
 
-          <Button onClick={handlePasswordChange} disabled={loading}>
+          <Button onClick={handlePasswordChange} disabled={loading} className="w-full sm:w-auto min-h-[44px]">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Change Password"}
           </Button>
         </CardContent>
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={loading}>
+        <Button onClick={handleSave} disabled={loading} className="w-full sm:w-auto min-h-[44px]">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
         </Button>
       </div>

@@ -149,18 +149,18 @@ export const StaffDTR = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground">
             Daily Time Record
           </h2>
-          <p className="text-muted-foreground">
+          <p className="text-sm md:text-base text-muted-foreground">
             View and download your attendance records
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handleRefresh} variant="outline">
+          <Button onClick={handleRefresh} variant="outline" className="min-h-[44px]">
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -168,12 +168,12 @@ export const StaffDTR = () => {
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Month:</label>
+        <CardHeader className="p-4 md:p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <label className="text-sm font-medium whitespace-nowrap">Month:</label>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[150px]">
+                <SelectTrigger className="w-full sm:w-[150px] min-h-[44px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -198,10 +198,10 @@ export const StaffDTR = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Year:</label>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <label className="text-sm font-medium whitespace-nowrap">Year:</label>
               <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="w-[120px]">
+                <SelectTrigger className="w-full sm:w-[120px] min-h-[44px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -215,41 +215,41 @@ export const StaffDTR = () => {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
+        <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Day</TableHead>
-                  <TableHead>A.M. Arrival</TableHead>
-                  <TableHead>P.M. Departure</TableHead>
-                  <TableHead>Tardiness</TableHead>
-                  <TableHead>Work Time</TableHead>
+                  <TableHead className="sticky left-0 bg-background z-10 min-w-[60px]">Day</TableHead>
+                  <TableHead className="min-w-[100px]">A.M. Arrival</TableHead>
+                  <TableHead className="min-w-[100px]">P.M. Departure</TableHead>
+                  <TableHead className="min-w-[80px]">Tardiness</TableHead>
+                  <TableHead className="min-w-[80px]">Work Time</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">
+                    <TableCell colSpan={5} className="text-center py-8">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : dtrData.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">
+                    <TableCell colSpan={5} className="text-center py-8">
                       No records found
                     </TableCell>
                   </TableRow>
                 ) : (
                   dtrData.map((record, idx) => (
                     <TableRow key={idx}>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium sticky left-0 bg-background">
                         {record.date}
                       </TableCell>
-                      <TableCell>{record.time_in || "-"}</TableCell>
-                      <TableCell>{record.time_out || "-"}</TableCell>
-                      <TableCell>{record.tardiness}</TableCell>
-                      <TableCell>{record.undertime}</TableCell>
+                      <TableCell className="text-sm">{record.time_in || "-"}</TableCell>
+                      <TableCell className="text-sm">{record.time_out || "-"}</TableCell>
+                      <TableCell className="text-sm">{record.tardiness}</TableCell>
+                      <TableCell className="text-sm">{record.undertime}</TableCell>
                     </TableRow>
                   ))
                 )}
