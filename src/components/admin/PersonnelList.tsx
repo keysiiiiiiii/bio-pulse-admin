@@ -13,6 +13,7 @@ import { Search, UserCog, PlusCircle } from "lucide-react";
 import { PersonnelDetails } from "./PersonnelDetails";
 import { staffApi } from "@/services/api/staffApi";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Personnel {
   id: string;
@@ -25,6 +26,7 @@ interface Personnel {
   photo_url?: string;
   employee_type: string;
   contact_number?: string;
+  status?: string;
 }
 
 const COLLEGES = [
@@ -57,6 +59,7 @@ export function PersonnelList() {
   const [filterYearHired, setFilterYearHired] = useState("all");
   const [filterAgencyNumber, setFilterAgencyNumber] = useState("all");
   const [filterScheduleStatus, setFilterScheduleStatus] = useState("all"); // "all", "scheduled", "unscheduled"
+  const [filterAccountStatus, setFilterAccountStatus] = useState<"active" | "inactive">("active");
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,25 +68,25 @@ export function PersonnelList() {
   const [adminPassword, setAdminPassword] = useState("");
   const [unscheduledUsers, setUnscheduledUsers] = useState<Set<string>>(new Set());
   const { toast } = useToast();
-
+ 
   const fetchPersonnel = async () => {
     try {
       setLoading(true);
-
+ 
       // Try the /users endpoint first (for Admin/ICTO)
       let staffData;
       try {
-        staffData = await staffApi.getAll();
+        staffData = await staffApi.getAll(filterAccountStatus);
       } catch (error) {
         // Fallback to /staff endpoint if /users fails
         console.log('Falling back to /staff endpoint');
-        staffData = await staffApi.getAllStaff();
+        staffData = await staffApi.getAllStaff(filterAccountStatus);
       }
-
+ 
       if (!Array.isArray(staffData)) {
         throw new Error('Invalid data format received from API');
       }
-
+ 
       // Transform the data to match our Personnel interface
       const transformedData = staffData
         .map((staff) => {
@@ -99,6 +102,7 @@ export function PersonnelList() {
             photo_url: staff.photo_url || staff.avatar_url || "",
             employee_type: staff.employee_type || staff.role,
             contact_number: staff.contact_no || staff.contact_number || "",
+            status: staff.status || "active",
           };
           })
         .sort((a, b) => {
@@ -109,9 +113,9 @@ export function PersonnelList() {
           };
           return getLastFour(a.staff_id) - getLastFour(b.staff_id);
         });
-
+ 
       setPersonnel(transformedData);
-
+ 
       // Fetch unscheduled users
       try {
         const { scheduleApi } = await import('@/services/api');
@@ -121,11 +125,11 @@ export function PersonnelList() {
       } catch (error) {
         console.error('Failed to fetch unscheduled users:', error);
       }
-
+ 
       if (transformedData.length === 0) {
         toast({
           title: "No personnel found",
-          description: "The system has no registered personnel yet.",
+          description: `No ${filterAccountStatus} personnel found.`,
         });
       }
     } catch (error) {
@@ -141,10 +145,10 @@ export function PersonnelList() {
       setLoading(false);
     }
   };
-
+ 
   useEffect(() => {
     fetchPersonnel();
-  }, [toast]);
+  }, [toast, filterAccountStatus]);
 
   const getYearFromStaffId = (staffId: string) => {
     const parts = staffId.split('-');
@@ -258,6 +262,13 @@ export function PersonnelList() {
         <h1 className="text-3xl font-bold text-foreground">Personnel List</h1>
         <p className="text-muted-foreground">Manage system users and their information</p>
       </div>
+
+      <Tabs defaultValue="active" value={filterAccountStatus} onValueChange={(val) => setFilterAccountStatus(val as "active" | "inactive")} className="w-full">
+        <TabsList className="grid w-[400px] grid-cols-2">
+          <TabsTrigger value="active">Active Accounts</TabsTrigger>
+          <TabsTrigger value="inactive">Inactive Accounts</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Filters */}
       <Card className="shadow-md">

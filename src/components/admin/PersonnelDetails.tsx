@@ -24,6 +24,7 @@ interface PersonnelDetailsProps {
     email: string;
     avatar_url?: string;
     employee_type: string;
+    status?: string;
   };
   onScheduleUpdate?: () => void;
 }
@@ -37,12 +38,22 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
   const [passwordDialog, setPasswordDialog] = useState(false);
   const [statusDialog, setStatusDialog] = useState(false);
   const [deanDialog, setDeanDialog] = useState(false);
+  const [accountStatusDialog, setAccountStatusDialog] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [tempCredits, setTempCredits] = useState(leaveCredits);
   const [schedule, setSchedule] = useState<any[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
   const [scheduleEditorOpen, setScheduleEditorOpen] = useState(false);
   const [loadingLeave, setLoadingLeave] = useState(false);
+  const [accountStatus, setAccountStatus] = useState<string>(personnel.status || 'active');
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // Sync accountStatus when personnel changes
+  useEffect(() => {
+    if (personnel.status) {
+      setAccountStatus(personnel.status);
+    }
+  }, [personnel]);
 
   // Check if user should have leave credits (Staff or Faculty only)
   const shouldShowLeaveCredits = personnel.role === 'Staff' || personnel.role === 'Faculty';
@@ -216,6 +227,36 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
     });
   };
 
+  const handleToggleAccountStatus = () => {
+    setAccountStatusDialog(true);
+  };
+
+  const confirmToggleAccountStatus = async () => {
+    setUpdatingStatus(true);
+    const newStatus = accountStatus === 'active' ? 'inactive' : 'active';
+    try {
+      await staffApi.update(personnel.staffId, { status: newStatus });
+      setAccountStatus(newStatus);
+      toast({
+        title: "Account Status Updated",
+        description: `Account has been successfully set to ${newStatus === 'active' ? 'active' : 'inactive'}.`,
+      });
+      setAccountStatusDialog(false);
+      if (onScheduleUpdate) {
+        onScheduleUpdate();
+      }
+    } catch (error: any) {
+      console.error("Failed to update account status:", error);
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update account status. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   return (
     <div className="space-y-6 py-4">
       {/* Profile Picture & Contact Information */}
@@ -257,6 +298,36 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
             <div>
               <Label className="text-muted-foreground">Email</Label>
               <p className="text-sm">{personnel.email}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Account Status Card */}
+      <Card className={`border-l-4 ${accountStatus === 'active' ? 'border-l-green-500' : 'border-l-red-500'}`}>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <h4 className="text-base font-semibold flex items-center gap-2">
+                <Shield className="h-4 w-4 text-primary" />
+                Account Status & Access
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                {accountStatus === 'active' 
+                  ? "This account is active. The employee can access all features of the system." 
+                  : "This account is inactive. Access is completely locked."
+                }
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge variant={accountStatus === 'active' ? 'default' : 'destructive'} className={accountStatus === 'active' ? 'bg-green-500 hover:bg-green-600' : ''}>
+                {accountStatus === 'active' ? 'ACTIVE' : 'INACTIVE'}
+              </Badge>
+              <Switch 
+                checked={accountStatus === 'active'} 
+                onCheckedChange={handleToggleAccountStatus}
+                disabled={updatingStatus}
+              />
             </div>
           </div>
         </CardContent>
@@ -556,6 +627,33 @@ export function PersonnelDetails({ personnel, onScheduleUpdate }: PersonnelDetai
         existingSchedule={schedule}
         onSuccess={handleScheduleSuccess}
       />
+
+      {/* Account Status Confirmation Dialog */}
+      <Dialog open={accountStatusDialog} onOpenChange={setAccountStatusDialog}>
+        <DialogContent className="bg-popover">
+          <DialogHeader>
+            <DialogTitle>Confirm Account Status Change</DialogTitle>
+            <DialogDescription>
+              {accountStatus === 'active' 
+                ? "Are you sure you want to deactivate (lock) this account? The employee will be logged out and cannot log in anymore." 
+                : "Are you sure you want to activate this account? The employee will be able to log in and use the system again."
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAccountStatusDialog(false)} disabled={updatingStatus}>
+              Cancel
+            </Button>
+            <Button 
+              variant={accountStatus === 'active' ? 'destructive' : 'default'} 
+              onClick={confirmToggleAccountStatus}
+              disabled={updatingStatus}
+            >
+              {updatingStatus ? "Updating..." : (accountStatus === 'active' ? "Deactivate Account" : "Activate Account")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

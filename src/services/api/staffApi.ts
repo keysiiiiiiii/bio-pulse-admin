@@ -59,8 +59,9 @@ export const staffApi = {
   },
 
   // Get all users (Admin/ICTO only)
-  getAll: async () => {
-    const response = await fetch(`${API_BASE}/users`, {
+  getAll: async (status?: string) => {
+    const queryParams = status ? `?status=${status}` : "";
+    const response = await fetch(`${API_BASE}/users${queryParams}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -73,8 +74,9 @@ export const staffApi = {
   },
 
   // Get all staff (backward compatibility)
-  getAllStaff: async () => {
-    const response = await fetch(`${API_BASE}/staff`, {
+  getAllStaff: async (status?: string) => {
+    const queryParams = status ? `?status=${status}` : "";
+    const response = await fetch(`${API_BASE}/staff${queryParams}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });

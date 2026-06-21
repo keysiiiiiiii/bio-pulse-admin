@@ -178,6 +178,10 @@ router.post('/auth/login', async (req, res) => {
 
   if (error) return res.status(500).json({ message: 'Database error' });
 
+  if (u && u.status === 'inactive') {
+    return res.status(403).json({ message: 'Account is locked or inactive. Please contact the administrator.' });
+  }
+
   const hashed = u?.password || '';
   let ok = false;
   try { ok = await bcrypt.compare(password, hashed); } catch { /* noop */ }
@@ -202,7 +206,8 @@ router.post('/auth/login', async (req, res) => {
     email: u.email,
     role: u.role || u.employee_type || 'Staff',
     department: u.department || null,
-    photo_url: u.photo_url || null
+    photo_url: u.photo_url || null,
+    status: u.status || 'active'
   };
 
   const token = signUser(user);
@@ -214,7 +219,7 @@ router.get('/auth/me', verifyToken, async (req, res) => {
   const { data: u, error } = await db
     .from('staff_users')
     // ✅ ADD 'id' to the SELECT list
-    .select('id, staff_id, name, role, email, employee_type, department, contact_number, photo_url')
+    .select('id, staff_id, name, role, email, employee_type, department, contact_number, photo_url, status')
     .eq('staff_id', req.user.sid)
     .maybeSingle();
 
@@ -232,7 +237,8 @@ router.get('/auth/me', verifyToken, async (req, res) => {
     department: u.department || null,
     contact_number: u.contact_number || null,
     phone: u.contact_number || null,
-    photo_url: u.photo_url || null
+    photo_url: u.photo_url || null,
+    status: u.status || 'active'
   });
 });
 
@@ -258,6 +264,10 @@ router.post('/auth/admin/login', async (req, res) => {
   if (!u || !['Admin', 'Vice President', 'ICTO'].includes(u.role))
     return res.status(403).json({ message: 'Forbidden (not an admin account)' });
 
+  if (u && u.status === 'inactive') {
+    return res.status(403).json({ message: 'Account is locked or inactive. Please contact the administrator.' });
+  }
+
   const ok = await bcrypt.compare(password, u.password || '');
   if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
 
@@ -269,7 +279,8 @@ router.post('/auth/admin/login', async (req, res) => {
       name: u.name,
       email: u.email,
       role: u.role,
-      department: u.department
+      department: u.department,
+      status: u.status || 'active'
     }
   });
 });
@@ -279,13 +290,16 @@ router.get('/auth/admin/me', verifyToken, requireRole('Admin', 'Vice President',
   const { sid } = req.user;
   const { data, error } = await db
     .from('staff_users')
-    .select('staff_id, name, email, role, department')
+    .select('staff_id, name, email, role, department, status')
     .eq('staff_id', sid)
     .maybeSingle();
 
   if (error) return res.status(500).json({ message: 'Database error' });
   if (!data) return res.status(404).json({ message: 'Admin not found' });
-  return res.json(data);
+  return res.json({
+    ...data,
+    status: data.status || 'active'
+  });
 });
 
 
@@ -295,10 +309,37 @@ router.get('/auth/admin/me', verifyToken, requireRole('Admin', 'Vice President',
 
 // GET /staff (alias for backward compatibility)
 router.get('/staff', async (req, res) => {
-  const { data, error } = await db
+  const statusParam = req.query.status || 'active';
+  let query = db
     .from('staff_users')
-    .select('id, staff_id, name, email, department, employee_type, role, contact_number, photo_url, created_at')
+    .select('id, staff_id, name, email, department, employee_type, role, contact_number, photo_url, created_at, status')
     .order('staff_id', { ascending: true });
+
+  if (statusParam === 'active') {
+    query = query.eq('status', 'active');
+  } else if (statusParam === 'inactive') {
+    query = query.eq('status', 'inactive');
+  }
+
+  let { data, error } = await query;
+
+  // Fallback if status column does not exist yet in database
+  if (error && (error.message.includes('column') || error.message.includes('status') || error.code === 'PGRST204')) {
+    console.warn('⚠️ status column missing in staff_users table. Falling back to in-memory filtering for /staff.');
+    const fallbackQuery = db
+      .from('staff_users')
+      .select('id, staff_id, name, email, department, employee_type, role, contact_number, photo_url, created_at')
+      .order('staff_id', { ascending: true });
+      
+    const resFallback = await fallbackQuery;
+    if (!resFallback.error) {
+      data = resFallback.data.map(u => ({ ...u, status: 'active' }));
+      if (statusParam === 'inactive') {
+        data = []; // No inactive accounts exist if column is missing
+      }
+      error = null;
+    }
+  }
 
   if (error) return res.status(500).json({ error: 'Database error' });
 
@@ -312,7 +353,8 @@ router.get('/staff', async (req, res) => {
     role: r.role,
     contact_no: r.contact_number,
     avatar_url: r.photo_url,
-    created_at: r.created_at
+    created_at: r.created_at,
+    status: r.status || 'active'
   }));
   return res.json(shaped);
 });
@@ -321,17 +363,45 @@ router.get('/staff', async (req, res) => {
 router.get('/users',
   verifyToken, requireRole('Admin', 'Vice President', 'ICTO'),
   async (req, res) => {
-    const { data, error } = await db
+    const statusParam = req.query.status || 'active';
+    let query = db
       .from('staff_users')
       // ✅ ADD 'id' to the SELECT list
-      .select('id, staff_id, name, employee_type, department, role, email, contact_number, photo_url, created_at')
+      .select('id, staff_id, name, employee_type, department, role, email, contact_number, photo_url, created_at, status')
       .order('staff_id', { ascending: true });
+
+    if (statusParam === 'active') {
+      query = query.eq('status', 'active');
+    } else if (statusParam === 'inactive') {
+      query = query.eq('status', 'inactive');
+    }
+
+    let { data, error } = await query;
+
+    // Fallback if status column does not exist yet in database
+    if (error && (error.message.includes('column') || error.message.includes('status') || error.code === 'PGRST204')) {
+      console.warn('⚠️ status column missing in staff_users table. Falling back to in-memory filtering for /users.');
+      const fallbackQuery = db
+        .from('staff_users')
+        .select('id, staff_id, name, employee_type, department, role, email, contact_number, photo_url, created_at')
+        .order('staff_id', { ascending: true });
+        
+      const resFallback = await fallbackQuery;
+      if (!resFallback.error) {
+        data = resFallback.data.map(u => ({ ...u, status: 'active' }));
+        if (statusParam === 'inactive') {
+          data = []; // No inactive accounts exist if column is missing
+        }
+        error = null;
+      }
+    }
 
     if (error) return res.status(500).json({ error: 'Database error' });
 
     const shaped = (data || []).map(r => ({
       ...r,
-      phone: r.contact_number ?? null
+      phone: r.contact_number ?? null,
+      status: r.status || 'active'
     }));
     return res.json(shaped);
   }
@@ -514,7 +584,7 @@ router.get('/users/:staff_id',
     const id = req.params.staff_id;
     const { data: r, error } = await db
       .from('staff_users')
-      .select('staff_id, name, employee_type, department, role, email, photo_url, contact_number')
+      .select('staff_id, name, employee_type, department, role, email, photo_url, contact_number, status')
       .eq('staff_id', id)
       .maybeSingle();
 
@@ -528,6 +598,7 @@ router.get('/users/:staff_id',
       contact_number: r.contact_number ?? null,
       phone: r.contact_number ?? null,
       photo_url: r.photo_url,
+      status: r.status || 'active',
     });
   }
 );
@@ -575,6 +646,11 @@ router.patch(
       if (req.body?.contact_number !== undefined) update.contact_number = String(req.body.contact_number || '').trim();
       if (req.body?.password) update.password = await bcrypt.hash(String(req.body.password), 10);
       if (req.file) update.photo_url = `/uploads/avatars/${req.file.filename}`;
+      
+      // Only admin/ICTO can update account status
+      if (req.body?.status !== undefined && isElevated) {
+        update.status = String(req.body.status || 'active').trim();
+      }
 
       if (!Object.keys(update).length) return res.status(400).json({ message: 'Nothing to update' });
 
@@ -585,6 +661,18 @@ router.patch(
         .select('staff_id');
 
       if (error) return res.status(500).json({ message: 'Database error' });
+
+      // If status was part of the update, log it
+      if (req.body?.status !== undefined && isElevated) {
+        try {
+          await logActivity({
+            staff_id: targetId,
+            action: update.status === 'inactive' ? 'deactivate_account' : 'activate_account',
+            details: { reason: 'Admin/ICTO toggle status', new_status: update.status },
+            actor: req.user || {}
+          });
+        } catch (e) { /* non-fatal */ }
+      }
 
       // If password was part of the update, log it.
       // Distinguish reset vs general change (simple heuristic).
