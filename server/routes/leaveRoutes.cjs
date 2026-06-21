@@ -69,6 +69,47 @@ function sanitizeFilename(name) {
   return String(name).replace(/[^\w.-]+/g, '_');
 }
 
+function parseFullName(fullName) {
+  if (!fullName) return { first: '', middle: '', last: '' };
+  
+  const cleanName = fullName.trim().replace(/\s+/g, ' ');
+  const parts = cleanName.split(' ');
+  
+  if (parts.length === 1) {
+    return { first: parts[0], middle: '', last: '' };
+  }
+  
+  if (parts.length === 2) {
+    return { first: parts[0], middle: '', last: parts[1] };
+  }
+  
+  // Check if middle part is an initial (e.g. "V.", "V")
+  // Or look at the second to last part
+  // Common Philippine format: [First Names] [Middle Initial] [Last Name]
+  // e.g. "John Kenneth V. Santos" -> first: "John Kenneth", middle: "V.", last: "Santos"
+  // Let's identify if any part in the middle is a single letter (optional period)
+  let middleIndex = -1;
+  for (let i = 1; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (/^[A-Za-z]\.?$/.test(part)) {
+      middleIndex = i;
+      break;
+    }
+  }
+  
+  if (middleIndex !== -1) {
+    const first = parts.slice(0, middleIndex).join(' ');
+    const middle = parts[middleIndex];
+    const last = parts.slice(middleIndex + 1).join(' ');
+    return { first, middle, last };
+  }
+  
+  // Fallback: assume the last word is the last name, and everything else is the first name.
+  const last = parts[parts.length - 1];
+  const first = parts.slice(0, parts.length - 1).join(' ');
+  return { first, middle: '', last };
+}
+
 async function uploadToBucket(bucket, localFilePath, destPath, contentType) {
   const fileBuffer = fs.readFileSync(localFilePath);
   const { data, error } = await supa.storage.from(bucket).upload(destPath, fileBuffer, {
@@ -320,6 +361,25 @@ router.post('/api/leaves/with-file', optionalAuth, upload.single('file'), async 
         if (!middle_name) middle_name = found.middle_name;
         if (!last_name) last_name = found.last_name;
       }
+    }
+
+    // Fallback name query: If we have staff_user_id but first_name/last_name are missing from body
+    if (staff_user_id && (!first_name || !last_name)) {
+      const { data: found } = await db.from('staff_users').select('name, first_name, middle_name, last_name').eq('id', staff_user_id).maybeSingle();
+      if (found) {
+        if (!staff_name) staff_name = found.name;
+        if (!first_name) first_name = found.first_name;
+        if (!middle_name) middle_name = found.middle_name;
+        if (!last_name) last_name = found.last_name;
+      }
+    }
+
+    // Smart Fallback Parser: If name fields are still missing, parse staff_name
+    if ((!first_name || !last_name) && staff_name) {
+      const parsed = parseFullName(staff_name);
+      if (!first_name) first_name = parsed.first;
+      if (!middle_name) middle_name = parsed.middle;
+      if (!last_name) last_name = parsed.last;
     }
 
     console.log('Resolved staff_user_id →', staff_user_id);
